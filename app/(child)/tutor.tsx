@@ -14,6 +14,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { useFamily } from '@/lib/store';
 import { askTutor } from '@/lib/tutor';
 import type { TutorMessage } from '@/lib/types';
@@ -26,11 +27,15 @@ export default function TutorScreen() {
   const { state } = useFamily();
   const child = state.child;
   const band = child ? getAgeBand(child.age) : '8-10';
+  const aiMode = isSupabaseConfigured
+    ? 'Estoy conectado a OpenAI Vision.'
+    : 'Ahora mismo estoy en modo local (sin OpenAI). Pide a un adulto configurar Supabase + OPENAI_API_KEY.';
+
   const [messages, setMessages] = useState<TutorMessage[]>([
     {
       id: 'welcome',
       role: 'tutor',
-      text: `¡Hola ${child?.name ?? ''}! Soy tu tutor. Toma foto de tu tarea o escríbeme el problema. Te guío paso a paso.`,
+      text: `¡Hola ${child?.name ?? ''}! Soy tu tutor. Toma foto de tu tarea o escríbeme el problema. Te guío paso a paso.\n\n${aiMode}`,
     },
   ]);
   const [input, setInput] = useState('');

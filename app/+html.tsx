@@ -38,7 +38,7 @@ html, body, #root {
 }
 body {
   margin: 0;
-  background-color: #0F2A3A;
+  background-color: #F7FBFD;
   font-family: system-ui, -apple-system, sans-serif;
 }
 `;
