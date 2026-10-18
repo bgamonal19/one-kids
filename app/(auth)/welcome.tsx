@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
 
 import { BrandMark } from '@/components/BrandMark';
 import { HeroArt } from '@/components/HeroArt';
@@ -36,7 +35,7 @@ export default function WelcomeScreen() {
         </View>
       </View>
 
-      <Animated.View entering={FadeInUp.delay(200).duration(500)} style={styles.actions}>
+      <View style={styles.actions}>
         <Text style={styles.role}>Demo lista para lanzar</Text>
         <PrimaryButton
           label={loading ? 'Cargando…' : 'Probar demo ahora'}
@@ -54,7 +53,7 @@ export default function WelcomeScreen() {
           onPress={() => router.push('/(auth)/login')}
         />
         <Text style={styles.hint}>En la demo el PIN parental es 1234</Text>
-      </Animated.View>
+      </View>
     </Screen>
   );
 }

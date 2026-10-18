@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 import { BrandMark } from '@/components/BrandMark';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -16,14 +15,17 @@ export default function ChildHome() {
 
   return (
     <Screen scroll>
-      <Animated.View entering={FadeInDown.duration(450)}>
-        <BrandMark size="hero" subtitle={child ? `Hola ${child.name}, ¿listo para aprender?` : undefined} />
-      </Animated.View>
+      <BrandMark
+        size="hero"
+        subtitle={child ? `Hola ${child.name}, ¿listo para aprender?` : undefined}
+      />
 
-      <Animated.View entering={FadeInUp.delay(150).duration(450)} style={styles.meta}>
-        <Text style={styles.metaText}>Edad {child?.age} · banda {band}</Text>
+      <View style={styles.meta}>
+        <Text style={styles.metaText}>
+          Edad {child?.age} · banda {band}
+        </Text>
         <Text style={styles.stars}>{child?.stars ?? 0} ★</Text>
-      </Animated.View>
+      </View>
 
       {state.focusActive ? (
         <View style={styles.focusBanner}>

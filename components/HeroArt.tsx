@@ -1,19 +1,18 @@
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
 import { colors } from '@/constants/theme';
 
 /** Ancla visual del hero: atmósfera de aprendizaje, sin cards. */
 export function HeroArt() {
   return (
-    <Animated.View entering={FadeIn.duration(700)} style={styles.wrap} pointerEvents="none">
+    <View style={styles.wrap} pointerEvents="none">
       <View style={styles.sky} />
-      <Animated.View entering={ZoomIn.delay(120).duration(500)} style={styles.sun} />
+      <View style={styles.sun} />
       <View style={[styles.blob, styles.blobLeft]} />
       <View style={[styles.blob, styles.blobRight]} />
       <View style={styles.hill} />
       <View style={styles.hillFront} />
-    </Animated.View>
+    </View>
   );
 }
 

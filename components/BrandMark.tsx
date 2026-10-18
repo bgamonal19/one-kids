@@ -1,5 +1,4 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { colors, fonts } from '@/constants/theme';
 
@@ -11,11 +10,11 @@ type Props = {
 export function BrandMark({ size = 'hero', subtitle }: Props) {
   const hero = size === 'hero';
   return (
-    <Animated.View entering={FadeInDown.duration(500)} style={styles.wrap}>
+    <View style={styles.wrap}>
       <Text style={[styles.brand, hero ? styles.brandHero : styles.brandNav]}>ONE KIDS</Text>
       {subtitle ? <Text style={[styles.sub, hero && styles.subHero]}>{subtitle}</Text> : null}
       {hero ? <View style={styles.underline} /> : null}
-    </Animated.View>
+    </View>
   );
 }
 

@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInRight } from 'react-native-reanimated';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
@@ -32,16 +31,15 @@ export default function WorldsIndex() {
       <Text style={styles.title}>Mundos</Text>
       <Text style={styles.hint}>Aprende jugando. Gana estrellas en cada ronda.</Text>
       <View style={styles.list}>
-        {worlds.map((w, i) => (
-          <Animated.View key={w.id} entering={FadeInRight.delay(i * 80).duration(400)}>
-            <Pressable
-              onPress={() => router.push(`/(child)/worlds/${w.id}`)}
-              style={[styles.world, { backgroundColor: w.color }]}
-            >
-              <Text style={styles.worldTitle}>{w.title}</Text>
-              <Text style={styles.worldSub}>{w.subtitle}</Text>
-            </Pressable>
-          </Animated.View>
+        {worlds.map((w) => (
+          <Pressable
+            key={w.id}
+            onPress={() => router.push(`/(child)/worlds/${w.id}`)}
+            style={[styles.world, { backgroundColor: w.color }]}
+          >
+            <Text style={styles.worldTitle}>{w.title}</Text>
+            <Text style={styles.worldSub}>{w.subtitle}</Text>
+          </Pressable>
         ))}
       </View>
     </Screen>
