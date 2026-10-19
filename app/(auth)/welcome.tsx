@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { BrandMark } from '@/components/BrandMark';
-import { HeroArt } from '@/components/HeroArt';
+import { KikoMascot } from '@/components/KikoMascot';
+import { PlaygroundBg } from '@/components/PlaygroundBg';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { Screen } from '@/components/Screen';
+import { SpeechBubble } from '@/components/SpeechBubble';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useFamily } from '@/lib/store';
@@ -27,28 +28,27 @@ export default function WelcomeScreen() {
   };
 
   const aiLabel = isSupabaseConfigured
-    ? 'Tutor conectado a OpenAI (Vision) vía Supabase'
-    : 'Tutor en modo local (sin API). Conecta OpenAI + Supabase para IA real';
+    ? 'Tutor con OpenAI Vision listo'
+    : 'Demo con tutor local · OpenAI se conecta después';
 
   return (
-    <Screen wide scroll style={styles.screen}>
-      <View style={[styles.grid, desktop && styles.gridDesktop]}>
-        <View style={[styles.heroPlane, desktop && styles.heroDesktop]}>
-          <HeroArt />
-          <View style={styles.heroCopy}>
-            <BrandMark
-              size="hero"
-              subtitle="Plataforma web para aprender con tutor IA, juegos y control parental."
-            />
+    <View style={styles.root}>
+      <PlaygroundBg />
+      <View style={[styles.inner, desktop && styles.innerDesktop]}>
+        <View style={[styles.hero, desktop && styles.heroDesktop]}>
+          <BrandMark size="hero" subtitle="Aprende jugando con Kiko, tu guía." />
+          <View style={styles.mascotRow}>
+            <KikoMascot mood="wave" size={desktop ? 180 : 140} />
+            <SpeechBubble text="¡Hola! Soy Kiko. Toca el botón naranja y empezamos la aventura." />
           </View>
         </View>
 
         <View style={[styles.panel, desktop && styles.panelDesktop]}>
-          <Text style={styles.role}>Demo web · ONE KIDS</Text>
+          <Text style={styles.role}>¿Listos para aprender?</Text>
           <Text style={styles.aiNote}>{aiLabel}</Text>
 
           <PrimaryButton
-            label={loading ? 'Cargando…' : 'Probar demo ahora'}
+            label={loading ? 'Entrando…' : '¡Empezar a jugar!'}
             onPress={startDemo}
             disabled={loading}
           />
@@ -62,69 +62,62 @@ export default function WelcomeScreen() {
             variant="ghost"
             onPress={() => router.push('/(auth)/login')}
           />
-          <Text style={styles.hint}>PIN de padres en la demo: 1234</Text>
+          <Text style={styles.hint}>PIN de padres: 1234</Text>
         </View>
       </View>
-    </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flexGrow: 1 },
-  grid: {
-    flexGrow: 1,
-    gap: spacing.xl,
-  },
-  gridDesktop: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    minHeight: 560,
-    gap: 48,
-  },
-  heroPlane: {
+  root: { flex: 1, backgroundColor: '#BFEFFF' },
+  inner: {
     flex: 1,
-    minHeight: 300,
-    position: 'relative',
-    justifyContent: 'flex-end',
-    borderRadius: radii.lg,
-    overflow: 'hidden',
-  },
-  heroDesktop: {
-    minHeight: 520,
-    flex: 1.2,
-  },
-  heroCopy: {
-    zIndex: 2,
     padding: spacing.lg,
-    paddingBottom: spacing.xl,
+    justifyContent: 'space-between',
+    zIndex: 2,
+    maxWidth: 1100,
+    width: '100%',
+    alignSelf: 'center',
   },
-  panel: {
+  innerDesktop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 40,
+  },
+  hero: { flex: 1, gap: spacing.lg, justifyContent: 'center' },
+  heroDesktop: { flex: 1.2 },
+  mascotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 12,
-    justifyContent: 'center',
+    marginTop: spacing.md,
   },
+  panel: { gap: 12 },
   panelDesktop: {
     flex: 0.85,
-    maxWidth: 420,
-    alignSelf: 'center',
+    maxWidth: 400,
     backgroundColor: colors.white,
     borderRadius: radii.lg,
     padding: spacing.xl,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   role: {
     fontFamily: fonts.displayBold,
     color: colors.ink,
     fontSize: 28,
-    marginBottom: 4,
   },
   aiNote: {
     fontFamily: fonts.body,
     color: colors.inkMuted,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: spacing.md,
+    marginBottom: 8,
   },
   hint: {
-    marginTop: 8,
+    marginTop: 4,
     fontFamily: fonts.body,
     color: colors.inkMuted,
     fontSize: 13,

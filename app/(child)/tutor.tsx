@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { KikoMascot } from '@/components/KikoMascot';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { getAgeBand } from '@/lib/ages';
@@ -104,8 +105,13 @@ export default function TutorScreen() {
 
   return (
     <Screen style={{ flex: 1, paddingBottom: 0 }}>
-      <Text style={styles.title}>Tutor IA</Text>
-      <Text style={styles.hint}>Foto de la tarea → pasos claros, sin darte todo de golpe.</Text>
+      <View style={styles.headerRow}>
+        <KikoMascot mood={loading ? 'think' : 'happy'} size={72} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Tutor IA</Text>
+          <Text style={styles.hint}>Kiko y el tutor te guían paso a paso.</Text>
+        </View>
+      </View>
 
       <ScrollView
         style={styles.chat}
@@ -148,14 +154,19 @@ export default function TutorScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.md,
+  },
   title: {
     fontFamily: fonts.displayBold,
-    fontSize: 28,
+    fontSize: 26,
     color: colors.ink,
   },
   hint: {
-    marginTop: 6,
-    marginBottom: spacing.md,
+    marginTop: 4,
     fontFamily: fonts.body,
     color: colors.inkMuted,
   },
