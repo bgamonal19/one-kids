@@ -44,9 +44,9 @@ export function PlaygroundBg() {
 }
 
 const styles = StyleSheet.create({
-  root: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  root: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
   sky: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#BFEFFF',
   },
   sun: {
