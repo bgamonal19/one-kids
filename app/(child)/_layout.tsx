@@ -1,4 +1,4 @@
-import { Tabs, router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,20 +7,6 @@ import { PinPad } from '@/components/PinPad';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-
-function TabLabel({ label, focused }: { label: string; focused: boolean }) {
-  return (
-    <Text
-      style={{
-        fontFamily: fonts.bodySemi,
-        fontSize: 11,
-        color: focused ? colors.skyDeep : colors.inkMuted,
-      }}
-    >
-      {label}
-    </Text>
-  );
-}
 
 export default function ChildLayout() {
   const insets = useSafeAreaInsets();
@@ -45,42 +31,24 @@ export default function ChildLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Tabs
+      <Stack
         screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: colors.skyDeep,
-          tabBarStyle: { backgroundColor: colors.white, borderTopColor: colors.mist },
+          headerShown: true,
+          headerTitleStyle: { fontFamily: fonts.displayBold, color: colors.ink },
+          headerTintColor: colors.coral,
+          headerStyle: { backgroundColor: colors.paper },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: colors.paper },
         }}
       >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Inicio',
-            tabBarLabel: ({ focused }) => <TabLabel label="Inicio" focused={focused} />,
-          }}
-        />
-        <Tabs.Screen
-          name="tasks"
-          options={{
-            title: 'Tareas',
-            tabBarLabel: ({ focused }) => <TabLabel label="Tareas" focused={focused} />,
-          }}
-        />
-        <Tabs.Screen
-          name="tutor"
-          options={{
-            title: 'Tutor',
-            tabBarLabel: ({ focused }) => <TabLabel label="Tutor IA" focused={focused} />,
-          }}
-        />
-        <Tabs.Screen
-          name="worlds"
-          options={{
-            title: 'Mundos',
-            tabBarLabel: ({ focused }) => <TabLabel label="Mundos" focused={focused} />,
-          }}
-        />
-      </Tabs>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="tasks" options={{ title: 'Tareas' }} />
+        <Stack.Screen name="tutor" options={{ title: 'Tutor IA' }} />
+        <Stack.Screen name="worlds" options={{ headerShown: false }} />
+        <Stack.Screen name="calculator" options={{ title: 'Calculadora' }} />
+        <Stack.Screen name="calendar" options={{ title: 'Calendario' }} />
+        <Stack.Screen name="courses" options={{ title: 'Cursos' }} />
+      </Stack>
 
       <Pressable
         onPress={() => {
