@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -18,6 +18,13 @@ export default function CalculatorScreen() {
   const [a, setA] = useState<number | null>(null);
   const [op, setOp] = useState<string | null>(null);
   const [fresh, setFresh] = useState(true);
+  const [expression, setExpression] = useState('');
+  const [history, setHistory] = useState<string[]>([]);
+
+  const liveOp = useMemo(() => {
+    if (a !== null && op) return `${a} ${op} ${fresh ? '' : display}`.trim();
+    return expression || display;
+  }, [a, op, display, fresh, expression]);
 
   const press = (key: string) => {
     Haptics.selectionAsync();
@@ -26,6 +33,7 @@ export default function CalculatorScreen() {
       setA(null);
       setOp(null);
       setFresh(true);
+      setExpression('');
       return;
     }
     if (key === '⌫') {
@@ -33,8 +41,10 @@ export default function CalculatorScreen() {
       return;
     }
     if ('÷×−+'.includes(key)) {
-      setA(Number(display));
+      const left = Number(display);
+      setA(left);
       setOp(key);
+      setExpression(`${left} ${key}`);
       setFresh(true);
       return;
     }
@@ -46,7 +56,11 @@ export default function CalculatorScreen() {
       if (op === '−') result = a - b;
       if (op === '×') result = a * b;
       if (op === '÷') result = b === 0 ? NaN : a / b;
-      setDisplay(Number.isFinite(result) ? String(Number(result.toFixed(6))) : 'Error');
+      const resultText = Number.isFinite(result) ? String(Number(result.toFixed(6))) : 'Error';
+      const full = `${a} ${op} ${b} = ${resultText}`;
+      setExpression(full);
+      setHistory((h) => [full, ...h].slice(0, 6));
+      setDisplay(resultText);
       setA(null);
       setOp(null);
       setFresh(true);
@@ -61,13 +75,19 @@ export default function CalculatorScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scroll>
       <Text style={styles.title}>Calculadora</Text>
+      <Text style={styles.hint}>Mira la operación completa arriba y el resultado abajo.</Text>
+
       <View style={styles.display}>
+        <Text style={styles.opLine} numberOfLines={2}>
+          {liveOp}
+        </Text>
         <Text style={styles.displayText} numberOfLines={1}>
           {display}
         </Text>
       </View>
+
       <View style={styles.pad}>
         {KEYS.map((row, i) => (
           <View key={i} style={styles.row}>
@@ -80,7 +100,6 @@ export default function CalculatorScreen() {
                   '÷×−+='.includes(key) && styles.keyOp,
                   key === 'C' && styles.keyClear,
                   pressed && styles.keyPressed,
-                  row.length === 2 && styles.keyWide,
                 ]}
               >
                 <Text
@@ -96,6 +115,17 @@ export default function CalculatorScreen() {
           </View>
         ))}
       </View>
+
+      {history.length > 0 ? (
+        <View style={styles.history}>
+          <Text style={styles.historyTitle}>Operaciones recientes</Text>
+          {history.map((item) => (
+            <Text key={item} style={styles.historyItem}>
+              {item}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -105,15 +135,28 @@ const styles = StyleSheet.create({
     fontFamily: fonts.displayBold,
     fontSize: 28,
     color: colors.ink,
+  },
+  hint: {
+    marginTop: 6,
     marginBottom: spacing.md,
+    fontFamily: fonts.body,
+    color: colors.inkMuted,
   },
   display: {
     backgroundColor: colors.white,
     borderRadius: radii.lg,
-    minHeight: 88,
+    minHeight: 110,
     justifyContent: 'center',
     paddingHorizontal: 20,
+    paddingVertical: 16,
     marginBottom: spacing.lg,
+    gap: 6,
+  },
+  opLine: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 20,
+    color: colors.inkMuted,
+    textAlign: 'right',
   },
   displayText: {
     fontFamily: fonts.displayBold,
@@ -131,7 +174,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keyWide: { flex: 1 },
   keyOp: { backgroundColor: colors.sky },
   keyClear: { backgroundColor: colors.coral },
   keyPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
@@ -141,5 +183,21 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   keyTextLight: { color: colors.white },
+  history: {
+    marginTop: spacing.xl,
+    backgroundColor: colors.white,
+    borderRadius: radii.md,
+    padding: 16,
+    gap: 8,
+  },
+  historyTitle: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    marginBottom: 4,
+  },
+  historyItem: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 16,
+    color: colors.inkMuted,
+  },
 });
-

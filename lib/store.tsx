@@ -9,7 +9,15 @@ import React, {
 } from 'react';
 
 import { hashPin, verifyPin } from './pin';
-import type { ChildProfile, FamilyState, ParentAccount, TaskItem } from './types';
+import type {
+  AgendaEvent,
+  CourseItem,
+  CourseLink,
+  FamilyState,
+  ParentAccount,
+  TaskItem,
+} from './types';
+import { COURSE_COLORS, DEFAULT_COURSES } from './types';
 
 const STORAGE_KEY = 'onekids.family.v1';
 
@@ -17,6 +25,8 @@ const emptyState: FamilyState = {
   parent: null,
   child: null,
   tasks: [],
+  courses: DEFAULT_COURSES,
+  agenda: [],
   focusActive: false,
   onboarded: false,
 };
@@ -35,6 +45,10 @@ type StoreApi = {
   removeTask: (id: string) => Promise<void>;
   setFocus: (active: boolean) => Promise<void>;
   addStars: (n: number) => Promise<void>;
+  addCourse: (input: { title: string; desc: string; link?: CourseLink }) => Promise<void>;
+  removeCourse: (id: string) => Promise<void>;
+  addAgenda: (input: { title: string; date: string; time?: string; note?: string }) => Promise<void>;
+  removeAgenda: (id: string) => Promise<void>;
   loadDemo: () => Promise<void>;
   allTasksDone: boolean;
   worldsUnlocked: boolean;
@@ -46,6 +60,16 @@ function uid(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizeState(raw: Partial<FamilyState>): FamilyState {
+  return {
+    ...emptyState,
+    ...raw,
+    courses: raw.courses?.length ? raw.courses : DEFAULT_COURSES,
+    agenda: raw.agenda ?? [],
+    tasks: raw.tasks ?? [],
+  };
+}
+
 export function FamilyProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<FamilyState>(emptyState);
@@ -54,7 +78,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) setState({ ...emptyState, ...JSON.parse(raw) });
+        if (raw) setState(normalizeState(JSON.parse(raw)));
       } finally {
         setReady(true);
       }
@@ -87,16 +111,14 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   const loginParent = useCallback(
     async (email: string, password: string) => {
       if (!state.parent) return false;
-      const ok =
-        state.parent.email === email.trim().toLowerCase() && state.parent.password === password;
-      return ok;
+      return (
+        state.parent.email === email.trim().toLowerCase() && state.parent.password === password
+      );
     },
     [state.parent]
   );
 
   const logout = useCallback(async () => {
-    // Keep family data; just mark session as "left child/parent UI" handled by router
-    // For MVP we clear session by not changing data — screens use parent presence
     await persist(state);
   }, [persist, state]);
 
@@ -104,10 +126,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     async (pin: string) => {
       if (!state.parent) return;
       const pinHash = await hashPin(pin);
-      await persist({
-        ...state,
-        parent: { ...state.parent, pinHash },
-      });
+      await persist({ ...state, parent: { ...state.parent, pinHash } });
     },
     [persist, state]
   );
@@ -122,15 +141,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
 
   const setChild = useCallback(
     async (name: string, age: number) => {
-      const child: ChildProfile = {
-        id: uid('child'),
-        name: name.trim(),
-        age,
-        stars: 0,
-      };
       await persist({
         ...state,
-        child,
+        child: { id: uid('child'), name: name.trim(), age, stars: 0 },
         onboarded: true,
       });
     },
@@ -188,8 +201,60 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     [persist, state]
   );
 
+  const addCourse = useCallback(
+    async (input: { title: string; desc: string; link?: CourseLink }) => {
+      const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
+      const course: CourseItem = {
+        id: uid('course'),
+        title: input.title.trim(),
+        desc: input.desc.trim() || 'Curso nuevo',
+        color,
+        link: input.link ?? 'custom',
+      };
+      await persist({ ...state, courses: [course, ...state.courses] });
+    },
+    [persist, state]
+  );
+
+  const removeCourse = useCallback(
+    async (id: string) => {
+      await persist({ ...state, courses: state.courses.filter((c) => c.id !== id) });
+    },
+    [persist, state]
+  );
+
+  const addAgenda = useCallback(
+    async (input: { title: string; date: string; time?: string; note?: string }) => {
+      const event: AgendaEvent = {
+        id: uid('agenda'),
+        title: input.title.trim(),
+        date: input.date,
+        time: input.time?.trim() ?? '',
+        note: input.note?.trim() ?? '',
+      };
+      const agenda = [event, ...state.agenda].sort((x, y) =>
+        `${x.date}${x.time}`.localeCompare(`${y.date}${y.time}`)
+      );
+      await persist({ ...state, agenda });
+    },
+    [persist, state]
+  );
+
+  const removeAgenda = useCallback(
+    async (id: string) => {
+      await persist({ ...state, agenda: state.agenda.filter((e) => e.id !== id) });
+    },
+    [persist, state]
+  );
+
   const loadDemo = useCallback(async () => {
     const pinHash = await hashPin('1234');
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const date = `${y}-${m}-${d}`;
+
     const demo: FamilyState = {
       parent: {
         id: uid('parent'),
@@ -218,6 +283,23 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
         },
       ],
+      courses: DEFAULT_COURSES,
+      agenda: [
+        {
+          id: uid('agenda'),
+          title: 'Hacer tareas',
+          date,
+          time: '16:00',
+          note: 'Con el tutor IA si me trabo',
+        },
+        {
+          id: uid('agenda'),
+          title: 'Jugar en Mundos',
+          date,
+          time: '17:30',
+          note: 'Cuando termine las tareas',
+        },
+      ],
       focusActive: true,
       onboarded: true,
     };
@@ -242,6 +324,10 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       removeTask,
       setFocus,
       addStars,
+      addCourse,
+      removeCourse,
+      addAgenda,
+      removeAgenda,
       loadDemo,
       allTasksDone,
       worldsUnlocked,
@@ -260,6 +346,10 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       removeTask,
       setFocus,
       addStars,
+      addCourse,
+      removeCourse,
+      addAgenda,
+      removeAgenda,
       loadDemo,
       allTasksDone,
       worldsUnlocked,

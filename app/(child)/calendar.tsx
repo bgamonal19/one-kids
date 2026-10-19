@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
@@ -12,15 +13,24 @@ function daysInMonth(year: number, month: number) {
 }
 
 function startWeekday(year: number, month: number) {
-  // Monday = 0
   const d = new Date(year, month, 1).getDay();
   return d === 0 ? 6 : d - 1;
 }
 
+function toKey(year: number, month: number, day: number) {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 export default function CalendarScreen() {
-  const { state } = useFamily();
+  const { state, addAgenda, removeAgenda } = useFamily();
   const now = new Date();
   const [cursor, setCursor] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
+  const [selected, setSelected] = useState(toKey(now.getFullYear(), now.getMonth(), now.getDate()));
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [time, setTime] = useState('');
+  const [note, setNote] = useState('');
+
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
 
@@ -34,27 +44,32 @@ export default function CalendarScreen() {
   }, [year, month]);
 
   const monthLabel = cursor.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  const taskDays = state.tasks.length;
+  const dayEvents = state.agenda.filter((e) => e.date === selected);
+  const datesWithEvents = useMemo(
+    () => new Set(state.agenda.map((e) => e.date)),
+    [state.agenda]
+  );
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    await addAgenda({ title, date: selected, time, note });
+    setTitle('');
+    setTime('');
+    setNote('');
+    setShowForm(false);
+  };
 
   return (
     <Screen scroll>
       <Text style={styles.title}>Calendario</Text>
-      <Text style={styles.sub}>
-        {state.child?.name}, hoy tienes {taskDays} tarea{taskDays === 1 ? '' : 's'} en tu lista.
-      </Text>
+      <Text style={styles.sub}>Toca un día y agrega tu agenda (estudios, deporte, etc.).</Text>
 
       <View style={styles.nav}>
-        <Pressable
-          onPress={() => setCursor(new Date(year, month - 1, 1))}
-          style={styles.navBtn}
-        >
+        <Pressable onPress={() => setCursor(new Date(year, month - 1, 1))} style={styles.navBtn}>
           <Text style={styles.navText}>←</Text>
         </Pressable>
         <Text style={styles.month}>{monthLabel}</Text>
-        <Pressable
-          onPress={() => setCursor(new Date(year, month + 1, 1))}
-          style={styles.navBtn}
-        >
+        <Pressable onPress={() => setCursor(new Date(year, month + 1, 1))} style={styles.navBtn}>
           <Text style={styles.navText}>→</Text>
         </Pressable>
       </View>
@@ -69,14 +84,91 @@ export default function CalendarScreen() {
 
       <View style={styles.grid}>
         {cells.map((d, i) => {
+          if (d === null) {
+            return <View key={i} style={styles.cell} />;
+          }
+          const key = toKey(year, month, d);
           const isToday =
             d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+          const isSelected = key === selected;
+          const hasEvent = datesWithEvents.has(key);
           return (
-            <View key={i} style={[styles.cell, isToday && styles.today]}>
-              <Text style={[styles.day, isToday && styles.dayToday]}>{d ?? ''}</Text>
-            </View>
+            <Pressable
+              key={i}
+              onPress={() => setSelected(key)}
+              style={[
+                styles.cell,
+                isToday && styles.today,
+                isSelected && styles.selected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.day,
+                  (isToday || isSelected) && styles.dayToday,
+                ]}
+              >
+                {d}
+              </Text>
+              {hasEvent ? <View style={styles.dot} /> : null}
+            </Pressable>
           );
         })}
+      </View>
+
+      <View style={styles.agendaBox}>
+        <Text style={styles.agendaTitle}>Mi agenda · {selected}</Text>
+        <PrimaryButton
+          label={showForm ? 'Cerrar' : '+ Agregar a mi agenda'}
+          onPress={() => setShowForm((v) => !v)}
+          style={{ marginVertical: 12 }}
+        />
+
+        {showForm ? (
+          <View style={styles.form}>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="¿Qué vas a hacer?"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.input}
+            />
+            <TextInput
+              value={time}
+              onChangeText={setTime}
+              placeholder="Hora (ej. 16:30)"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.input}
+            />
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Nota (opcional)"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.input}
+            />
+            <PrimaryButton label="Guardar en agenda" onPress={submit} />
+          </View>
+        ) : null}
+
+        {dayEvents.length === 0 ? (
+          <Text style={styles.empty}>No hay nada este día. ¡Agrega tu primer plan!</Text>
+        ) : (
+          dayEvents.map((e) => (
+            <View key={e.id} style={styles.event}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.eventTitle}>
+                  {e.time ? `${e.time} · ` : ''}
+                  {e.title}
+                </Text>
+                {e.note ? <Text style={styles.eventNote}>{e.note}</Text> : null}
+              </View>
+              <Pressable onPress={() => removeAgenda(e.id)}>
+                <Text style={styles.remove}>Quitar</Text>
+              </Pressable>
+            </View>
+          ))
+        )}
       </View>
     </Screen>
   );
@@ -123,7 +215,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     color: colors.inkMuted,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.lg },
   cell: {
     width: `${100 / 7}%`,
     aspectRatio: 1,
@@ -131,7 +223,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radii.sm,
   },
-  today: { backgroundColor: colors.coral },
+  today: { backgroundColor: colors.coralSoft },
+  selected: { backgroundColor: colors.coral },
   day: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.ink },
   dayToday: { color: colors.white },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.sun,
+    marginTop: 2,
+  },
+  agendaBox: {
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    padding: 16,
+  },
+  agendaTitle: {
+    fontFamily: fonts.displayBold,
+    fontSize: 20,
+    color: colors.ink,
+  },
+  form: { gap: 10, marginBottom: 12 },
+  input: {
+    backgroundColor: colors.mist,
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: fonts.body,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  empty: { fontFamily: fonts.body, color: colors.inkMuted },
+  event: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.mist,
+  },
+  eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
+  eventNote: { marginTop: 2, fontFamily: fonts.body, color: colors.inkMuted },
+  remove: { fontFamily: fonts.bodySemi, color: colors.coral },
 });
