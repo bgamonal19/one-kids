@@ -10,7 +10,7 @@ import { worldsForBand } from '@/lib/worlds';
 
 export default function WorldsIndex() {
   const { state, worldsUnlocked } = useFamily();
-  const band = state.child ? getAgeBand(state.child.age) : '8-10';
+  const band = state.child ? getAgeBand(state.child.age) : '7-9';
   const worlds = worldsForBand(band);
 
   if (!worldsUnlocked) {

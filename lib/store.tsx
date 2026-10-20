@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 
+import { clampAge } from './ages';
 import { hashPin, verifyPin } from './pin';
 import type {
   AgendaEvent,
@@ -40,6 +41,7 @@ type StoreApi = {
   setPin: (pin: string) => Promise<void>;
   checkPin: (pin: string) => Promise<boolean>;
   setChild: (name: string, age: number) => Promise<void>;
+  updateChildAge: (age: number) => Promise<void>;
   addTask: (title: string) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
@@ -143,8 +145,19 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     async (name: string, age: number) => {
       await persist({
         ...state,
-        child: { id: uid('child'), name: name.trim(), age, stars: 0 },
+        child: { id: uid('child'), name: name.trim(), age: clampAge(age), stars: 0 },
         onboarded: true,
+      });
+    },
+    [persist, state]
+  );
+
+  const updateChildAge = useCallback(
+    async (age: number) => {
+      if (!state.child) return;
+      await persist({
+        ...state,
+        child: { ...state.child, age: clampAge(age) },
       });
     },
     [persist, state]
@@ -266,7 +279,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       child: {
         id: uid('child'),
         name: 'Luna',
-        age: 8,
+        age: 8, // demo: cambia la edad en Panel padres (4–16)
         stars: 3,
       },
       tasks: [
@@ -319,6 +332,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       setPin,
       checkPin,
       setChild,
+      updateChildAge,
       addTask,
       toggleTask,
       removeTask,
@@ -341,6 +355,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       setPin,
       checkPin,
       setChild,
+      updateChildAge,
       addTask,
       toggleTask,
       removeTask,

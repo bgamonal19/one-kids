@@ -4,13 +4,14 @@ import { colors, fonts, radii } from '@/constants/theme';
 
 type Props = {
   text: string;
+  scale?: number;
 };
 
-export function SpeechBubble({ text }: Props) {
+export function SpeechBubble({ text, scale = 1 }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.bubble}>
-        <Text style={styles.text}>{text}</Text>
+        <Text style={[styles.text, { fontSize: 15 * scale + 1, lineHeight: 22 * scale }]}>{text}</Text>
       </View>
       <View style={styles.tail} />
     </View>

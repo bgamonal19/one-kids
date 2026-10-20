@@ -13,7 +13,7 @@ import {
 import { KikoMascot } from '@/components/KikoMascot';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
-import { getAgeBand } from '@/lib/ages';
+import { getAgeBand, getAgeProfile } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useFamily } from '@/lib/store';
@@ -27,16 +27,17 @@ function uid() {
 export default function TutorScreen() {
   const { state } = useFamily();
   const child = state.child;
-  const band = child ? getAgeBand(child.age) : '8-10';
+  const band = child ? getAgeBand(child.age) : '7-9';
+  const profile = getAgeProfile(child?.age ?? 8);
   const aiMode = isSupabaseConfigured
     ? 'Estoy conectado a OpenAI Vision.'
-    : 'Ahora mismo estoy en modo local (sin OpenAI). Pide a un adulto configurar Supabase + OPENAI_API_KEY.';
+    : 'Modo local (sin OpenAI). Un adulto puede conectar Supabase + OPENAI_API_KEY.';
 
   const [messages, setMessages] = useState<TutorMessage[]>([
     {
       id: 'welcome',
       role: 'tutor',
-      text: `¡Hola ${child?.name ?? ''}! Soy tu tutor. Toma foto de tu tarea o escríbeme el problema. Te guío paso a paso.\n\n${aiMode}`,
+      text: `¡Hola ${child?.name ?? ''}! ${profile.tutorHint}\n\n${profile.bandTitle}. ${aiMode}`,
     },
   ]);
   const [input, setInput] = useState('');

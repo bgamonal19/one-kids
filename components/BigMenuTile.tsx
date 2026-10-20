@@ -18,21 +18,30 @@ type Props = {
   onPress: () => void;
   locked?: boolean;
   delay?: number;
+  scale?: number;
 };
 
-export function BigMenuTile({ label, color, badge, onPress, locked, delay = 0 }: Props) {
-  const scale = useSharedValue(0.86);
+export function BigMenuTile({
+  label,
+  color,
+  badge,
+  onPress,
+  locked,
+  delay = 0,
+  scale = 1,
+}: Props) {
+  const enter = useSharedValue(0.86);
   const press = useSharedValue(1);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      scale.value = withSpring(1, { damping: 10, stiffness: 140 });
+      enter.value = withSpring(1, { damping: 10, stiffness: 140 });
     }, delay);
     return () => clearTimeout(t);
-  }, [delay, scale]);
+  }, [delay, enter]);
 
   const anim = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value * press.value }],
+    transform: [{ scale: enter.value * press.value }],
   }));
 
   return (
@@ -53,13 +62,15 @@ export function BigMenuTile({ label, color, badge, onPress, locked, delay = 0 }:
         }}
         style={[styles.tile, { backgroundColor: locked ? '#8A9AAB' : color }]}
       >
-        <View style={styles.face}>
-          <View style={[styles.faceEye, { left: 18 }]} />
-          <View style={[styles.faceEye, { right: 18 }]} />
+        <View style={[styles.face, { width: 64 * scale, height: 64 * scale }]}>
+          <View style={[styles.faceEye, { left: 16 * scale }]} />
+          <View style={[styles.faceEye, { right: 16 * scale }]} />
           <View style={styles.faceSmile} />
-          <Text style={styles.badgeText}>{badge}</Text>
+          <Text style={[styles.badgeText, { fontSize: 14 * scale, marginTop: 18 * scale }]}>
+            {badge}
+          </Text>
         </View>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, { fontSize: 20 * scale + 2 }]}>{label}</Text>
         {locked ? <Text style={styles.lock}>Casi… termina tareas</Text> : null}
         <View style={styles.shine} />
       </Pressable>
@@ -74,23 +85,21 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 14,
     borderWidth: 5,
     borderColor: 'rgba(255,255,255,0.45)',
     overflow: 'hidden',
   },
   face: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   faceEye: {
     position: 'absolute',
-    top: 20,
+    top: 18,
     width: 8,
     height: 10,
     borderRadius: 5,
@@ -98,29 +107,26 @@ const styles = StyleSheet.create({
   },
   faceSmile: {
     position: 'absolute',
-    bottom: 14,
-    width: 22,
-    height: 10,
+    bottom: 12,
+    width: 20,
+    height: 9,
     borderBottomWidth: 3,
     borderColor: colors.ink,
     borderRadius: 10,
   },
   badgeText: {
-    marginTop: 20,
     fontFamily: fonts.displayBold,
-    fontSize: 15,
     color: colors.white,
   },
   label: {
     fontFamily: fonts.displayBold,
-    fontSize: 24,
     color: colors.white,
     textAlign: 'center',
   },
   lock: {
     marginTop: 8,
     fontFamily: fonts.bodyBold,
-    fontSize: 13,
+    fontSize: 12,
     color: colors.white,
   },
   shine: {

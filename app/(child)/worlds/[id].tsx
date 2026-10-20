@@ -21,7 +21,7 @@ export default function WorldPlay() {
   const worldId = id as WorldId;
   const world = WORLDS.find((w) => w.id === worldId);
   const { state, addStars, worldsUnlocked } = useFamily();
-  const band = state.child ? getAgeBand(state.child.age) : '8-10';
+  const band = state.child ? getAgeBand(state.child.age) : '7-9';
 
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState('');
@@ -31,7 +31,12 @@ export default function WorldPlay() {
   const letter = useMemo(() => makeLetterRound(band), [band, round]);
   const explorer = useMemo(() => makeExplorerQuestion(band), [band, round]);
   const mathOptions = useMemo(() => {
-    const opts = [math.answer, math.answer + 1, Math.max(0, math.answer - 2), math.answer + 3];
+    const distractors =
+      math.op === '×'
+        ? [math.answer + math.a, Math.max(0, math.answer - math.b), math.a + math.b]
+        : [math.answer + 1, Math.max(0, math.answer - 2), math.answer + 3];
+    const opts = Array.from(new Set([math.answer, ...distractors])).slice(0, 4);
+    while (opts.length < 4) opts.push(math.answer + opts.length + 1);
     return opts.sort(() => Math.random() - 0.5);
   }, [math, round]);
 

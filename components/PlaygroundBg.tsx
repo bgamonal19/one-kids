@@ -10,8 +10,10 @@ import Animated, {
 
 import { colors } from '@/constants/theme';
 
+type Props = { sky?: string };
+
 /** Fondo tipo patio de juegos (inspirado en apps infantiles). */
-export function PlaygroundBg() {
+export function PlaygroundBg({ sky = '#BFEFFF' }: Props) {
   const cloud1 = useSharedValue(0);
   const cloud2 = useSharedValue(0);
 
@@ -33,7 +35,7 @@ export function PlaygroundBg() {
 
   return (
     <View style={styles.root} pointerEvents="none">
-      <View style={styles.sky} />
+      <View style={[styles.sky, { backgroundColor: sky }]} />
       <Animated.View style={[styles.cloud, styles.cloudA, c1]} />
       <Animated.View style={[styles.cloud, styles.cloudB, c2]} />
       <View style={styles.hillBack} />
@@ -47,7 +49,6 @@ const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
   sky: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#BFEFFF',
   },
   sun: {
     position: 'absolute',
