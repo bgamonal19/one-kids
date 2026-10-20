@@ -25,6 +25,8 @@ export default function ChildHome() {
   const stage = stageForAge(age);
   const mode = modes[stage];
   const young = stage === 'junior' || stage === 'adventure';
+  const companion = state.child?.companion ?? 'kiko';
+  const companionName = companion === 'nova' ? 'Nova' : companion === 'axon' ? 'Axon' : 'Kiko';
   const compact = width < 520;
   const unfinished = state.tasks.filter(task => !task.done);
   const finished = state.tasks.length - unfinished.length;
@@ -44,7 +46,7 @@ export default function ChildHome() {
         <View style={styles.brandRow}>
           <View>
             <Text style={[styles.brand, { color: mode.ink }]}>ONE <Text style={{ color: mode.primary }}>KIDS</Text></Text>
-            <Text style={[styles.subtitle, { color: mode.primary }]}>{mode.label} · {age} años</Text>
+            <Text style={[styles.subtitle, { color: mode.primary }]}>{mode.label} · {age} años{state.child?.grade ? ' · ' + state.child.grade : ''}</Text>
           </View>
           <View style={[styles.stars, { backgroundColor: mode.soft }]}><Text style={[styles.starLabel, { color: mode.ink }]}>★ {state.child?.stars ?? 0}</Text></View>
         </View>
@@ -60,10 +62,12 @@ export default function ChildHome() {
           </View>
           <View style={styles.heroAgent}>
             <KikoMascot mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 106 : 78} />
-            <Text style={styles.agentName}>{mode.agent}</Text>
+            <Text style={styles.agentName}>{companionName}{companion !== 'kiko' ? ' · avatar en preparación' : ''}</Text>
           </View>
         </View>
 
+        <Pressable accessibilityRole="button" onPress={() => router.push('/(child)/profile')} style={[styles.profileLink, { backgroundColor: mode.soft }]}><Text style={[styles.actionText, { color: mode.primary }]}>⚙ Mi grado, intereses y personaje →</Text></Pressable>
+        {state.child?.interests?.length ? <Text style={[styles.interests, { color: mode.ink }]}>Me interesa: {state.child.interests.join(' · ')}</Text> : null}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: mode.ink }]}>Tu día de aprendizaje</Text>
           <Text style={[styles.subtle, { color: mode.ink }]}>{finished}/{state.tasks.length} tareas</Text>
@@ -125,6 +129,8 @@ export default function ChildHome() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  profileLink: { alignSelf: 'flex-start', borderRadius: 16, paddingHorizontal: 15, paddingVertical: 12, marginTop: 16 },
+  interests: { fontFamily: fonts.bodySemi, marginTop: 10, fontSize: 13 },
   container: { width: '100%', alignSelf: 'center', paddingHorizontal: 18 },
   brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
   brand: { fontSize: 25, fontFamily: fonts.displayBold },
