@@ -42,6 +42,7 @@ export default function ChildLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ title: "Mi aprendizaje" }} />
         <Stack.Screen name="tasks" options={{ title: 'Tareas' }} />
         <Stack.Screen name="tutor" options={{ title: 'Tutor IA' }} />
         <Stack.Screen name="worlds" options={{ headerShown: false }} />

@@ -1,0 +1,93 @@
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { Screen } from '@/components/Screen';
+import { colors, fonts, radii, spacing } from '@/constants/theme';
+import { useFamily } from '@/lib/store';
+
+type Companion = 'kiko' | 'nova' | 'axon';
+const COUNTRIES = ['Italia', 'España', 'Perú', 'Otro'];
+const INTERESTS = ['Ciencia', 'Arte', 'Deportes', 'Tecnología', 'Música', 'Naturaleza', 'Idiomas', 'Robótica', 'Historia', 'Videojuegos', 'Lectura', 'Matemáticas'];
+
+export default function LearningProfileScreen() {
+  const { state, updateLearningProfile } = useFamily();
+  const child = state.child;
+  const [grade, setGrade] = useState(child?.grade ?? '');
+  const [country, setCountry] = useState(child?.country ?? 'Italia');
+  const [interests, setInterests] = useState<string[]>(child?.interests ?? []);
+  const [companion, setCompanion] = useState<Companion>(child?.companion ?? 'kiko');
+  const [saving, setSaving] = useState(false);
+  const toggleInterest = (interest: string) => setInterests(previous =>
+    previous.includes(interest) ? previous.filter(value => value !== interest) : previous.length < 8 ? [...previous, interest] : previous
+  );
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await updateLearningProfile({ grade, country, interests, companion });
+      router.back();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Screen scroll>
+      <Text style={styles.eyebrow}>MI PERFIL EDUCATIVO</Text>
+      <Text style={styles.title}>Aprendo a mi manera ✨</Text>
+      <Text style={styles.hint}>Personaliza las materias y el acompañante. La edad ya configura la apariencia general de ONE KIDS.</Text>
+
+      <Text style={styles.heading}>¿Dónde estudias?</Text>
+      <View style={styles.chips}>
+        {COUNTRIES.map(value => (
+          <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: country === value }} onPress={() => setCountry(value)} style={[styles.chip, country === value && styles.active]}>
+            <Text style={[styles.chipText, country === value && styles.activeText]}>{value}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.heading}>¿En qué curso o grado estás?</Text>
+      <TextInput accessibilityLabel="Curso o grado escolar" value={grade} onChangeText={setGrade} maxLength={50} placeholder="Ej.: 4.º de primaria, 2.º ESO..." placeholderTextColor={colors.inkMuted} style={styles.input} />
+      <Text style={styles.info}>El grado se guarda en tu perfil. La adaptación curricular automática se incorporará en una fase posterior.</Text>
+
+      <Text style={styles.heading}>¿Qué temas te gustan?</Text>
+      <Text style={styles.hint}>Elige hasta ocho.</Text>
+      <View style={styles.chips}>
+        {INTERESTS.map(value => {
+          const active = interests.includes(value);
+          return (
+            <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => toggleInterest(value)} style={[styles.chip, active && styles.active]}>
+              <Text style={[styles.chipText, active && styles.activeText]}>{active ? '✓ ' : ''}{value}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={styles.heading}>Elige tu acompañante</Text>
+      <Text style={styles.info}>Kiko tiene animación disponible. Nova y Axon son selecciones preparadas para próximos personajes: por ahora mostrarán el avatar animado actual.</Text>
+      <View style={styles.chips}>
+        {([{ key: 'kiko', label: '🩵 Kiko' }, { key: 'nova', label: '💜 Nova' }, { key: 'axon', label: '🔷 Axon' }] as const).map(item => (
+          <Pressable key={item.key} accessibilityRole="button" accessibilityState={{ selected: companion === item.key }} onPress={() => setCompanion(item.key)} style={[styles.chip, companion === item.key && styles.active]}>
+            <Text style={[styles.chipText, companion === item.key && styles.activeText]}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <PrimaryButton label={saving ? 'Guardando…' : 'Guardar mi perfil'} onPress={save} style={{ marginTop: spacing.xl, marginBottom: spacing.xl }} />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  eyebrow: { fontFamily: fonts.bodyBold, color: colors.skyDeep, fontSize: 12, marginTop: 16, letterSpacing: 1 },
+  title: { fontFamily: fonts.displayBold, color: colors.ink, fontSize: 28, marginTop: 8 },
+  hint: { fontFamily: fonts.body, color: colors.inkMuted, fontSize: 14, marginTop: 8 },
+  heading: { fontFamily: fonts.displayBold, fontSize: 19, color: colors.ink, marginTop: 25, marginBottom: 11 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  chip: { backgroundColor: colors.white, borderWidth: 1, borderColor: '#D8E7F2', borderRadius: radii.pill, paddingHorizontal: 15, paddingVertical: 11 },
+  active: { backgroundColor: '#347DE1', borderColor: '#347DE1' },
+  chipText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 14 },
+  activeText: { color: colors.white },
+  input: { borderRadius: radii.md, backgroundColor: colors.white, padding: 15, fontFamily: fonts.body, color: colors.ink, fontSize: 16 },
+  info: { fontFamily: fonts.body, fontSize: 12, color: colors.inkMuted, marginTop: 10, lineHeight: 18 },
+});

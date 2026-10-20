@@ -42,6 +42,7 @@ type StoreApi = {
   checkPin: (pin: string) => Promise<boolean>;
   setChild: (name: string, age: number) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
+  updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: 'kiko' | 'nova' | 'axon' }) => Promise<void>;
   addTask: (title: string) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
@@ -162,6 +163,11 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     },
     [persist, state]
   );
+
+  const updateLearningProfile = useCallback(async (input: { grade: string; country: string; interests: string[]; companion: 'kiko' | 'nova' | 'axon' }) => {
+    if (!state.child) return;
+    await persist({ ...state, child: { ...state.child, grade: input.grade.trim().slice(0, 50), country: input.country.trim().slice(0, 50), interests: input.interests.slice(0, 8), companion: input.companion } });
+  }, [persist, state]);
 
   const addTask = useCallback(
     async (title: string) => {
@@ -333,6 +339,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       checkPin,
       setChild,
       updateChildAge,
+      updateLearningProfile,
       addTask,
       toggleTask,
       removeTask,
@@ -356,6 +363,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       checkPin,
       setChild,
       updateChildAge,
+      updateLearningProfile,
       addTask,
       toggleTask,
       removeTask,

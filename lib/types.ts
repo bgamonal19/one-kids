@@ -10,6 +10,10 @@ export type ChildProfile = {
   name: string;
   age: number;
   stars: number;
+  grade?: string;
+  country?: string;
+  interests?: string[];
+  companion?: 'kiko' | 'nova' | 'axon';
 };
 
 export type ParentAccount = {
