@@ -7,6 +7,7 @@
     "@expo-google-fonts/nunito": "^0.4.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.118.0",
+    "eslint-config-expo": "~58.0.4",
     "expo": "~58.0.14",
     "expo-camera": "~58.0.10",
     "expo-constants": "~58.0.12",
@@ -34,6 +35,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -42,7 +45,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export -p web",
-    "deploy": "vercel --prod"
+    "deploy": "vercel --prod",
+    "lint": "expo lint"
   },
   "private": true
 }

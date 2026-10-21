@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BigMenuTile } from '@/components/BigMenuTile';
-import { KikoMascot } from '@/components/KikoMascot';
+import { COMPANIONS, type CompanionId, KikoMascot } from '@/components/KikoMascot';
 import { PlaygroundBg } from '@/components/PlaygroundBg';
 import { SpeechBubble } from '@/components/SpeechBubble';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
@@ -24,6 +25,8 @@ export default function ChildHome() {
   const { state, worldsUnlocked, allTasksDone } = useFamily();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const [character, setCharacter] = useState<CompanionId>('kiko');
+  const [interaction, setInteraction] = useState(0);
   const age = state.child?.age ?? 8;
   const profile = getAgeProfile(age);
 
@@ -39,23 +42,31 @@ export default function ChildHome() {
 
   const name = state.child?.name ?? 'amigo';
   const mood = allTasksDone ? 'celebrate' : state.focusActive ? 'think' : 'wave';
-  const message = profile.greeting(name, state.focusActive, allTasksDone);
+  const reactions = age <= 6
+    ? ['¡Choca esos cinco! ¿Contamos tres estrellas?', '¡Vamos a descubrir algo juntos!', 'Respira… ¡y prueba otra vez!']
+    : age <= 9
+      ? ['Misión de hoy: aprende algo y cuéntamelo.', 'Un error es una pista. ¡Investiguemos!', '¿Listo para tu siguiente aventura?']
+      : age <= 12
+        ? ['Reto: explica con tus palabras lo que aprendiste.', 'Divide el problema en pasos. ¿Cuál harías primero?', 'Haz una pausa breve y vuelve con una idea nueva.']
+        : ['Elige una meta concreta para esta sesión.', '¿Qué evidencia respalda tu respuesta?', 'Prueba otra estrategia y compara los resultados.'];
+  const personality = character === 'nova' ? (age <= 9 ? '¡Tengo una idea brillante! ' : 'Probemos una estrategia diferente. ') : character === 'milo' ? (age <= 9 ? '¡En marcha, explorador! ' : 'Vamos a descubrir el siguiente paso. ') : (age <= 9 ? '¡Qué curiosidad! ' : 'Investiguemos el porqué. ');
+  const message = interaction ? `${COMPANIONS[character].name}: ${personality}${reactions[(interaction - 1) % reactions.length]}` : profile.greeting(name, state.focusActive, allTasksDone);
 
   return (
     <View style={[styles.root, { backgroundColor: profile.sky }]}>
       {profile.showPlayground ? <PlaygroundBg sky={profile.sky} /> : <View style={styles.teenBg} />}
-      <View
-        style={[
+      <ScrollView contentContainerStyle={[
           styles.content,
           {
             paddingTop: insets.top + 6,
             paddingBottom: insets.bottom + pad,
             paddingHorizontal: pad,
           },
-        ]}
-      >
+        ]}>
         <View style={styles.heroRow}>
-          <KikoMascot mood={mood} size={Math.min(profile.mascotSize, width < 420 ? 96 : profile.mascotSize)} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${COMPANIONS[character].name}`} onPress={() => setInteraction(n => n + 1)}>
+            <KikoMascot character={character} age={age} mood={interaction ? 'wave' : mood} size={Math.min(profile.mascotSize, width < 420 ? 96 : profile.mascotSize)} />
+          </Pressable>
           <View style={styles.speechWrap}>
             <Text style={[styles.brand, { fontSize: 22 + profile.uiScale * 4 }]}>ONE KIDS</Text>
             <View style={[styles.badge, { backgroundColor: profile.accent }]}>
@@ -68,6 +79,15 @@ export default function ChildHome() {
           </View>
         </View>
 
+        <View style={styles.companions}>
+          {(Object.keys(COMPANIONS) as CompanionId[]).map(id => (
+            <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: character === id }} onPress={() => { setCharacter(id); setInteraction(n => n + 1); }} style={[styles.companion, character === id && styles.selected]}>
+              <Text style={styles.companionName}>{COMPANIONS[id].symbol} {COMPANIONS[id].name}</Text>
+              <Text style={styles.personality}>{COMPANIONS[id].role}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.tip}>Toca a tu compañero para conversar · Elige tu próxima aventura</Text>
         <View style={[styles.grid, { gap }]}>
           {TILE_DEFS.map((tile, i) => {
             const locked = tile.key === 'mundos' && !worldsUnlocked;
@@ -94,7 +114,7 @@ export default function ChildHome() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -102,7 +122,7 @@ export default function ChildHome() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   teenBg: { ...StyleSheet.absoluteFill, backgroundColor: '#EEF4F7' },
-  content: { flex: 1, zIndex: 2 },
+  content: { flexGrow: 1, zIndex: 2 },
   heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -131,6 +151,12 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 13,
   },
+  companions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  companion: { backgroundColor: '#FFFFFFBB', borderWidth: 2, borderColor: 'transparent', borderRadius: 18, padding: 12, minWidth: 130 },
+  selected: { borderColor: '#5275C7', backgroundColor: '#FFFFFF' },
+  companionName: { fontFamily: fonts.bodyBold, color: '#233852', fontSize: 16 },
+  personality: { fontFamily: fonts.body, color: '#566880', fontSize: 12, marginTop: 3 },
+  tip: { fontFamily: fonts.bodySemi, color: '#344767', marginBottom: 14 },
   grid: {
     flex: 1,
     flexDirection: 'row',
