@@ -107,10 +107,10 @@ export default function TutorScreen() {
   return (
     <Screen style={{ flex: 1, paddingBottom: 0 }}>
       <View style={styles.headerRow}>
-        <KikoMascot age={child?.age ?? 8} mood={loading ? 'think' : 'happy'} size={72} />
+        <KikoMascot character={child?.companion ?? 'kiko'} age={child?.age ?? 8} mood={loading ? 'think' : 'happy'} size={72} />
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Tutor IA</Text>
-          <Text style={styles.hint}>Kiko y el tutor te guían paso a paso.</Text>
+          <Text style={styles.hint}>Tu compañero y el tutor te guían paso a paso.</Text>
         </View>
       </View>
 
