@@ -73,7 +73,7 @@ export default function ChildHome() {
         <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => setInteraction(n => n + 1)} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, marginTop: 12 }}>
           <Text style={{ fontFamily: fonts.bodyBold, color: mode.ink, fontSize: 16 }}>{interaction ? personality + prompts[(interaction - 1) % prompts.length] : `Toca a ${companionName} para descubrir tu reto de hoy.`}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/(child)/profile')} style={[styles.profileLink, { backgroundColor: mode.soft }]}><Text style={[styles.actionText, { color: mode.primary }]}>⚙ Mi grado, intereses y personaje →</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('./profile')} style={[styles.profileLink, { backgroundColor: mode.soft }]}><Text style={[styles.actionText, { color: mode.primary }]}>⚙ Mi grado, intereses y personaje →</Text></Pressable>
         {state.child?.interests?.length ? <Text style={[styles.interests, { color: mode.ink }]}>Me interesa: {state.child.interests.join(' · ')}</Text> : null}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: mode.ink }]}>Tu día de aprendizaje</Text>
