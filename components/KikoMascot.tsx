@@ -4,11 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 export type KikoMood = 'happy' | 'wave' | 'think' | 'celebrate';
-export type CompanionId = 'kiko' | 'nova' | 'milo';
+export type CompanionId = 'kiko' | 'nova' | 'axon';
 export const COMPANIONS = {
   kiko: { name: 'Kiko', role: 'Curioso y optimista', colors: ['#73E9EE', '#159DBA'] as const, symbol: '✦' },
   nova: { name: 'Nova', role: 'Inventora de ideas', colors: ['#C4B5FD', '#7955D8'] as const, symbol: '⚡' },
-  milo: { name: 'Milo', role: 'Explorador valiente', colors: ['#FFD59A', '#F18956'] as const, symbol: '★' },
+  axon: { name: 'Axon', role: 'Explorador valiente', colors: ['#FFD59A', '#F18956'] as const, symbol: '★' },
 };
 
 export function KikoMascot({ mood = 'happy', size = 140, character = 'kiko', age = 8 }: {
@@ -45,7 +45,7 @@ export function KikoMascot({ mood = 'happy', size = 140, character = 'kiko', age
             <View style={[s.smile, mood === 'think' && { width: 7, height: 7, borderRadius: 7, backgroundColor: '#A9FAFF' }]} />
           </View>
           <View style={[s.chest, { bottom: size * .07 }]}><Text style={{ color: c.colors[1], fontSize: size * .15 }}>{age >= 13 ? '⌘' : c.symbol}</Text></View>
-          {character === 'milo' ? <View style={s.scarf} /> : null}
+          {character === 'axon' ? <View style={s.scarf} /> : null}
         </LinearGradient>
         <Animated.View style={[s.hand, { right: 0, top: size * .45, width: size * .14, height: size * .3, backgroundColor: c.colors[1] }, waving]} />
         <View style={[s.hand, { left: 0, top: size * .5, width: size * .13, height: size * .25, backgroundColor: c.colors[1], transform: [{ rotate: '18deg' }] }]} />
