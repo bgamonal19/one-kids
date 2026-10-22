@@ -17,17 +17,17 @@ export function hasExpressions(id: CompanionId): id is ExpressiveCompanionId {
   return APPROVED_CHARACTERS.some(value => value === id);
 }
 
-// The approved sheets are immutable sources. Viewport rectangles select art only:
-// headings, grid lines and printed labels are outside each visible frame.
+// Alpha-cutout derivatives retain the 5×3 pose order. Generous art-only
+// windows leave room for hands, ears and accent marks without a white panel.
 const SHEETS = {
-  bear: { asset: require('../assets/characters/expressions/sheets/bear.png'), rows: [[99, 350], [401, 648], [694, 943]] },
-  inventor: { asset: require('../assets/characters/expressions/sheets/inventor.png'), rows: [[99, 349], [403, 645], [694, 943]] },
-  polar: { asset: require('../assets/characters/expressions/sheets/polar.png'), rows: [[108, 359], [413, 654], [714, 954]] },
-  turtle: { asset: require('../assets/characters/expressions/sheets/turtle.png'), rows: [[105, 362], [414, 653], [712, 945]] },
-  penguin: { asset: require('../assets/characters/expressions/sheets/penguin.png'), rows: [[111, 359], [414, 653], [711, 948]] },
-  tutorbot: { asset: require('../assets/characters/expressions/sheets/tutorbot.png'), rows: [[115, 354], [409, 650], [708, 947]] },
+  bear: { asset: require('../assets/characters/expressions/transparent/bear.png'), rows: [[52, 366], [370, 658], [660, 986]] },
+  inventor: { asset: require('../assets/characters/expressions/transparent/inventor.png'), rows: [[52, 366], [370, 658], [660, 986]] },
+  polar: { asset: require('../assets/characters/expressions/transparent/polar.png'), rows: [[52, 366], [370, 658], [660, 986]] },
+  turtle: { asset: require('../assets/characters/expressions/transparent/turtle.png'), rows: [[52, 366], [370, 658], [660, 986]] },
+  penguin: { asset: require('../assets/characters/expressions/transparent/penguin.png'), rows: [[52, 366], [370, 658], [660, 986]] },
+  tutorbot: { asset: require('../assets/characters/expressions/transparent/tutorbot.png'), rows: [[52, 366], [370, 658], [660, 986]] },
 } as const;
-const COLUMNS = [[20, 308], [321, 609], [623, 911], [925, 1213], [1227, 1515]] as const;
+const COLUMNS = [[3, 305], [310, 612], [617, 919], [924, 1226], [1231, 1533]] as const;
 export function expressionFrame(character: ExpressiveCompanionId, expression: ExpressionId) {
   const index = EXPRESSIONS.findIndex(item => item.id === expression);
   const column = COLUMNS[index % 5];

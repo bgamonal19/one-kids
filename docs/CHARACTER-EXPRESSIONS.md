@@ -5,8 +5,10 @@
 Seis personajes: `bear`, `inventor`, `polar`, `turtle`, `penguin`, `tutorbot`.
 Cada lámina original de 1536 × 1024 contiene quince poses numeradas.
 Las fuentes aprobadas se guardan sin cambios en `assets/characters/expressions/sheets/`.
-`lib/expressions.ts` selecciona el dibujo con rectángulos que excluyen títulos,
-etiquetas y líneas de la lámina. Cada personaje carga una sola imagen cacheable;
+Las versiones con alfa real se guardan en
+`assets/characters/expressions/transparent/`; no tienen papel, etiquetas ni
+sombras de suelo. Conservan el orden 5×3 de los quince gestos.
+`lib/expressions.ts` selecciona los dibujos desde estas versiones transparentes. Cada personaje carga una sola imagen cacheable;
 no se generan ni descargan imágenes al cambiar de expresión.
 
 Son ilustraciones con acabado 3D y animaciones del conjunto (desplazamiento,
@@ -43,13 +45,18 @@ El perfil guarda el ID en el almacenamiento existente. Los IDs antiguos siguen
 siendo válidos; entradas desconocidas vuelven a Kiko. Los perfiles nuevos y la
 demo empiezan con el oso explorador. El perfil permite probar los quince gestos
 antes de guardar. Solo la vista previa activa se anima; las miniaturas son
-estáticas. Se respeta la preferencia de movimiento reducido del dispositivo.
+estáticas. La flotación usa un ciclo sinusoidal continuo de 5,4 segundos,
+con balanceo lateral leve, respiración y sombra independiente que cambia con
+la altura. Cambiar de expresión no reinicia el ciclo. Los gestos de pensar y
+celebrar se introducen con un resorte amortiguado; el descanso queda inmóvil. Se respeta la preferencia de movimiento reducido del dispositivo.
 Las reacciones temporales se limpian al abandonar la pantalla.
 
 ## Verificación
 
 - `node scripts/check-character-assets.cjs`: valida las 90 posiciones contra
   las dimensiones de los PNG reales, límites y unicidad.
+- `python scripts/check-character-transparency.py`: verifica alfa, fondo
+  transparente y presencia de las noventa poses.
 - `npx tsc --noEmit` y `npx expo export -p web`.
 - Revisión ESLint de los archivos modificados.
 - Navegador: 90 cambios de expresión, elección, guardado, recarga, tutor,
