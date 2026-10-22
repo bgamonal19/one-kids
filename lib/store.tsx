@@ -68,7 +68,7 @@ function normalizeState(raw: Partial<FamilyState>): FamilyState {
   return {
     ...emptyState,
     ...raw,
-    child: raw.child ? { ...raw.child, companion: isCompanionId(raw.child.companion) ? raw.child.companion : 'kiko' } : null,
+    child: raw.child ? { ...raw.child, companion: isCompanionId(raw.child.companion) ? raw.child.companion : 'bear' } : null,
     courses: raw.courses?.length ? raw.courses : DEFAULT_COURSES,
     agenda: raw.agenda ?? [],
     tasks: raw.tasks ?? [],
@@ -168,7 +168,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
 
   const updateLearningProfile = useCallback(async (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => {
     if (!state.child) return;
-    await persist({ ...state, child: { ...state.child, grade: input.grade.trim().slice(0, 50), country: input.country.trim().slice(0, 50), interests: input.interests.slice(0, 8), companion: isCompanionId(input.companion) ? input.companion : 'kiko' } });
+    await persist({ ...state, child: { ...state.child, grade: input.grade.trim().slice(0, 50), country: input.country.trim().slice(0, 50), interests: input.interests.slice(0, 8), companion: isCompanionId(input.companion) ? input.companion : 'bear' } });
   }, [persist, state]);
 
   const addTask = useCallback(

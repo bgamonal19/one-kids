@@ -29,7 +29,7 @@ export default function ChildHome() {
   const stage = stageForAge(age);
   const mode = modes[stage];
   const young = stage === 'junior' || stage === 'adventure';
-  const companion = state.child?.companion ?? 'kiko';
+  const companion = state.child?.companion ?? 'bear';
   const companionName = COMPANIONS[companion].name;
   const prompts = age <= 8 ? ['¡Choca esos cinco! ¿Contamos tres estrellas?', '¡Cada intento te hace crecer!'] : age <= 11 ? ['Misión: aprende algo y explícamelo con tus palabras.', 'Un error es una pista. ¡Investiguemos!'] : age <= 14 ? ['Divide tu reto en pasos. ¿Cuál harías primero?', 'Prueba otra estrategia y compara los resultados.'] : ['Define una meta concreta para esta sesión.', '¿Qué evidencia respalda tu respuesta?'];
   const personality = COMPANIONS[companion].intro;

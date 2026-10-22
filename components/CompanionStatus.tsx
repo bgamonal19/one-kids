@@ -6,7 +6,7 @@ import { colors, fonts } from '@/constants/theme';
 
 export function CompanionStatus({ expression, message }: { expression: ExpressionId; message?: string }) {
   const { state } = useFamily();
-  const id = state.child?.companion ?? 'kiko';
+  const id = state.child?.companion ?? 'bear';
   return (
     <View style={s.panel}>
       <KikoMascot character={id} age={state.child?.age ?? 8} expression={expression} mood={expression === 'celebrate' ? 'celebrate' : 'happy'} size={100} />

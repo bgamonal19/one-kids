@@ -9,10 +9,10 @@ export { COMPANIONS, type CompanionId } from '@/lib/companions';
 export type KikoMood = 'happy' | 'wave' | 'think' | 'celebrate';
 
 /** Alpha-cutout artwork floats independently of its grounded, breathing shadow. */
-export function KikoMascot({ mood = 'happy', size = 140, character = 'kiko', age = 8, animated = true, expression }: {
+export function KikoMascot({ mood = 'happy', size = 140, character = 'bear', age = 8, animated = true, expression }: {
   mood?: KikoMood; size?: number; character?: CompanionId; age?: number; animated?: boolean; expression?: ExpressionId;
 }) {
-  const id = isCompanionId(character) ? character : 'kiko';
+  const id = isCompanionId(character) ? character : 'bear';
   const companion = COMPANIONS[id];
   const activeExpression = expression ?? (mood === 'wave' ? 'hello' : mood === 'happy' ? 'listen' : mood);
   const reduced = useReducedMotion();

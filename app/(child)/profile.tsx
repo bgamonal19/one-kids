@@ -18,7 +18,7 @@ export default function LearningProfileScreen() {
   const [grade, setGrade] = useState(child?.grade ?? '');
   const [country, setCountry] = useState(child?.country ?? 'Italia');
   const [interests, setInterests] = useState<string[]>(child?.interests ?? []);
-  const [companion, setCompanion] = useState<CompanionId>(child?.companion ?? 'kiko');
+  const [companion, setCompanion] = useState<CompanionId>(child?.companion ?? 'bear');
   const [saving, setSaving] = useState(false);
   const toggleInterest = (interest: string) => setInterests(previous =>
     previous.includes(interest) ? previous.filter(value => value !== interest) : previous.length < 8 ? [...previous, interest] : previous
