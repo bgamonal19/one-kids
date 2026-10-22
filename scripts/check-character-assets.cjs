@@ -12,7 +12,7 @@ vm.runInNewContext(js, { exports: moduleResult.exports, require: name => path.re
 const { EXPRESSIONS, APPROVED_CHARACTERS, expressionFrame, hasExpressions } = moduleResult.exports;
 assert.equal(EXPRESSIONS.length, 15);
 assert.equal(new Set(EXPRESSIONS.map(item => item.id)).size, 15);
-assert.equal(APPROVED_CHARACTERS.length, 6);
+assert.equal(APPROVED_CHARACTERS.length, 12);
 let verified = 0;
 for (const character of APPROVED_CHARACTERS) {
   assert.ok(hasExpressions(character));
@@ -30,6 +30,6 @@ for (const character of APPROVED_CHARACTERS) {
   }
   assert.equal(positions.size, 15, `${character} must have 15 distinct frames`);
 }
-assert.equal(hasExpressions('kiko'), false);
+assert.equal(hasExpressions('kiko'), true);
 assert.equal(hasExpressions('unknown'), false);
-console.log(`PASS: ${verified} expression frames, 6 valid source sheets, legacy fallback.`);
+console.log(`PASS: ${verified} expression frames, 12 valid source sheets, unknown ID rejected.`);

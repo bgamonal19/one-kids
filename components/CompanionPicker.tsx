@@ -13,7 +13,7 @@ export function CompanionPicker({ value, onChange, age }: { value: CompanionId; 
   return (
     <View>
       <Text style={s.heading}>Tu compañero 3D</Text>
-      <Text style={s.hint}>Seis compañeros de aventuras con 15 expresiones cada uno. Elige quien te acompañará en Inicio y en el Tutor IA.</Text>
+      <Text style={s.hint}>Doce compañeros con 15 expresiones cada uno. Elige quien te acompañará en Inicio y en el Tutor IA.</Text>
       <View style={[s.preview, { backgroundColor: selected.color + '12', borderColor: selected.color + '40', flexDirection: width < 440 ? 'column' : 'row' }]}>
         <KikoMascot character={value} expression={mood} mood={mood === 'celebrate' ? 'celebrate' : 'happy'} age={age} size={180} />
         <View style={s.previewCopy}>
@@ -30,9 +30,9 @@ export function CompanionPicker({ value, onChange, age }: { value: CompanionId; 
           </View>
         </View>
       </View>
-      {(['blocks'] as const).map(family => (
+      {(['heroes', 'blocks'] as const).map(family => (
         <View key={family}>
-          <Text style={s.family}>Aventuras de bloques</Text>
+          <Text style={s.family}>{family === 'heroes' ? 'Compañeros de aventura' : 'Aventuras de bloques'}</Text>
           <View style={s.grid}>
             {COMPANION_IDS.filter(id => COMPANIONS[id].family === family).map(id => {
               const c = COMPANIONS[id];

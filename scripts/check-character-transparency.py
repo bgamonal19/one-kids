@@ -1,9 +1,9 @@
-"""Read-only QA of the six transparent sprites; needs Pillow. Never modifies artwork."""
+"""Read-only QA of the twelve transparent sprites; needs Pillow. Never modifies artwork."""
 from pathlib import Path
 from PIL import Image
 import numpy as np
 root=Path(__file__).resolve().parents[1]/'assets/characters/expressions/transparent'
-ids=['bear','inventor','polar','turtle','penguin','tutorbot']
+ids=['kiko','nova','axon','lumi','miko','orbit','bear','inventor','polar','turtle','penguin','tutorbot']
 for id in ids:
     image=Image.open(root/f'{id}.png')
     assert image.mode=='RGBA',f'{id}: no alpha channel'
@@ -12,10 +12,11 @@ for id in ids:
     assert (alpha==0).mean()>.45,f'{id}: opaque backdrop remains'
     assert alpha[0,0]==0 and alpha[-1,-1]==0,f'{id}: opaque sheet corners'
     # Every pose must have actual opaque character pixels and empty space around it.
-    for row,(y0,y1) in enumerate([(52,366),(370,658),(660,986)]):
+    rows=[(0,370),(370,675),(675,1024)] if id in ['kiko','nova','axon','lumi','miko','orbit'] else [(52,366),(370,658),(660,986)]
+    for row,(y0,y1) in enumerate(rows):
         for col,(x0,x1) in enumerate([(3,305),(310,612),(617,919),(924,1226),(1231,1533)]):
             cell=alpha[y0:y1,x0:x1]
             assert (cell>240).mean()>.08,f'{id} {row},{col}: character missing or erased'
             assert (cell==0).mean()>.15,f'{id} {row},{col}: opaque rectangle remains'
     print(f'{id}: transparent backdrop + 15 opaque poses verified')
-print('PASS: 90 alpha-cutout frames; original sheets remain unchanged.')
+print('PASS: 180 alpha-cutout frames; original sheets remain unchanged.')

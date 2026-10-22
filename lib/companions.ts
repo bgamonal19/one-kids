@@ -1,5 +1,11 @@
 /** Stable IDs preserve saved student profiles when the visual collection grows. */
 export const COMPANIONS = {
+  kiko: { name: 'Kiko', role: 'Curioso y optimista', family: 'heroes', ages: '4–8 años', color: '#25B8C6', intro: 'Me pregunto… ', asset: require('../assets/characters/expressions/transparent/kiko.png') },
+  nova: { name: 'Nova', role: 'Inventora de ideas', family: 'heroes', ages: '9–12 años', color: '#9471D6', intro: 'Tengo una idea: ', asset: require('../assets/characters/expressions/transparent/nova.png') },
+  axon: { name: 'Axon', role: 'Estratega de retos', family: 'heroes', ages: '13–16 años', color: '#324D75', intro: 'Pensemos una estrategia: ', asset: require('../assets/characters/expressions/transparent/axon.png') },
+  lumi: { name: 'Lumi', role: 'Paciente y lector', family: 'heroes', ages: '4–8 años', color: '#BE8B31', intro: 'Leamos con calma: ', asset: require('../assets/characters/expressions/transparent/lumi.png') },
+  miko: { name: 'Miko', role: 'Aventurero valiente', family: 'heroes', ages: '7–12 años', color: '#E5814B', intro: '¡Vamos a explorar! ', asset: require('../assets/characters/expressions/transparent/miko.png') },
+  orbit: { name: 'Orbit', role: 'Ingenioso y científico', family: 'heroes', ages: '10–16 años', color: '#507DD5', intro: 'Comprobemos una hipótesis: ', asset: require('../assets/characters/expressions/transparent/orbit.png') },
   bear: { name: 'Oso explorador', role: 'Guía de aventuras', family: 'blocks', ages: '4–10 años', color: '#AD6A35', intro: '¡Seguimos el mapa! ', asset: require('../assets/characters/bear.webp') },
   inventor: { name: 'Oso inventor', role: 'Creativo y resolutivo', family: 'blocks', ages: '7–12 años', color: '#8E59AF', intro: 'Construyamos una solución: ', asset: require('../assets/characters/inventor.webp') },
   polar: { name: 'Oso polar', role: 'Compañero de lectura', family: 'blocks', ages: '4–10 años', color: '#3888A7', intro: 'Una página a la vez: ', asset: require('../assets/characters/polar.webp') },

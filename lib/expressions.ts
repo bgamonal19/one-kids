@@ -11,7 +11,7 @@ export const EXPRESSIONS = [
   { id: 'bye', label: 'Hasta pronto' },
 ] as const;
 export type ExpressionId = (typeof EXPRESSIONS)[number]['id'];
-export const APPROVED_CHARACTERS = ['bear', 'inventor', 'polar', 'turtle', 'penguin', 'tutorbot'] as const;
+export const APPROVED_CHARACTERS = ['kiko', 'nova', 'axon', 'lumi', 'miko', 'orbit', 'bear', 'inventor', 'polar', 'turtle', 'penguin', 'tutorbot'] as const;
 export type ExpressiveCompanionId = (typeof APPROVED_CHARACTERS)[number];
 export function hasExpressions(id: CompanionId): id is ExpressiveCompanionId {
   return APPROVED_CHARACTERS.some(value => value === id);
@@ -20,6 +20,12 @@ export function hasExpressions(id: CompanionId): id is ExpressiveCompanionId {
 // Alpha-cutout derivatives retain the 5×3 pose order. Generous art-only
 // windows leave room for hands, ears and accent marks without a white panel.
 const SHEETS = {
+  kiko: { asset: require('../assets/characters/expressions/transparent/kiko.png'), rows: [[0, 370], [370, 675], [675, 1024]] },
+  nova: { asset: require('../assets/characters/expressions/transparent/nova.png'), rows: [[0, 370], [370, 675], [675, 1024]] },
+  axon: { asset: require('../assets/characters/expressions/transparent/axon.png'), rows: [[0, 370], [370, 675], [675, 1024]] },
+  lumi: { asset: require('../assets/characters/expressions/transparent/lumi.png'), rows: [[0, 370], [370, 675], [675, 1024]] },
+  miko: { asset: require('../assets/characters/expressions/transparent/miko.png'), rows: [[0, 370], [370, 675], [675, 1024]] },
+  orbit: { asset: require('../assets/characters/expressions/transparent/orbit.png'), rows: [[0, 370], [370, 675], [675, 1024]] },
   bear: { asset: require('../assets/characters/expressions/transparent/bear.png'), rows: [[52, 366], [370, 658], [660, 986]] },
   inventor: { asset: require('../assets/characters/expressions/transparent/inventor.png'), rows: [[52, 366], [370, 658], [660, 986]] },
   polar: { asset: require('../assets/characters/expressions/transparent/polar.png'), rows: [[52, 366], [370, 658], [660, 986]] },

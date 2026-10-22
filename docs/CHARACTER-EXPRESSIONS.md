@@ -2,7 +2,7 @@
 
 ## Colección aprobada
 
-Seis personajes: `bear`, `inventor`, `polar`, `turtle`, `penguin`, `tutorbot`.
+Doce personajes: `kiko`, `nova`, `axon`, `lumi`, `miko`, `orbit`, `bear`, `inventor`, `polar`, `turtle`, `penguin`, `tutorbot`.
 Cada lámina original de 1536 × 1024 contiene quince poses numeradas.
 Las fuentes aprobadas se guardan sin cambios en `assets/characters/expressions/sheets/`.
 Las versiones con alfa real se guardan en
@@ -42,7 +42,7 @@ El tutor no recibe permisos adicionales ni valida automáticamente las tareas.
 ## Preferencias y accesibilidad
 
 El perfil guarda el ID en el almacenamiento existente. Los IDs antiguos siguen
-siendo válidos; entradas desconocidas vuelven a Kiko. Los perfiles nuevos y la
+siendo válidos; entradas desconocidas vuelven al oso explorador. Los perfiles nuevos y la
 demo empiezan con el oso explorador. El perfil permite probar los quince gestos
 antes de guardar. Solo la vista previa activa se anima; las miniaturas son
 estáticas. La flotación usa un ciclo sinusoidal continuo de 5,4 segundos,
@@ -53,10 +53,10 @@ Las reacciones temporales se limpian al abandonar la pantalla.
 
 ## Verificación
 
-- `node scripts/check-character-assets.cjs`: valida las 90 posiciones contra
+- `node scripts/check-character-assets.cjs`: valida las 180 posiciones contra
   las dimensiones de los PNG reales, límites y unicidad.
 - `python scripts/check-character-transparency.py`: verifica alfa, fondo
-  transparente y presencia de las noventa poses.
+  transparente y presencia de las ciento ochenta poses.
 - `npx tsc --noEmit` y `npx expo export -p web`.
 - Revisión ESLint de los archivos modificados.
 - Navegador: 90 cambios de expresión, elección, guardado, recarga, tutor,

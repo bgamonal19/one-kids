@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image as SpriteImage, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, { cancelAnimation, Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSpring, withTiming } from 'react-native-reanimated';
 import { expressionFrame, expressionLabel, hasExpressions, type ExpressionId } from '@/lib/expressions';
@@ -68,7 +68,7 @@ export function KikoMascot({ mood = 'happy', size = 140, character = 'bear', age
       <Animated.View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, motion]}>
         {frame ? (
           <Animated.View key={`${id}-${activeExpression}`} entering={reduced || !animated ? undefined : FadeIn.duration(180)} style={{ width: frame.width * factor, height: frame.height * factor, overflow: 'hidden' }}>
-            <Image source={frame.asset} contentFit="fill" cachePolicy="memory-disk" accessible={false} style={{ position: 'absolute', left: -frame.x * factor, top: -frame.y * factor, width: frame.sheetWidth * factor, height: frame.sheetHeight * factor }} />
+            <SpriteImage source={frame.asset} resizeMode="stretch" accessible={false} style={{ position: 'absolute', left: -frame.x * factor, top: -frame.y * factor, width: frame.sheetWidth * factor, height: frame.sheetHeight * factor }} />
           </Animated.View>
         ) : <Image source={companion.asset} contentFit="contain" cachePolicy="memory-disk" transition={reduced ? 0 : 180} style={{ width: size, height: size }} accessible={false} />}
       </Animated.View>
