@@ -1,3 +1,5 @@
+import type { CompanionId } from './companions';
+
 export type TaskItem = {
   id: string;
   title: string;
@@ -13,7 +15,7 @@ export type ChildProfile = {
   grade?: string;
   country?: string;
   interests?: string[];
-  companion?: 'kiko' | 'nova' | 'axon';
+  companion?: CompanionId;
 };
 
 export type ParentAccount = {

@@ -47,3 +47,7 @@ yarn-error.*
 /ios
 /android
 .vercel
+
+# Offline character renderer cache
+__pycache__/
+*.pyc

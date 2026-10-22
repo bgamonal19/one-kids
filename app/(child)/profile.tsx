@@ -2,12 +2,13 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { CompanionPicker } from '@/components/CompanionPicker';
+import { type CompanionId } from '@/lib/companions';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 
-type Companion = 'kiko' | 'nova' | 'axon';
 const COUNTRIES = ['Italia', 'España', 'Perú', 'Otro'];
 const INTERESTS = ['Ciencia', 'Arte', 'Deportes', 'Tecnología', 'Música', 'Naturaleza', 'Idiomas', 'Robótica', 'Historia', 'Videojuegos', 'Lectura', 'Matemáticas'];
 
@@ -17,7 +18,7 @@ export default function LearningProfileScreen() {
   const [grade, setGrade] = useState(child?.grade ?? '');
   const [country, setCountry] = useState(child?.country ?? 'Italia');
   const [interests, setInterests] = useState<string[]>(child?.interests ?? []);
-  const [companion, setCompanion] = useState<Companion>(child?.companion ?? 'kiko');
+  const [companion, setCompanion] = useState<CompanionId>(child?.companion ?? 'kiko');
   const [saving, setSaving] = useState(false);
   const toggleInterest = (interest: string) => setInterests(previous =>
     previous.includes(interest) ? previous.filter(value => value !== interest) : previous.length < 8 ? [...previous, interest] : previous
@@ -38,6 +39,9 @@ export default function LearningProfileScreen() {
       <Text style={styles.eyebrow}>MI PERFIL EDUCATIVO</Text>
       <Text style={styles.title}>Aprendo a mi manera ✨</Text>
       <Text style={styles.hint}>Personaliza las materias y el acompañante. La edad ya configura la apariencia general de ONE KIDS.</Text>
+
+      <CompanionPicker value={companion} onChange={setCompanion} age={child?.age ?? 8} />
+      <PrimaryButton label={saving ? 'Guardando…' : 'Guardar mi compañero'} onPress={save} disabled={saving} style={{ marginTop: spacing.lg }} />
 
       <Text style={styles.heading}>¿Dónde estudias?</Text>
       <View style={styles.chips}>
@@ -64,15 +68,6 @@ export default function LearningProfileScreen() {
         })}
       </View>
 
-      <Text style={styles.heading}>Elige tu acompañante</Text>
-      <Text style={styles.info}>Kiko tiene animación disponible. Nova y Axon son selecciones preparadas para próximos personajes: por ahora mostrarán el avatar animado actual.</Text>
-      <View style={styles.chips}>
-        {([{ key: 'kiko', label: '🩵 Kiko' }, { key: 'nova', label: '💜 Nova' }, { key: 'axon', label: '🔷 Axon' }] as const).map(item => (
-          <Pressable key={item.key} accessibilityRole="button" accessibilityState={{ selected: companion === item.key }} onPress={() => setCompanion(item.key)} style={[styles.chip, companion === item.key && styles.active]}>
-            <Text style={[styles.chipText, companion === item.key && styles.activeText]}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </View>
       <PrimaryButton label={saving ? 'Guardando…' : 'Guardar mi perfil'} onPress={save} style={{ marginTop: spacing.xl, marginBottom: spacing.xl }} />
     </Screen>
   );

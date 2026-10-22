@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COMPANIONS, KikoMascot } from '@/components/KikoMascot';
 import { fonts } from '@/constants/theme';
+import { useCompanionReaction } from '@/hooks/useCompanionReaction';
 import { useFamily } from '@/lib/store';
 
 type Stage = 'junior' | 'adventure' | 'creator' | 'pro';
@@ -19,6 +20,7 @@ const modes: Record<Stage, { label: string; agent: string; bg: string; primary: 
 };
 
 export default function ChildHome() {
+  const { expression, react } = useCompanionReaction();
   const [interaction, setInteraction] = useState(0);
   const { state, worldsUnlocked, allTasksDone } = useFamily();
   const { width } = useWindowDimensions();
@@ -28,9 +30,9 @@ export default function ChildHome() {
   const mode = modes[stage];
   const young = stage === 'junior' || stage === 'adventure';
   const companion = state.child?.companion ?? 'kiko';
-  const companionName = companion === 'nova' ? 'Nova' : companion === 'axon' ? 'Axon' : 'Kiko';
+  const companionName = COMPANIONS[companion].name;
   const prompts = age <= 8 ? ['¡Choca esos cinco! ¿Contamos tres estrellas?', '¡Cada intento te hace crecer!'] : age <= 11 ? ['Misión: aprende algo y explícamelo con tus palabras.', 'Un error es una pista. ¡Investiguemos!'] : age <= 14 ? ['Divide tu reto en pasos. ¿Cuál harías primero?', 'Prueba otra estrategia y compara los resultados.'] : ['Define una meta concreta para esta sesión.', '¿Qué evidencia respalda tu respuesta?'];
-  const personality = companion === 'nova' ? 'Tengo una idea: ' : companion === 'axon' ? 'Exploremos: ' : 'Me pregunto… ';
+  const personality = COMPANIONS[companion].intro;
   const compact = width < 520;
   const unfinished = state.tasks.filter(task => !task.done);
   const finished = state.tasks.length - unfinished.length;
@@ -65,15 +67,15 @@ export default function ChildHome() {
             </Pressable>
           </View>
           <View style={styles.heroAgent}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}`} onPress={() => setInteraction(n => n + 1)}><KikoMascot character={companion} age={age} mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 150 : 120} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}`} onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }}><KikoMascot character={companion} age={age} expression={allTasksDone && interaction === 0 ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 190 : 160} /></Pressable>
             <Text style={styles.agentName}>{companionName} · {COMPANIONS[companion].role}</Text>
           </View>
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => setInteraction(n => n + 1)} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, marginTop: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, marginTop: 12 }}>
           <Text style={{ fontFamily: fonts.bodyBold, color: mode.ink, fontSize: 16 }}>{interaction ? personality + prompts[(interaction - 1) % prompts.length] : `Toca a ${companionName} para descubrir tu reto de hoy.`}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push('./profile')} style={[styles.profileLink, { backgroundColor: mode.soft }]}><Text style={[styles.actionText, { color: mode.primary }]}>⚙ Mi grado, intereses y personaje →</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('./profile')} style={[styles.profileLink, { backgroundColor: mode.soft }]}><Text style={[styles.actionText, { color: mode.primary }]}>✦ Elegir personaje 3D y personalizar mi perfil →</Text></Pressable>
         {state.child?.interests?.length ? <Text style={[styles.interests, { color: mode.ink }]}>Me interesa: {state.child.interests.join(' · ')}</Text> : null}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: mode.ink }]}>Tu día de aprendizaje</Text>

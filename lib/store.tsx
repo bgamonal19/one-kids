@@ -1,3 +1,4 @@
+import { isCompanionId, type CompanionId } from './companions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   createContext,
@@ -42,7 +43,7 @@ type StoreApi = {
   checkPin: (pin: string) => Promise<boolean>;
   setChild: (name: string, age: number) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
-  updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: 'kiko' | 'nova' | 'axon' }) => Promise<void>;
+  updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => Promise<void>;
   addTask: (title: string) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
@@ -67,6 +68,7 @@ function normalizeState(raw: Partial<FamilyState>): FamilyState {
   return {
     ...emptyState,
     ...raw,
+    child: raw.child ? { ...raw.child, companion: isCompanionId(raw.child.companion) ? raw.child.companion : 'kiko' } : null,
     courses: raw.courses?.length ? raw.courses : DEFAULT_COURSES,
     agenda: raw.agenda ?? [],
     tasks: raw.tasks ?? [],
@@ -146,7 +148,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     async (name: string, age: number) => {
       await persist({
         ...state,
-        child: { id: uid('child'), name: name.trim(), age: clampAge(age), stars: 0 },
+        child: { id: uid('child'), name: name.trim(), age: clampAge(age), stars: 0, companion: 'bear' },
         onboarded: true,
       });
     },
@@ -164,9 +166,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     [persist, state]
   );
 
-  const updateLearningProfile = useCallback(async (input: { grade: string; country: string; interests: string[]; companion: 'kiko' | 'nova' | 'axon' }) => {
+  const updateLearningProfile = useCallback(async (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => {
     if (!state.child) return;
-    await persist({ ...state, child: { ...state.child, grade: input.grade.trim().slice(0, 50), country: input.country.trim().slice(0, 50), interests: input.interests.slice(0, 8), companion: input.companion } });
+    await persist({ ...state, child: { ...state.child, grade: input.grade.trim().slice(0, 50), country: input.country.trim().slice(0, 50), interests: input.interests.slice(0, 8), companion: isCompanionId(input.companion) ? input.companion : 'kiko' } });
   }, [persist, state]);
 
   const addTask = useCallback(
@@ -287,6 +289,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         name: 'Luna',
         age: 8, // demo: cambia la edad en Panel padres (4–16)
         stars: 3,
+        companion: 'bear',
       },
       tasks: [
         {

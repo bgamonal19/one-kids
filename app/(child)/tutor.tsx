@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 
-import { KikoMascot } from '@/components/KikoMascot';
+import { CompanionStatus } from '@/components/CompanionStatus';
+import { useCompanionReaction } from '@/hooks/useCompanionReaction';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { getAgeBand, getAgeProfile } from '@/lib/ages';
@@ -40,6 +41,7 @@ export default function TutorScreen() {
       text: `¡Hola ${child?.name ?? ''}! ${profile.tutorHint}\n\n${profile.bandTitle}. ${aiMode}`,
     },
   ]);
+  const { expression, react } = useCompanionReaction();
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [pendingBase64, setPendingBase64] = useState<string | null>(null);
@@ -67,22 +69,25 @@ export default function TutorScreen() {
 
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
+    react('focused');
     setPendingImage(asset.uri);
     setPendingBase64(asset.base64 ?? null);
   };
 
-  const send = async () => {
-    if (!input.trim() && !pendingBase64 && !pendingImage) return;
+  const send = async (message = input, responseReaction: 'explain' | 'hint' = 'explain') => {
+    if (loading) return;
+    if (!message.trim() && !pendingBase64 && !pendingImage) return;
     const childMsg: TutorMessage = {
       id: uid(),
       role: 'child',
-      text: input.trim() || 'Ayúdame con esta foto de mi tarea',
+      text: message.trim() || 'Ayúdame con esta foto de mi tarea',
       imageUri: pendingImage ?? undefined,
     };
     const nextHistory = [...messages, childMsg];
     setMessages(nextHistory);
     setInput('');
     setLoading(true);
+    react('think');
 
     const history = nextHistory
       .filter((m) => m.id !== 'welcome')
@@ -97,6 +102,10 @@ export default function TutorScreen() {
         history,
       });
       setMessages((prev) => [...prev, { id: uid(), role: 'tutor', text: res.reply }]);
+      react(responseReaction, 6000);
+    } catch {
+      react('retry');
+      setMessages(prev => [...prev, { id: uid(), role: 'tutor', text: 'No pude recibir la respuesta. Podemos intentarlo de nuevo.' }]);
     } finally {
       setPendingImage(null);
       setPendingBase64(null);
@@ -107,13 +116,14 @@ export default function TutorScreen() {
   return (
     <Screen style={{ flex: 1, paddingBottom: 0 }}>
       <View style={styles.headerRow}>
-        <KikoMascot character={child?.companion ?? 'kiko'} age={child?.age ?? 8} mood={loading ? 'think' : 'happy'} size={72} />
+
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Tutor IA</Text>
           <Text style={styles.hint}>Tu compañero y el tutor te guían paso a paso.</Text>
         </View>
       </View>
 
+      <CompanionStatus expression={expression} message={loading ? 'Estoy preparando el siguiente paso…' : undefined} />
       <ScrollView
         style={styles.chat}
         contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
@@ -138,16 +148,24 @@ export default function TutorScreen() {
       ) : null}
 
       <View style={styles.composer}>
+        <View style={styles.row}>
+          <PrimaryButton label="Una pista" variant="secondary" onPress={() => send('Dame una pista del ejercicio que estamos viendo, sin decirme la respuesta.', 'hint')} disabled={loading} style={styles.half} />
+          <PrimaryButton label="Tú puedes" variant="secondary" onPress={() => {
+            react('encourage', 5000);
+            setMessages(prev => [...prev, { id: uid(), role: 'tutor', text: (child?.age ?? 8) <= 8 ? '¡Tú puedes! Respira y probemos un pasito más.' : 'Si te atascas, divide el problema en una parte más pequeña. Vamos paso a paso.' }]);
+          }} disabled={loading} style={styles.half} />
+        </View>
         <TextInput
           value={input}
-          onChangeText={setInput}
+          onFocus={() => { if (!loading) react('listen'); }}
+          onChangeText={value => { setInput(value); if (!loading) react('listen'); }}
           placeholder="Escribe tu duda…"
           placeholderTextColor={colors.inkMuted}
           style={styles.input}
         />
         <View style={styles.row}>
           <PrimaryButton label="Foto" variant="secondary" onPress={pickPhoto} style={styles.half} />
-          <PrimaryButton label="Enviar" onPress={send} disabled={loading} style={styles.half} />
+          <PrimaryButton label="Enviar" onPress={() => send()} disabled={loading} style={styles.half} />
         </View>
       </View>
     </Screen>

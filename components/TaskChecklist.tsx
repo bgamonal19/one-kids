@@ -19,7 +19,7 @@ export function TaskChecklist({ tasks, onToggle, onRemove, editable }: Props) {
     <View style={styles.list}>
       {tasks.map((task) => (
         <View key={task.id} style={styles.row}>
-          <Pressable onPress={() => onToggle(task.id)} style={styles.main} accessibilityRole="checkbox">
+          <Pressable onPress={() => onToggle(task.id)} style={styles.main} accessibilityRole="checkbox" accessibilityState={{ checked: task.done }}>
             <View style={[styles.box, task.done && styles.boxOn]}>
               {task.done ? <Text style={styles.check}>✓</Text> : null}
             </View>

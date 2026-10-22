@@ -1,8 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
+import { CompanionStatus } from '@/components/CompanionStatus';
+import { useCompanionReaction } from '@/hooks/useCompanionReaction';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { getAgeBand } from '@/lib/ages';
@@ -16,6 +18,22 @@ import {
   WORLDS,
 } from '@/lib/worlds';
 
+function createQuestions(band: ReturnType<typeof getAgeBand>) {
+  const math = makeMathQuestion(band);
+  const letter = makeLetterRound(band);
+  const explorer = makeExplorerQuestion(band);
+  const distractors = math.op === '×'
+    ? [math.answer + math.a, Math.max(0, math.answer - math.b), math.a + math.b]
+    : [math.answer + 1, Math.max(0, math.answer - 2), math.answer + 3];
+  const mathOptions = Array.from(new Set([math.answer, ...distractors])).slice(0, 4);
+  while (mathOptions.length < 4) mathOptions.push(math.answer + mathOptions.length + 1);
+  for (let i = mathOptions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [mathOptions[i], mathOptions[j]] = [mathOptions[j], mathOptions[i]];
+  }
+  return { math, letter, explorer, mathOptions };
+}
+
 export default function WorldPlay() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const worldId = id as WorldId;
@@ -27,18 +45,11 @@ export default function WorldPlay() {
   const [feedback, setFeedback] = useState('');
   const [round, setRound] = useState(0);
 
-  const math = useMemo(() => makeMathQuestion(band), [band, round]);
-  const letter = useMemo(() => makeLetterRound(band), [band, round]);
-  const explorer = useMemo(() => makeExplorerQuestion(band), [band, round]);
-  const mathOptions = useMemo(() => {
-    const distractors =
-      math.op === '×'
-        ? [math.answer + math.a, Math.max(0, math.answer - math.b), math.a + math.b]
-        : [math.answer + 1, Math.max(0, math.answer - 2), math.answer + 3];
-    const opts = Array.from(new Set([math.answer, ...distractors])).slice(0, 4);
-    while (opts.length < 4) opts.push(math.answer + opts.length + 1);
-    return opts.sort(() => Math.random() - 0.5);
-  }, [math, round]);
+  const [{ math, letter, explorer, mathOptions }, setQuestions] = useState(() => createQuestions(band));
+  const { expression, react } = useCompanionReaction('curious');
+  const resolving = useRef(false);
+  const nextRoundTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (nextRoundTimer.current) clearTimeout(nextRoundTimer.current); }, []);
 
   if (!world) {
     return (
@@ -59,23 +70,32 @@ export default function WorldPlay() {
   }
 
   const correct = async () => {
+    if (resolving.current) return;
+    resolving.current = true;
+    react('correct');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setScore((s) => s + 1);
     setFeedback('¡Correcto! +1 ★');
     await addStars(1);
-    setTimeout(() => {
+    nextRoundTimer.current = setTimeout(() => {
       setFeedback('');
+      setQuestions(createQuestions(band));
       setRound((r) => r + 1);
+      react('curious');
+      resolving.current = false;
     }, 700);
   };
 
   const wrong = () => {
+    if (resolving.current) return;
+    react('retry');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setFeedback('Casi… inténtalo otra vez');
   };
 
   return (
     <Screen scroll>
+      <CompanionStatus expression={expression} message={feedback || 'Lee con calma y elige una respuesta.'} />
       <Text style={styles.kicker}>{world.title}</Text>
       <Text style={styles.title}>Ronda {round + 1}</Text>
       <Text style={styles.score}>Estrellas de sesión: {score}</Text>
