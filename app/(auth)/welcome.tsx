@@ -8,7 +8,6 @@ import { PlaygroundBg } from '@/components/PlaygroundBg';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SpeechBubble } from '@/components/SpeechBubble';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
-import { isSupabaseConfigured } from '@/lib/supabase';
 import { useFamily } from '@/lib/store';
 
 export default function WelcomeScreen() {
@@ -27,19 +26,17 @@ export default function WelcomeScreen() {
     }
   };
 
-  const aiLabel = isSupabaseConfigured
-    ? 'Tutor con OpenAI Vision listo'
-    : 'Demo con tutor local · OpenAI se conecta después';
+  const aiLabel = 'Aprende jugando y descubre el tutor paso a paso.';
 
   return (
     <View style={styles.root}>
       <PlaygroundBg />
       <View style={[styles.inner, desktop && styles.innerDesktop]}>
         <View style={[styles.hero, desktop && styles.heroDesktop]}>
-          <BrandMark size="hero" subtitle="Aprende jugando con Kiko, tu guía." />
+          <BrandMark size="hero" subtitle="Aprende jugando con tu compañero." />
           <View style={styles.mascotRow}>
             <KikoMascot mood="wave" size={desktop ? 180 : 140} />
-            <SpeechBubble text="¡Hola! Soy Kiko. Toca el botón naranja y empezamos la aventura." />
+            <SpeechBubble text="¡Hola! Toca el botón naranja y empezamos nuestra aventura." />
           </View>
         </View>
 
