@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { PinPad } from '@/components/PinPad';
@@ -21,32 +21,27 @@ export default function PinSetupScreen() {
     }
   }, [state.parent?.pinHash, state.child]);
 
-  useEffect(() => {
-    if (phase === 'create' && pin.length === 4) {
-      if (!isValidPin(pin)) {
-        setError('El PIN debe ser de 4 dígitos.');
-        setLocalPin('');
-        return;
-      }
-      setPhase('confirm');
-      setError('');
+  const saving = useRef(false);
+  const handlePinChange = async (value: string) => {
+    if (saving.current) return;
+    if (phase === 'create') {
+      setLocalPin(value);
+      if (value.length !== 4) return;
+      if (!isValidPin(value)) { setError('El PIN debe ser de 4 dígitos.'); setLocalPin(''); return; }
+      setPhase('confirm'); setError('');
+      return;
     }
-  }, [pin, phase]);
-
-  useEffect(() => {
-    if (phase !== 'confirm' || confirm.length !== 4) return;
-    (async () => {
-      if (confirm !== pin) {
-        setError('No coinciden. Intenta de nuevo.');
-        setLocalPin('');
-        setConfirm('');
-        setPhase('create');
-        return;
-      }
-      await setPin(pin);
-      router.replace('/(onboarding)/child');
-    })();
-  }, [confirm, phase, pin, setPin]);
+    setConfirm(value);
+    if (value.length !== 4) return;
+    if (value !== pin) {
+      setError('No coinciden. Intenta de nuevo.'); setLocalPin(''); setConfirm(''); setPhase('create');
+      return;
+    }
+    saving.current = true;
+    try { await setPin(pin); router.replace('/(onboarding)/child'); }
+    catch { setError('No se pudo guardar el PIN. Inténtalo otra vez.'); setConfirm(''); }
+    finally { saving.current = false; }
+  };
 
   return (
     <Screen>
@@ -60,7 +55,7 @@ export default function PinSetupScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <PinPad
         value={phase === 'create' ? pin : confirm}
-        onChange={phase === 'create' ? setLocalPin : setConfirm}
+        onChange={value => void handlePinChange(value)}
       />
     </Screen>
   );

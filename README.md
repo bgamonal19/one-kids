@@ -34,10 +34,12 @@ O conecta el repo de GitHub en [vercel.com](https://vercel.com): build `npx expo
 gh repo create one-kids --public --source=. --remote=origin --push
 ```
 
-## Backend opcional (Supabase + OpenAI)
+## Tutor con OpenAI y Anthropic
 
-Sin claves, todo corre en local (tutor simulado).
+La web dispone de `/api/tutor` en Vercel. Añade las claves privadas `OPENAI_API_KEY` y `ANTHROPIC_API_KEY` en las variables de **Production** y vuelve a desplegar. No se incluyen claves en el cliente.
 
-1. Ejecuta [`supabase/schema.sql`](supabase/schema.sql)
-2. Copia [`.env.example`](.env.example) → `.env`
-3. `supabase functions deploy tutor-help` + `supabase secrets set OPENAI_API_KEY=...`
+Sin claves, el tutor muestra «Modo práctica» y solo ofrece ejercicios locales limitados; no reconoce fotografías. Con claves, la foto se transcribe primero para que el niño revise el texto antes de recibir ayuda paso a paso.
+
+Cada respuesta permite escucharla, continuar cuando se entiende, pedir una explicación más fácil, otro ejemplo o una pista.
+
+Consulta [la guía de activación y pruebas](docs/PRUEBAS-TUTOR.md) para límites, pruebas pendientes y configuración móvil. El backend Supabase es opcional; usa la misma lógica de proveedores y requiere despliegue separado.

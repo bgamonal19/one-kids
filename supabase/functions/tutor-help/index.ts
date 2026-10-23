@@ -1,108 +1,23 @@
-// Supabase Edge Function: tutor-help
-// Deploy: supabase functions deploy tutor-help
-// Secret: supabase secrets set OPENAI_API_KEY=sk-...
-
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
+// Optional mobile backend. Vercel web uses /api/tutor with the same provider logic.
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { runTutor, tutorStatus, TutorError } from '../../../server/tutor-core.mjs';
 const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': Deno.env.get('TUTOR_ALLOWED_ORIGIN') || 'https://one-kids.vercel.app',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Cache-Control': 'no-store',
+  'Content-Type': 'application/json',
 };
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: cors });
-  }
-
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const env = Object.fromEntries(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_MODEL', 'ANTHROPIC_MODEL', 'TUTOR_DEFAULT_PROVIDER'].map(key => [key, Deno.env.get(key)]));
+  if (request.method === 'GET') return Response.json(tutorStatus(env), { headers: cors });
+  if (request.method !== 'POST') return Response.json({ error: 'Método no permitido.' }, { status: 405, headers: cors });
   try {
-    const apiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "OPENAI_API_KEY missing" }), {
-        status: 500,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
-    }
-
-    const body = await req.json();
-    const {
-      system,
-      childName,
-      message,
-      imageBase64,
-      history = [],
-    } = body as {
-      system?: string;
-      childName?: string;
-      message?: string;
-      imageBase64?: string;
-      history?: { role: string; text: string }[];
-    };
-
-    const content: Array<Record<string, unknown>> = [];
-    if (message) content.push({ type: "text", text: message });
-    if (imageBase64) {
-      content.push({
-        type: "image_url",
-        image_url: {
-          url: imageBase64.startsWith("data:")
-            ? imageBase64
-            : `data:image/jpeg;base64,${imageBase64}`,
-        },
-      });
-    }
-    if (content.length === 0) {
-      content.push({
-        type: "text",
-        text: `${childName ?? "Niño"} pide ayuda con su tarea.`,
-      });
-    }
-
-    const messages = [
-      {
-        role: "system",
-        content:
-          system ??
-          "Eres el tutor de ONE KIDS. Guía paso a paso en español. Nunca des la respuesta final de golpe.",
-      },
-      ...history.slice(-8).map((h) => ({
-        role: h.role === "tutor" ? "assistant" : "user",
-        content: h.text,
-      })),
-      { role: "user", content },
-    ];
-
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.5,
-        max_tokens: 400,
-        messages,
-      }),
-    });
-
-    if (!openaiRes.ok) {
-      const errText = await openaiRes.text();
-      return new Response(JSON.stringify({ error: errText }), {
-        status: 502,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await openaiRes.json();
-    const reply = data.choices?.[0]?.message?.content ?? "Vamos paso a paso. ¿Qué parte te trabó?";
-
-    return new Response(JSON.stringify({ reply }), {
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
-      status: 500,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    const text = await request.text();
+    if (text.length > 2_800_000) throw new TutorError('La foto es demasiado grande.', 413);
+    return Response.json(await runTutor(JSON.parse(text), env), { headers: cors });
+  } catch (error) {
+    return Response.json({ error: error instanceof TutorError ? error.message : 'No se pudo preparar la respuesta.' }, { status: error instanceof TutorError ? error.status : 500, headers: cors });
   }
 });

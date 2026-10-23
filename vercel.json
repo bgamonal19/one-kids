@@ -3,5 +3,10 @@
   "outputDirectory": "dist",
   "framework": null,
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "functions": {
+    "api/tutor.mjs": {
+      "maxDuration": 60
+    }
+  }
 }
