@@ -1,3 +1,4 @@
+import { addChildProfile, selectChildProfile, preserveProfiles } from './child-profiles';
 import { isCompanionId, type CompanionId } from './companions';
 import { familyForUser, familyPayload, loadCloudFamily, saveCloudFamily, signInAccount, signUpAccount, type RegistrationResult } from './cloud-accounts';
 import { supabase } from './supabase';
@@ -53,6 +54,8 @@ type StoreApi = {
   logout: () => Promise<void>;
   setPin: (pin: string) => Promise<void>;
   checkPin: (pin: string) => Promise<boolean>;
+  switchChild: (id: string) => Promise<void>;
+  addChild: (name: string, age: number) => Promise<void>;
   setChild: (name: string, age: number) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
   updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => Promise<void>;
@@ -77,7 +80,7 @@ function uid(prefix: string) {
 }
 
 function normalizeState(raw: Partial<FamilyState>): FamilyState {
-  return {
+  return preserveProfiles({
     ...emptyState,
     ...raw,
     parent: raw.parent ? { id: raw.parent.id, email: raw.parent.email, name: raw.parent.name, pinHash: raw.parent.pinHash || '' } : null,
@@ -85,7 +88,7 @@ function normalizeState(raw: Partial<FamilyState>): FamilyState {
     courses: Array.isArray(raw.courses) ? raw.courses : DEFAULT_COURSES,
     agenda: raw.agenda ?? [],
     tasks: raw.tasks ?? [],
-  };
+  });
 }
 
 export function FamilyProvider({ children }: { children: React.ReactNode }) {
@@ -279,6 +282,13 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     },
     [persist, state]
   );
+
+  const switchChild = useCallback(async (id: string) => {
+    await persist(selectChildProfile(state, id));
+  }, [persist, state]);
+  const addChild = useCallback(async (name: string, age: number) => {
+    await persist(addChildProfile(state, { id: uid('child'), name: name.trim().slice(0, 60), age: clampAge(age), stars: 0, companion: 'bear' }));
+  }, [persist, state]);
 
   const updateChildAge = useCallback(
     async (age: number) => {
@@ -474,7 +484,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       logout,
       setPin,
       checkPin,
-      setChild,
+      setChild, switchChild, addChild,
       updateChildAge,
       updateLearningProfile,
       addTask,
@@ -499,7 +509,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       logout,
       setPin,
       checkPin,
-      setChild,
+      setChild, switchChild, addChild,
       updateChildAge,
       updateLearningProfile,
       addTask,

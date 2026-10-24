@@ -1,3 +1,4 @@
+import { preserveProfiles } from './child-profiles';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { validateRegistration, isNumericPassword } from './account-validation';
 import type { FamilyState } from './types';
@@ -38,16 +39,17 @@ export async function signInAccount(client: SupabaseClient | null, email: string
 }
 
 export function familyForUser(user: User, raw: Partial<FamilyState> & { pinHash?: string } = {}): FamilyState {
-  return {
+  return preserveProfiles({
+    profiles: Array.isArray(raw.profiles) ? raw.profiles : [],
     parent: { id: user.id, email: user.email || '', name: String(user.user_metadata?.full_name || 'Familia').slice(0, 80), pinHash: raw.pinHash || '' },
     child: raw.child ?? null,
     tasks: Array.isArray(raw.tasks) ? raw.tasks : [], courses: Array.isArray(raw.courses) ? raw.courses : DEFAULT_COURSES,
     agenda: Array.isArray(raw.agenda) ? raw.agenda : [], focusActive: raw.focusActive === true, onboarded: raw.onboarded === true,
-  };
+  });
 }
 // Explicit allowlist: no password, access token, email or client-supplied owner ID in JSON.
 export function familyPayload(state: FamilyState) {
-  return { child: state.child, tasks: state.tasks, courses: state.courses, agenda: state.agenda, focusActive: state.focusActive, onboarded: state.onboarded, pinHash: state.parent?.pinHash || '' };
+  return { profiles: preserveProfiles(state).profiles, child: state.child, tasks: state.tasks, courses: state.courses, agenda: state.agenda, focusActive: state.focusActive, onboarded: state.onboarded, pinHash: state.parent?.pinHash || '' };
 }
 export async function loadCloudFamily(client: SupabaseClient, user: User): Promise<FamilyState> {
   const { data, error } = await client.from('family_states').select('state').eq('user_id', user.id).maybeSingle();

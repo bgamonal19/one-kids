@@ -41,3 +41,22 @@ test('family owner comes from authenticated user and payload excludes credential
 test('saving refuses an account switch before touching the database', async () => {
   await assert.rejects(saveCloudFamily(null, 'family-b', familyForUser(user)), /cuenta cambió/);
 });
+const { preserveProfiles, addChildProfile, selectChildProfile } = load('child-profiles');
+test('legacy single-child families migrate without losing progress', () => {
+  const state = preserveProfiles({ ...familyForUser(user), child: { id: 'a', name: 'Ana', age: 8, stars: 7 }, tasks: [{ id: 'task-a', title: 'Leer', done: true }] });
+  assert.equal(state.profiles.length, 1);
+  assert.equal(state.profiles[0].child.stars, 7);
+  assert.equal(state.profiles[0].tasks[0].id, 'task-a');
+});
+test('siblings keep tasks, agenda, courses, focus and stars isolated across switches and cloud roundtrips', () => {
+  const a = preserveProfiles({ ...familyForUser(user), child: { id: 'a', name: 'Ana', age: 8, stars: 7 }, tasks: [{ id: 'a-task' }], courses: [], agenda: [{ id: 'a-event' }], focusActive: true });
+  const b = addChildProfile(a, { id: 'b', name: 'Leo', age: 5, stars: 0 });
+  assert.equal(b.tasks.length, 0); assert.equal(b.agenda.length, 0); assert.equal(b.focusActive, false);
+  const edited = preserveProfiles({ ...b, tasks: [{ id: 'b-task' }], child: { ...b.child, stars: 2 } });
+  const restored = familyForUser(user, familyPayload(edited));
+  const switched = selectChildProfile(restored, 'a');
+  assert.equal(switched.child.stars, 7); assert.equal(switched.tasks[0].id, 'a-task');
+  assert.equal(switched.courses.length, 0); assert.equal(switched.agenda[0].id, 'a-event'); assert.equal(switched.focusActive, true);
+  const back = selectChildProfile(switched, 'b');
+  assert.equal(back.child.stars, 2); assert.equal(back.tasks[0].id, 'b-task'); assert.equal(back.profiles.length, 2);
+});

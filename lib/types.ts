@@ -43,7 +43,16 @@ export type AgendaEvent = {
   note: string;
 };
 
+export type ChildLearningState = {
+  child: ChildProfile;
+  tasks: TaskItem[];
+  courses: CourseItem[];
+  agenda: AgendaEvent[];
+  focusActive: boolean;
+};
+
 export type FamilyState = {
+  profiles?: ChildLearningState[];
   parent: ParentAccount | null;
   child: ChildProfile | null;
   tasks: TaskItem[];

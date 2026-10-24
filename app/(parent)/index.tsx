@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandMark } from '@/components/BrandMark';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -10,9 +10,27 @@ import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 
 export default function ParentHome() {
-  const { state, allTasksDone, updateChildAge, accountMode, refreshFamily, logout } = useFamily();
+  const { state, allTasksDone, updateChildAge, accountMode, refreshFamily, logout, addChild, switchChild } = useFamily();
   const [accountError, setAccountError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newAge, setNewAge] = useState(8);
+  const [adding, setAdding] = useState(false);
+  const changeProfile = async (id: string) => {
+    if (busy) return;
+    setBusy(true); setAccountError('');
+    try { await switchChild(id); }
+    catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo cambiar de perfil.'); }
+    finally { setBusy(false); }
+  };
+  const createChild = async () => {
+    if (busy) return;
+    if (!newName.trim()) { setAccountError('Escribe el nombre de tu hijo o hija.'); return; }
+    setBusy(true); setAccountError('');
+    try { await addChild(newName, newAge); setNewName(''); setAdding(false); }
+    catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo crear el perfil.'); }
+    finally { setBusy(false); }
+  };
   const signOut = async () => {
     setBusy(true); setAccountError('');
     try { await logout(); router.replace('/(auth)/welcome'); }
@@ -41,6 +59,24 @@ export default function ParentHome() {
           {child ? `${child.name} · ${child.age} años · ${child.stars} ★` : 'Sin perfil'}
         </Text>
         {profile ? <Text style={styles.statSub}>{profile.bandTitle} · {profile.label}</Text> : null}
+      </View>
+
+      <View style={styles.stat}>
+        <Text style={styles.statValue}>Mis hijos</Text>
+        <Text style={styles.statSub}>Cada perfil tiene sus tareas, agenda, cursos, compañero y estrellas.</Text>
+        {(state.profiles ?? []).map(profile => (
+          <Pressable key={profile.child.id} accessibilityRole="button" accessibilityState={{ selected: profile.child.id === child?.id, disabled: busy }} disabled={busy} onPress={() => void changeProfile(profile.child.id)} style={[styles.profileCard, profile.child.id === child?.id && styles.selectedProfile]}>
+            <Text style={styles.statValue}>{profile.child.id === child?.id ? '✓ ' : ''}{profile.child.name}</Text>
+            <Text style={styles.statSub}>{profile.child.age} años · {profile.child.stars} ★ · {profile.child.id === child?.id ? 'Perfil activo' : 'Elegir perfil'}</Text>
+          </Pressable>
+        ))}
+        <PrimaryButton label={adding ? "Cancelar" : "+ Agregar hijo o hija"} variant="secondary" onPress={() => setAdding(!adding)} disabled={busy} />
+        {adding ? <View style={{ gap: 12, marginTop: 14 }}>
+          <TextInput accessibilityLabel="Nombre del nuevo hijo o hija" placeholder="Nombre de tu hijo o hija" value={newName} onChangeText={setNewName} maxLength={60} style={styles.nameInput} />
+          <Text style={styles.statLabel}>Edad</Text>
+          <View style={styles.ages}>{AGE_OPTIONS.map(age => <Pressable key={age} accessibilityRole="button" accessibilityLabel={`${age} años`} accessibilityState={{ selected: age === newAge }} onPress={() => setNewAge(age)} style={[styles.ageChip, age === newAge && { backgroundColor: colors.skyDeep }]}><Text style={[styles.ageText, age === newAge && styles.ageOn]}>{age}</Text></Pressable>)}</View>
+          <PrimaryButton label={busy ? "Guardando…" : "Crear perfil infantil"} onPress={createChild} disabled={busy} />
+        </View> : null}
       </View>
 
       {child ? (
@@ -112,6 +148,9 @@ const styles = StyleSheet.create({
   statLabel: { fontFamily: fonts.bodySemi, color: colors.inkMuted, fontSize: 13 },
   statValue: { marginTop: 4, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 17 },
   statSub: { marginTop: 4, fontFamily: fonts.body, color: colors.inkMuted, fontSize: 14 },
+  profileCard: { padding: 16, marginTop: 12, borderRadius: radii.md, borderWidth: 2, borderColor: colors.mist, backgroundColor: colors.paper },
+  selectedProfile: { borderColor: colors.skyDeep },
+  nameInput: { backgroundColor: colors.paper, padding: 14, borderRadius: radii.md, fontFamily: fonts.body, color: colors.ink, fontSize: 16 },
   ages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   ageChip: {
     width: 42,

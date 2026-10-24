@@ -11,7 +11,7 @@ import { useFamily } from '@/lib/store';
 
 export default function ChildLayout() {
   const insets = useSafeAreaInsets();
-  const { checkPin } = useFamily();
+  const { checkPin, state } = useFamily();
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -32,7 +32,7 @@ export default function ChildLayout() {
 
   return (
     <RequireFamily><View style={{ flex: 1 }}>
-      <Stack
+      <Stack key={state.child?.id ?? 'empty'}
         screenOptions={{
           headerShown: true,
           headerTitleStyle: { fontFamily: fonts.displayBold, color: colors.ink },

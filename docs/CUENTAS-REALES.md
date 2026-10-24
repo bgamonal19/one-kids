@@ -6,7 +6,9 @@ Proyecto Supabase: `one-kids` (`ontnagfkouolwtkqomsi`), organización bgamonal19
 - Supabase Auth gestiona contraseña y sesión. No se guarda la contraseña en el perfil familiar.
 - Confirmación por correo antes de entrar cuando el proveedor la exige.
 - PIN parental de cuatro dígitos independiente de la contraseña.
-- Perfil infantil, tareas, cursos, agenda y estrellas en `public.family_states`, con permisos por UID autenticado.
+- Varios perfiles infantiles por familia, cada uno con tareas, cursos, agenda, enfoque, compañero y estrellas independientes. «Mis hijos» en Padres permite agregar y cambiar el perfil activo. El perfil único anterior se conserva automáticamente.
+- «Cerrar sesión» permanece visible en la franja superior y en Padres.
+- Perfiles infantiles, tareas, cursos, agenda y estrellas en `public.family_states`, con permisos por UID autenticado.
 - Demo separada y explícitamente local. Los datos del prototipo anterior se conservan como demo, eliminando la contraseña antigua; no se convierten en cuentas reales automáticamente.
 - Los cambios se guardan al editar. En otro dispositivo: iniciar sesión y usar «Actualizar desde mi cuenta» en Padres o volver a entrar. No hay sincronización en tiempo real; si dos dispositivos editan a la vez prevalece el último guardado del perfil completo.
 - Un fallo muestra guardado pendiente y ofrece reintentar. Se conserva una copia por usuario en ese equipo.
