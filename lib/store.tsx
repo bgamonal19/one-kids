@@ -1,4 +1,7 @@
 import { isCompanionId, type CompanionId } from './companions';
+import { familyForUser, familyPayload, loadCloudFamily, saveCloudFamily, signInAccount, signUpAccount, type RegistrationResult } from './cloud-accounts';
+import { supabase } from './supabase';
+import type { User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   createContext,
@@ -6,6 +9,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -16,12 +20,15 @@ import type {
   CourseItem,
   CourseLink,
   FamilyState,
-  ParentAccount,
   TaskItem,
 } from './types';
 import { COURSE_COLORS, DEFAULT_COURSES } from './types';
 
 const STORAGE_KEY = 'onekids.family.v1';
+const DEMO_KEY = 'onekids.demo.v2';
+const MODE_KEY = 'onekids.account-mode.v2';
+const cloudKey = (id: string) => `onekids.cloud.${id}`;
+type AccountMode = 'signed-out' | 'demo' | 'cloud';
 
 const emptyState: FamilyState = {
   parent: null,
@@ -36,7 +43,12 @@ const emptyState: FamilyState = {
 type StoreApi = {
   ready: boolean;
   state: FamilyState;
-  registerParent: (input: { email: string; name: string; password: string }) => Promise<void>;
+  accountMode: AccountMode;
+  syncStatus: 'idle' | 'saving' | 'saved' | 'error';
+  syncError: string;
+  retrySync: () => Promise<void>;
+  refreshFamily: () => Promise<void>;
+  registerParent: (input: { email: string; name: string; password: string }) => Promise<RegistrationResult>;
   loginParent: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setPin: (pin: string) => Promise<void>;
@@ -68,8 +80,9 @@ function normalizeState(raw: Partial<FamilyState>): FamilyState {
   return {
     ...emptyState,
     ...raw,
+    parent: raw.parent ? { id: raw.parent.id, email: raw.parent.email, name: raw.parent.name, pinHash: raw.parent.pinHash || '' } : null,
     child: raw.child ? { ...raw.child, companion: isCompanionId(raw.child.companion) ? raw.child.companion : 'bear' } : null,
-    courses: raw.courses?.length ? raw.courses : DEFAULT_COURSES,
+    courses: Array.isArray(raw.courses) ? raw.courses : DEFAULT_COURSES,
     agenda: raw.agenda ?? [],
     tasks: raw.tasks ?? [],
   };
@@ -79,53 +92,165 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<FamilyState>(emptyState);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) setState(normalizeState(JSON.parse(raw)));
-      } finally {
-        setReady(true);
-      }
-    })();
+  const [accountMode, setAccountMode] = useState<AccountMode>('signed-out');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [syncError, setSyncError] = useState('');
+  const mode = useRef<AccountMode>('signed-out');
+  const currentUser = useRef<User | null>(null);
+  const loadedCloud = useRef(false);
+  const generation = useRef(0);
+  const authOperation = useRef(false);
+  const pending = useRef<FamilyState | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const chooseMode = useCallback((next: AccountMode) => {
+    mode.current = next; setAccountMode(next);
+    void AsyncStorage.setItem(MODE_KEY, next);
   }, []);
+  const restoreCloud = useCallback(async (user: User) => {
+    const request = ++generation.current;
+    currentUser.current = user; loadedCloud.current = false; pending.current = null;
+    chooseMode('cloud'); setReady(false); setSyncError('');
+    try {
+      const remote = await loadCloudFamily(supabase!, user);
+      const cachedRaw = await AsyncStorage.getItem(cloudKey(user.id));
+      let next = remote;
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        if (cached.pending && cached.state?.parent?.id === user.id) {
+          next = familyForUser(user, familyPayload(cached.state));
+        }
+      }
+      if (request !== generation.current) return;
+      loadedCloud.current = true;
+      setState(normalizeState(next));
+      if (next !== remote) {
+        pending.current = next; setSyncStatus('error');
+        setSyncError('Hay cambios de este equipo pendientes de guardar en tu cuenta. Pulsa «Reintentar guardado».');
+      } else setSyncStatus('saved');
+    } catch (error) {
+      if (request === generation.current) {
+        setState(emptyState); setSyncStatus('error');
+        setSyncError(error instanceof Error ? error.message : 'No se pudo cargar tu cuenta.');
+      }
+      throw error;
+    } finally { if (request === generation.current) setReady(true); }
+  }, [chooseMode]);
+
+  useEffect(() => {
+    let active = true;
+    const restoreLocal = async () => {
+      const savedMode = await AsyncStorage.getItem(MODE_KEY);
+      let raw = savedMode === 'demo' ? await AsyncStorage.getItem(DEMO_KEY) : null;
+      if (!savedMode) {
+        const legacy = await AsyncStorage.getItem(STORAGE_KEY);
+        if (legacy) {
+          // Move old prototype data to an explicitly local demo; discard its plaintext password.
+          const migrated = normalizeState(JSON.parse(legacy));
+          raw = JSON.stringify(migrated);
+          await AsyncStorage.setItem(DEMO_KEY, raw);
+          await AsyncStorage.removeItem(STORAGE_KEY);
+        }
+      }
+      if (!active) return;
+      if (raw) { chooseMode('demo'); setState(normalizeState(JSON.parse(raw))); }
+      else { chooseMode('signed-out'); setState(emptyState); }
+      setReady(true);
+    };
+    void (async () => {
+      if (supabase) {
+        const { data, error } = await supabase.auth.getSession();
+        if (!active) return;
+        if (error) { setSyncError('No se pudo recuperar la sesión. Vuelve a entrar.'); }
+        if (data.session?.user) { await restoreCloud(data.session.user); return; }
+      }
+      await restoreLocal();
+    })().catch(() => { if (active) setReady(true); });
+    const subscription = supabase?.auth.onAuthStateChange((event, session) => {
+      if (authOperation.current || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') return;
+      // Leave the Auth callback before making database requests (avoids Auth lock deadlocks).
+      setTimeout(() => {
+        if (!active || authOperation.current) return;
+        if (session?.user) void restoreCloud(session.user).catch(() => {});
+        else if (mode.current === 'cloud') {
+          generation.current++; currentUser.current = null; loadedCloud.current = false; pending.current = null;
+          chooseMode('signed-out'); setState(emptyState); setSyncStatus('idle'); setReady(true);
+        }
+      }, 0);
+    }).data.subscription;
+    return () => { active = false; generation.current++; subscription?.unsubscribe(); };
+  }, [chooseMode, restoreCloud]);
 
   const persist = useCallback(async (next: FamilyState) => {
-    setState(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const clean = normalizeState(next);
+    if (mode.current === 'demo') {
+      setState(clean); await AsyncStorage.setItem(DEMO_KEY, JSON.stringify(clean)); return;
+    }
+    const user = currentUser.current;
+    const client = supabase;
+    if (!client || mode.current !== 'cloud' || !user || !loadedCloud.current || clean.parent?.id !== user.id) {
+      throw new Error('Vuelve a entrar en tu cuenta antes de guardar.');
+    }
+    setState(clean); setSyncStatus('saving'); setSyncError(''); pending.current = clean;
+    const write = queue.current.catch(() => {}).then(async () => {
+      await AsyncStorage.setItem(cloudKey(user.id), JSON.stringify({ state: clean, pending: true }));
+      try {
+        await saveCloudFamily(client, user.id, clean);
+        // A newer local write may already be queued. Do not erase its recovery snapshot.
+        if (pending.current === clean && currentUser.current?.id === user.id) {
+          pending.current = null;
+          await AsyncStorage.setItem(cloudKey(user.id), JSON.stringify({ state: clean, pending: false }));
+          setSyncStatus('saved'); setSyncError('');
+        }
+      } catch (error) {
+        if (currentUser.current?.id === user.id) {
+          setSyncStatus('error'); setSyncError(error instanceof Error ? error.message : 'Guardado pendiente. Revisa tu conexión.');
+        }
+      }
+    });
+    queue.current = write;
+    await write;
   }, []);
 
-  const registerParent = useCallback(
-    async (input: { email: string; name: string; password: string }) => {
-      const parent: ParentAccount = {
-        id: uid('parent'),
-        email: input.email.trim().toLowerCase(),
-        name: input.name.trim(),
-        password: input.password,
-        pinHash: '',
-      };
-      await persist({
-        ...emptyState,
-        parent,
-        onboarded: false,
-      });
-    },
-    [persist]
-  );
+  const retrySync = useCallback(async () => {
+    if (!currentUser.current) return;
+    if (pending.current && loadedCloud.current) await persist(pending.current);
+    else await restoreCloud(currentUser.current).catch(() => {});
+  }, [persist, restoreCloud]);
+  const refreshFamily = useCallback(async () => {
+    if (!currentUser.current) return;
+    await queue.current.catch(() => {});
+    if (pending.current) { await retrySync(); if (pending.current) return; }
+    await restoreCloud(currentUser.current).catch(() => {});
+  }, [restoreCloud, retrySync]);
 
-  const loginParent = useCallback(
-    async (email: string, password: string) => {
-      if (!state.parent) return false;
-      return (
-        state.parent.email === email.trim().toLowerCase() && state.parent.password === password
-      );
-    },
-    [state.parent]
-  );
-
+  const registerParent = useCallback(async (input: { email: string; name: string; password: string }) => {
+    authOperation.current = true;
+    try {
+      const result = await signUpAccount(supabase, input);
+      if (result.user) await restoreCloud(result.user);
+      return result.result;
+    } finally { authOperation.current = false; }
+  }, [restoreCloud]);
+  const loginParent = useCallback(async (email: string, password: string) => {
+    authOperation.current = true;
+    try {
+      const user = await signInAccount(supabase, email, password);
+      if (!user) return false;
+      await restoreCloud(user); return true;
+    } finally { authOperation.current = false; }
+  }, [restoreCloud]);
   const logout = useCallback(async () => {
-    await persist(state);
-  }, [persist, state]);
+    authOperation.current = true;
+    try {
+      await queue.current.catch(() => {});
+      if (supabase && currentUser.current) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw new Error('No se pudo cerrar la sesión. Revisa tu conexión e inténtalo otra vez.');
+      }
+      generation.current++; currentUser.current = null; loadedCloud.current = false; pending.current = null;
+      chooseMode('signed-out'); setState(emptyState); setSyncStatus('idle'); setSyncError(''); setReady(true);
+    } finally { authOperation.current = false; }
+  }, [chooseMode]);
 
   const setPin = useCallback(
     async (pin: string) => {
@@ -269,6 +394,15 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   );
 
   const loadDemo = useCallback(async () => {
+    authOperation.current = true;
+    try {
+      if (supabase && currentUser.current) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw new Error('Cierra la sesión antes de abrir la demo.');
+      }
+      generation.current++; currentUser.current = null; loadedCloud.current = false; pending.current = null;
+      chooseMode('demo'); setSyncStatus('idle'); setSyncError('');
+    } finally { authOperation.current = false; }
     const pinHash = await hashPin('1234');
     const today = new Date();
     const y = today.getFullYear();
@@ -281,7 +415,6 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         id: uid('parent'),
         email: 'demo@onekids.app',
         name: 'Alex',
-        password: 'demo',
         pinHash,
       },
       child: {
@@ -326,7 +459,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       onboarded: true,
     };
     await persist(demo);
-  }, [persist]);
+  }, [persist, chooseMode]);
 
   const allTasksDone = state.tasks.length > 0 && state.tasks.every((t) => t.done);
   const worldsUnlocked = !state.focusActive || allTasksDone || state.tasks.length === 0;
@@ -335,6 +468,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       state,
+      accountMode, syncStatus, syncError, retrySync, refreshFamily,
       registerParent,
       loginParent,
       logout,
@@ -359,6 +493,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     [
       ready,
       state,
+      accountMode, syncStatus, syncError, retrySync, refreshFamily,
       registerParent,
       loginParent,
       logout,

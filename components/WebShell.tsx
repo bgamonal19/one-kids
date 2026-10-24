@@ -17,6 +17,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     backgroundColor: colors.paper,
-    ...(Platform.OS === 'web' ? ({ minHeight: '100vh' } as object) : null),
+    ...(Platform.OS === 'web' ? ({ minHeight: 0 } as object) : null),
   },
 });

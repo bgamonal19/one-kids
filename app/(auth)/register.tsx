@@ -7,22 +7,33 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
+import { NUMERIC_PASSWORD_MAX, validateRegistration } from '@/lib/account-validation';
 
 export default function RegisterScreen() {
   const { registerParent } = useFamily();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
 
   const submit = async () => {
-    if (!name.trim() || !email.trim() || password.length < 4) {
-      setError('Completa nombre, correo y una clave de al menos 4 caracteres.');
-      return;
-    }
-    await registerParent({ name, email, password });
-    router.replace('/(onboarding)/pin');
+    if (loading) return;
+    const validation = validateRegistration({ name, email, password, confirmPassword });
+    if (validation) { setError(validation); return; }
+    setLoading(true); setError('');
+    try {
+      const result = await registerParent({ name, email, password });
+      setPassword(''); setConfirmPassword('');
+      if (result === 'confirm-email') setConfirmed(true);
+      else router.replace('/');
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo crear la cuenta. Inténtalo de nuevo.'); }
+    finally { setLoading(false); }
   };
+
+  if (confirmed) return <Screen scroll><BrandMark size="nav" /><Text style={styles.title}>Revisa tu correo</Text><Text style={styles.hint}>Si el correo puede registrarse, recibirás un enlace para confirmar tu cuenta. Después entra con tu correo y tu clave numérica. Si ya tenías cuenta, usa Entrar.</Text><PrimaryButton label="Ir a entrar" onPress={() => router.replace('/(auth)/login')} /></Screen>;
 
   return (
     <Screen scroll>
@@ -41,14 +52,22 @@ export default function RegisterScreen() {
           keyboardType="email-address"
         />
         <Field
-          label="Clave"
+          label="Clave numérica"
           value={password}
           onChangeText={setPassword}
-          placeholder="••••"
+          placeholder="De 6 a 12 números"
+          inputMode="numeric"
+          keyboardType="number-pad"
+          maxLength={NUMERIC_PASSWORD_MAX}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
           secureTextEntry
         />
+        <Field label="Repite tu clave numérica" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Vuelve a escribir tu clave" inputMode="numeric" keyboardType="number-pad" maxLength={NUMERIC_PASSWORD_MAX} autoCapitalize="none" autoCorrect={false} secureTextEntry textContentType="newPassword" />
+        <Text style={styles.hint}>Solo números. Esta clave sirve para entrar a tu cuenta; después crearás un PIN parental de 4 dígitos.</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <PrimaryButton label="Continuar" onPress={submit} />
+        <PrimaryButton label={loading ? "Creando cuenta…" : "Crear mi cuenta"} onPress={submit} disabled={loading} />
         <PrimaryButton label="Volver" variant="ghost" onPress={() => router.back()} />
       </View>
     </Screen>
@@ -64,6 +83,7 @@ function Field(
       <Text style={styles.label}>{label}</Text>
       <TextInput
         {...rest}
+        accessibilityLabel={label}
         placeholderTextColor={colors.inkMuted}
         style={styles.input}
       />

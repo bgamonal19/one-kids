@@ -1,3 +1,4 @@
+import { RequireFamily } from '@/components/RequireFamily';
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
 
@@ -13,7 +14,7 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
 
 export default function ParentLayout() {
   return (
-    <Tabs
+    <RequireFamily><Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.coral,
@@ -41,6 +42,6 @@ export default function ParentLayout() {
           tabBarLabel: ({ focused }) => <TabLabel label="Enfoque" focused={focused} />,
         }}
       />
-    </Tabs>
+    </Tabs></RequireFamily>
   );
 }

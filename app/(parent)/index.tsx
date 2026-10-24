@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -9,7 +10,15 @@ import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 
 export default function ParentHome() {
-  const { state, allTasksDone, updateChildAge } = useFamily();
+  const { state, allTasksDone, updateChildAge, accountMode, refreshFamily, logout } = useFamily();
+  const [accountError, setAccountError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const signOut = async () => {
+    setBusy(true); setAccountError('');
+    try { await logout(); router.replace('/(auth)/welcome'); }
+    catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo cerrar sesión.'); }
+    finally { setBusy(false); }
+  };
   const child = state.child;
   const profile = child ? getAgeProfile(child.age) : null;
 
@@ -19,6 +28,13 @@ export default function ParentHome() {
       <Text style={styles.title}>Panel de padres</Text>
       <Text style={styles.hint}>Hola {state.parent?.name}. Controlas edad, tareas y enfoque.</Text>
 
+      <View style={styles.stat}>
+        <Text style={styles.statLabel}>{accountMode === 'demo' ? 'Cuenta de demostración' : 'Tu cuenta'}</Text>
+        <Text style={styles.statValue}>{state.parent?.email}</Text>
+        {accountMode === 'cloud' ? <PrimaryButton label="Actualizar desde mi cuenta" variant="secondary" onPress={() => void refreshFamily()} /> : null}
+        <PrimaryButton label={busy ? "Cerrando…" : "Cerrar sesión"} variant="ghost" onPress={signOut} disabled={busy} />
+        {accountError ? <Text style={styles.hint}>{accountError}</Text> : null}
+      </View>
       <View style={styles.stat}>
         <Text style={styles.statLabel}>Niño</Text>
         <Text style={styles.statValue}>

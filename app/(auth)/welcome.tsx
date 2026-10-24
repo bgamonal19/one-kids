@@ -59,7 +59,7 @@ export default function WelcomeScreen() {
             variant="ghost"
             onPress={() => router.push('/(auth)/login')}
           />
-          <Text style={styles.hint}>PIN de padres: 1234</Text>
+          <Text style={styles.hint}>Demo sin cuenta · PIN de padres de la demo: 1234</Text>
         </View>
       </View>
     </View>

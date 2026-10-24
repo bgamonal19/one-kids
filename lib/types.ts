@@ -22,7 +22,6 @@ export type ParentAccount = {
   id: string;
   email: string;
   name: string;
-  password: string;
   pinHash: string;
 };
 

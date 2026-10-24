@@ -1,3 +1,4 @@
+import { RequireFamily } from '@/components/RequireFamily';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -30,7 +31,7 @@ export default function ChildLayout() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <RequireFamily><View style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           headerShown: true,
@@ -74,7 +75,7 @@ export default function ChildLayout() {
           </View>
         </View>
       </Modal>
-    </View>
+    </View></RequireFamily>
   );
 }
 

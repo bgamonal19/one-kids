@@ -1,3 +1,4 @@
+import { AccountStatus } from '@/components/AccountStatus';
 import {
   Fredoka_600SemiBold,
   Fredoka_700Bold,
@@ -45,6 +46,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="dark" />
       <FamilyProvider>
+        <AccountStatus />
         <WebShell>
           <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
             <Stack.Screen name="index" />

@@ -7,25 +7,28 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
+import { NUMERIC_PASSWORD_MAX, isNumericPassword } from '@/lib/account-validation';
 
 export default function LoginScreen() {
-  const { loginParent, state } = useFamily();
+  const { loginParent } = useFamily();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const submit = async () => {
-    if (!state.parent) {
-      setError('Aún no hay una cuenta. Crea una primero.');
+    if (loading) return;
+    if (!email.trim() || !isNumericPassword(password)) {
+      setError('Escribe tu correo y tu clave numérica, sin letras ni espacios.');
       return;
     }
-    const ok = await loginParent(email, password);
-    if (!ok) {
-      setError('Correo o clave incorrectos.');
-      return;
-    }
-    if (!state.onboarded) router.replace('/(onboarding)/pin');
-    else router.replace('/(child)');
+    setLoading(true); setError('');
+    try {
+      const ok = await loginParent(email, password);
+      if (!ok) { setError('Correo o clave incorrectos.'); return; }
+      router.replace('/');
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo iniciar sesión.'); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -37,6 +40,7 @@ export default function LoginScreen() {
           value={email}
           onChangeText={setEmail}
           placeholder="Correo"
+          accessibilityLabel="Correo de acceso"
           placeholderTextColor={colors.inkMuted}
           autoCapitalize="none"
           keyboardType="email-address"
@@ -45,13 +49,21 @@ export default function LoginScreen() {
         <TextInput
           value={password}
           onChangeText={setPassword}
-          placeholder="Clave"
+          placeholder="Clave numérica"
+          accessibilityLabel="Clave numérica de acceso"
+          inputMode="numeric"
+          keyboardType="number-pad"
+          maxLength={NUMERIC_PASSWORD_MAX}
+          autoCorrect={false}
+          autoCapitalize="none"
+          textContentType="password"
           placeholderTextColor={colors.inkMuted}
           secureTextEntry
           style={styles.input}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <PrimaryButton label="Entrar" onPress={submit} />
+        <PrimaryButton label={loading ? "Entrando…" : "Entrar"} onPress={submit} disabled={loading} />
+        <PrimaryButton label="Crear una cuenta" variant="secondary" onPress={() => router.push('/(auth)/register')} />
         <PrimaryButton label="Volver" variant="ghost" onPress={() => router.back()} />
       </View>
     </Screen>
