@@ -11,11 +11,11 @@ Proyecto Supabase: `one-kids` (`ontnagfkouolwtkqomsi`), organización bgamonal19
 - Los cambios se guardan al editar. En otro dispositivo: iniciar sesión y usar «Actualizar desde mi cuenta» en Padres o volver a entrar. No hay sincronización en tiempo real; si dos dispositivos editan a la vez prevalece el último guardado del perfil completo.
 - Un fallo muestra guardado pendiente y ofrece reintentar. Se conserva una copia por usuario en ese equipo.
 
-## Configuración de correo pendiente de verificar en el panel
+## Configuración del proyecto
 
-1. Authentication → URL Configuration: Site URL `https://one-kids.vercel.app` y redirect permitido `https://one-kids.vercel.app/login`.
+1. Configurado y verificado en Authentication → URL Configuration: Site URL `https://one-kids.vercel.app` y redirect permitido `https://one-kids.vercel.app/login`.
 2. Authentication → Email/SMTP: configurar proveedor propio para enviar confirmaciones a usuarios externos. El correo predeterminado de Supabase suele limitarse a miembros del proyecto.
-3. Mantener confirmación de correo activada. Contraseña mínima de seis caracteres y sin exigencia de letras/símbolos para permitir la clave numérica solicitada.
+3. Verificado en el panel: confirmación de correo activada; contraseña mínima de seis caracteres, sin exigencia de letras/símbolos. No se redujeron protecciones existentes.
 4. Registrar un correo controlado, confirmar y probar en dos navegadores/dispositivos. La validación del correo no se sustituye por una cuenta ficticia.
 
 ## Validación
