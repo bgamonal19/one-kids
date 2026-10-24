@@ -1,6 +1,7 @@
+import { GradePicker } from '@/components/GradePicker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CompanionPicker } from '@/components/CompanionPicker';
 import { type CompanionId } from '@/lib/companions';
@@ -9,7 +10,6 @@ import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 
-const COUNTRIES = ['Italia', 'España', 'Perú', 'Otro'];
 const INTERESTS = ['Ciencia', 'Arte', 'Deportes', 'Tecnología', 'Música', 'Naturaleza', 'Idiomas', 'Robótica', 'Historia', 'Videojuegos', 'Lectura', 'Matemáticas'];
 
 export default function LearningProfileScreen() {
@@ -28,7 +28,8 @@ export default function LearningProfileScreen() {
     setSaving(true);
     try {
       await updateLearningProfile({ grade, country, interests, companion });
-      router.back();
+      if (router.canGoBack()) router.back();
+      else router.replace('/(child)');
     } finally {
       setSaving(false);
     }
@@ -43,16 +44,7 @@ export default function LearningProfileScreen() {
       <CompanionPicker value={companion} onChange={setCompanion} age={child?.age ?? 8} />
       <PrimaryButton label={saving ? 'Guardando…' : 'Guardar mi compañero'} onPress={save} disabled={saving} style={{ marginTop: spacing.lg }} />
 
-      <Text style={styles.heading}>¿Dónde estudias?</Text>
-      <View style={styles.chips}>
-        {COUNTRIES.map(value => (
-          <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: country === value }} onPress={() => setCountry(value)} style={[styles.chip, country === value && styles.active]}>
-            <Text style={[styles.chipText, country === value && styles.activeText]}>{value}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <Text style={styles.heading}>¿En qué curso o grado estás?</Text>
-      <TextInput accessibilityLabel="Curso o grado escolar" value={grade} onChangeText={setGrade} maxLength={50} placeholder="Ej.: 4.º de primaria, 2.º ESO..." placeholderTextColor={colors.inkMuted} style={styles.input} />
+      <GradePicker country={country} grade={grade} onCountryChange={setCountry} onGradeChange={setGrade} />
       <Text style={styles.info}>El grado se guarda en tu perfil. La adaptación curricular automática se incorporará en una fase posterior.</Text>
 
       <Text style={styles.heading}>¿Qué temas te gustan?</Text>

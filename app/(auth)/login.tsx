@@ -1,3 +1,4 @@
+import { PasswordField } from '@/components/PasswordField';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,7 +8,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { NUMERIC_PASSWORD_MAX, isNumericPassword } from '@/lib/account-validation';
+import { isNumericPassword } from '@/lib/account-validation';
 
 export default function LoginScreen() {
   const { loginParent } = useFamily();
@@ -46,21 +47,7 @@ export default function LoginScreen() {
           keyboardType="email-address"
           style={styles.input}
         />
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Clave numérica"
-          accessibilityLabel="Clave numérica de acceso"
-          inputMode="numeric"
-          keyboardType="number-pad"
-          maxLength={NUMERIC_PASSWORD_MAX}
-          autoCorrect={false}
-          autoCapitalize="none"
-          textContentType="password"
-          placeholderTextColor={colors.inkMuted}
-          secureTextEntry
-          style={styles.input}
-        />
+        <PasswordField label="Clave numérica de acceso" value={password} onChangeText={setPassword} placeholder="De 6 a 12 números" textContentType="password" />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label={loading ? "Entrando…" : "Entrar"} onPress={submit} disabled={loading} />
         <PrimaryButton label="Crear una cuenta" variant="secondary" onPress={() => router.push('/(auth)/register')} />

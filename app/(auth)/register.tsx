@@ -1,3 +1,4 @@
+import { PasswordField } from '@/components/PasswordField';
 import { router } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,7 +8,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { NUMERIC_PASSWORD_MAX, validateRegistration } from '@/lib/account-validation';
+import { validateRegistration } from '@/lib/account-validation';
 
 export default function RegisterScreen() {
   const { registerParent } = useFamily();
@@ -51,20 +52,8 @@ export default function RegisterScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
         />
-        <Field
-          label="Clave numérica"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="De 6 a 12 números"
-          inputMode="numeric"
-          keyboardType="number-pad"
-          maxLength={NUMERIC_PASSWORD_MAX}
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="newPassword"
-          secureTextEntry
-        />
-        <Field label="Repite tu clave numérica" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Vuelve a escribir tu clave" inputMode="numeric" keyboardType="number-pad" maxLength={NUMERIC_PASSWORD_MAX} autoCapitalize="none" autoCorrect={false} secureTextEntry textContentType="newPassword" />
+        <PasswordField label="Clave numérica" value={password} onChangeText={setPassword} placeholder="De 6 a 12 números" textContentType="newPassword" />
+        <PasswordField label="Repite tu clave numérica" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Vuelve a escribir tu clave" textContentType="newPassword" />
         <Text style={styles.hint}>Solo números. Esta clave sirve para entrar a tu cuenta; después crearás un PIN parental de 4 dígitos.</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label={loading ? "Creando cuenta…" : "Crear mi cuenta"} onPress={submit} disabled={loading} />

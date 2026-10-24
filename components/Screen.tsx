@@ -1,3 +1,4 @@
+import { BackButton } from './BackButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
 import { Platform, ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
@@ -18,7 +19,7 @@ export function Screen({ children, scroll, style, wide }: Props) {
   const maxW = wide || isWebWide ? 1100 : 720;
 
   const inner = (
-    <View style={[styles.inner, { maxWidth: maxW }, style]}>{children}</View>
+    <View style={[styles.inner, { maxWidth: maxW }, style]}><BackButton />{children}</View>
   );
 
   const body = scroll ? (

@@ -55,8 +55,8 @@ type StoreApi = {
   setPin: (pin: string) => Promise<void>;
   checkPin: (pin: string) => Promise<boolean>;
   switchChild: (id: string) => Promise<void>;
-  addChild: (name: string, age: number) => Promise<void>;
-  setChild: (name: string, age: number) => Promise<void>;
+  addChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<void>;
+  setChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
   updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => Promise<void>;
   addTask: (title: string) => Promise<void>;
@@ -273,10 +273,10 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setChild = useCallback(
-    async (name: string, age: number) => {
+    async (name: string, age: number, school?: { country: string; grade: string }) => {
       await persist({
         ...state,
-        child: { id: uid('child'), name: name.trim(), age: clampAge(age), stars: 0, companion: 'bear' },
+        child: { id: uid('child'), name: name.trim(), age: clampAge(age), stars: 0, companion: 'bear', ...school },
         onboarded: true,
       });
     },
@@ -286,8 +286,8 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   const switchChild = useCallback(async (id: string) => {
     await persist(selectChildProfile(state, id));
   }, [persist, state]);
-  const addChild = useCallback(async (name: string, age: number) => {
-    await persist(addChildProfile(state, { id: uid('child'), name: name.trim().slice(0, 60), age: clampAge(age), stars: 0, companion: 'bear' }));
+  const addChild = useCallback(async (name: string, age: number, school?: { country: string; grade: string }) => {
+    await persist(addChildProfile(state, { id: uid('child'), name: name.trim().slice(0, 60), age: clampAge(age), stars: 0, companion: 'bear', ...school }));
   }, [persist, state]);
 
   const updateChildAge = useCallback(

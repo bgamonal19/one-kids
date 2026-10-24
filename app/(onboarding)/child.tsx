@@ -1,3 +1,4 @@
+import { GradePicker } from '@/components/GradePicker';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -12,6 +13,8 @@ export default function ChildProfileScreen() {
   const { setChild } = useFamily();
   const [name, setName] = useState('');
   const [age, setAge] = useState(8);
+  const [country, setCountry] = useState('Otro');
+  const [grade, setGrade] = useState('');
   const [error, setError] = useState('');
   const profile = useMemo(() => getAgeProfile(age), [age]);
 
@@ -20,7 +23,7 @@ export default function ChildProfileScreen() {
       setError('Escribe el nombre del niño o niña.');
       return;
     }
-    await setChild(name, age);
+    await setChild(name, age, { country, grade });
     router.replace('/(child)');
   };
 
@@ -54,6 +57,7 @@ export default function ChildProfileScreen() {
         ))}
       </View>
 
+      <GradePicker country={country} grade={grade} onCountryChange={setCountry} onGradeChange={setGrade} />
       <View style={[styles.preview, { borderColor: profile.accent }]}>
         <Text style={styles.previewTitle}>{profile.bandTitle}</Text>
         <Text style={styles.previewBody}>{profile.label}</Text>

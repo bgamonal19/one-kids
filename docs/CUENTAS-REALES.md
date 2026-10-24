@@ -7,7 +7,9 @@ Proyecto Supabase: `one-kids` (`ontnagfkouolwtkqomsi`), organización bgamonal19
 - Confirmación por correo antes de entrar cuando el proveedor la exige.
 - PIN parental de cuatro dígitos independiente de la contraseña.
 - Varios perfiles infantiles por familia, cada uno con tareas, cursos, agenda, enfoque, compañero y estrellas independientes. «Mis hijos» en Padres permite agregar y cambiar el perfil activo. El perfil único anterior se conserva automáticamente.
-- «Cerrar sesión» permanece visible en la franja superior y en Padres.
+- El símbolo ⏻ «Salir» permanece en la esquina superior derecha; también hay cierre de sesión en Padres.
+- Registro y acceso tienen botones Mostrar/Ocultar la clave. Las pantallas de formulario y herramientas incluyen una flecha Volver con retorno al inicio si no existe historial.
+- Se puede seleccionar país y grado escolar al crear perfiles o en Mi perfil educativo. El grado se guarda individualmente; no activa por sí mismo una adaptación curricular automática.
 - Perfiles infantiles, tareas, cursos, agenda y estrellas en `public.family_states`, con permisos por UID autenticado.
 - Demo separada y explícitamente local. Los datos del prototipo anterior se conservan como demo, eliminando la contraseña antigua; no se convierten en cuentas reales automáticamente.
 - Los cambios se guardan al editar. En otro dispositivo: iniciar sesión y usar «Actualizar desde mi cuenta» en Padres o volver a entrar. No hay sincronización en tiempo real; si dos dispositivos editan a la vez prevalece el último guardado del perfil completo.

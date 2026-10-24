@@ -1,3 +1,4 @@
+import { GradePicker } from '@/components/GradePicker';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -15,6 +16,8 @@ export default function ParentHome() {
   const [busy, setBusy] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAge, setNewAge] = useState(8);
+  const [newCountry, setNewCountry] = useState('Otro');
+  const [newGrade, setNewGrade] = useState('');
   const [adding, setAdding] = useState(false);
   const changeProfile = async (id: string) => {
     if (busy) return;
@@ -27,7 +30,7 @@ export default function ParentHome() {
     if (busy) return;
     if (!newName.trim()) { setAccountError('Escribe el nombre de tu hijo o hija.'); return; }
     setBusy(true); setAccountError('');
-    try { await addChild(newName, newAge); setNewName(''); setAdding(false); }
+    try { await addChild(newName, newAge, { country: newCountry, grade: newGrade }); setNewName(''); setAdding(false); }
     catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo crear el perfil.'); }
     finally { setBusy(false); }
   };
@@ -75,6 +78,7 @@ export default function ParentHome() {
           <TextInput accessibilityLabel="Nombre del nuevo hijo o hija" placeholder="Nombre de tu hijo o hija" value={newName} onChangeText={setNewName} maxLength={60} style={styles.nameInput} />
           <Text style={styles.statLabel}>Edad</Text>
           <View style={styles.ages}>{AGE_OPTIONS.map(age => <Pressable key={age} accessibilityRole="button" accessibilityLabel={`${age} años`} accessibilityState={{ selected: age === newAge }} onPress={() => setNewAge(age)} style={[styles.ageChip, age === newAge && { backgroundColor: colors.skyDeep }]}><Text style={[styles.ageText, age === newAge && styles.ageOn]}>{age}</Text></Pressable>)}</View>
+          <GradePicker country={newCountry} grade={newGrade} onCountryChange={setNewCountry} onGradeChange={setNewGrade} />
           <PrimaryButton label={busy ? "Guardando…" : "Crear perfil infantil"} onPress={createChild} disabled={busy} />
         </View> : null}
       </View>
