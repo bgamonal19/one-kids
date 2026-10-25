@@ -243,7 +243,7 @@ export default function TutorScreen() {
     if (Platform.OS === 'web' && typeof document !== 'undefined' && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   };
   const answerPad = (full: boolean) => <View style={styles.answerArea}>
-    <HandwritingPad ref={pad} height={full ? Math.max(200, height - insets.top - insets.bottom - (wide ? 480 : 450)) : wide ? 230 : 170} color={penColor} enabled={yourTurn} initialStrokes={ink} placeholder={yourTurn ? 'Escribe aquí tu respuesta con el dedo o el lápiz ✏️' : 'Espera a que el tutor termine de escribir…'} onStrokesChange={setInk} onDrawingChange={setDrawing} />
+    <HandwritingPad ref={pad} height={full ? Math.max(200, height - insets.top - insets.bottom - (wide ? 420 : 330)) : Math.max(wide ? 320 : 240, Math.round(height * 0.42))} color={penColor} enabled={yourTurn} initialStrokes={ink} placeholder={yourTurn ? 'Escribe aquí tu respuesta con el dedo o el lápiz ✏️' : 'Espera a que el tutor termine de escribir…'} onStrokesChange={setInk} onDrawingChange={setDrawing} />
     <View style={styles.toolRow}>
       {penColors.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel="Cambiar color del rotulador" accessibilityState={{ selected: penColor === c }} onPress={() => setPenColor(c)} style={[styles.swatch, { backgroundColor: c }, penColor === c && styles.swatchOn]} />)}
       <Pressable accessibilityRole="button" onPress={() => pad.current?.undo()} disabled={!inked} style={[styles.tool, !inked && styles.dim]}><Text style={styles.toolText}>↩︎ Deshacer</Text></Pressable>
@@ -262,29 +262,30 @@ export default function TutorScreen() {
     setPhase('turn'); react('listen');
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
   };
-  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} pace={pace} expression={expression} bubble={bubble} width={full ? width - 24 : stageWidth} onWritten={onWritten}>
+  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
     {mode === 'pen' || full ? answerPad(full) : null}
   </TutorWhiteboard>;
 
   return (
-    <Screen scroll scrollEnabled={!drawing} scrollRef={scroller}>
+    <Screen scroll fill scrollEnabled={!drawing} scrollRef={scroller}>
       <Modal visible={fullscreen} animationType="slide" onRequestClose={closeFullscreen} supportedOrientations={['portrait', 'landscape']}>
         <View style={[styles.fullRoot, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
-          <View style={styles.fullHeader}>
+          <View style={[styles.fullHeader, styles.fullHeaderPad]}>
             <Text style={styles.sectionTitle}>Pizarra</Text>
             <Pressable accessibilityRole="button" onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.tool}><Text style={styles.toolText}>{voiceOn ? '🔊' : '🔇'}</Text></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Salir de pantalla completa" onPress={closeFullscreen} style={[styles.tool, styles.exitTool]}><Text style={styles.toolText}>✕ Salir</Text></Pressable>
           </View>
           {board(true)}
-          {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+          {error ? <Text accessibilityRole="alert" style={[styles.error, styles.fullHeaderPad]}>{error}</Text> : null}
         </View>
       </Modal>
       {cameraOpen ? <TaskCamera onClose={() => setCameraOpen(false)} onCapture={captured => void pickPhoto(false, captured)} /> : null}
       <Text style={styles.eyebrow}>APRENDEMOS A TU RITMO</Text>
       <Text style={styles.title}>La pizarra de tu tutor</Text>
-      <View onLayout={e => { setStageWidth(e.nativeEvent.layout.width); stageY.current = e.nativeEvent.layout.y; }}>
+      <View style={styles.edge} onLayout={e => { setStageWidth(e.nativeEvent.layout.width); stageY.current = e.nativeEvent.layout.y; }}>
         {fullscreen ? <Text style={styles.hint}>La pizarra está en pantalla completa.</Text> : board(false)}
       </View>
+      <View style={styles.column}>
 
       <View style={styles.modes} accessibilityRole="tablist">
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
@@ -374,6 +375,7 @@ export default function TutorScreen() {
         </View> : null}
         <Text style={styles.footnote}>La voz del tutor usa la lectura del dispositivo y el dictado usa el reconocimiento de voz del navegador. Lo que el niño escribe en la pizarra se envía como imagen a la IA solo al pulsar «Enviar». El historial de pizarras de los últimos 14 días se guarda solo en este dispositivo. Las fotos no se guardan en el perfil.</Text>
       </View>
+      </View>
     </Screen>
   );
 }
@@ -398,7 +400,10 @@ const styles = StyleSheet.create({
   sendText: { color: colors.white },
   dim: { opacity: 0.45 },
   micTool: { backgroundColor: '#C93C22' },
-  fullRoot: { flex: 1, backgroundColor: colors.mist, paddingHorizontal: 12 },
+  fullRoot: { flex: 1, backgroundColor: colors.mist },
+  fullHeaderPad: { paddingHorizontal: 12 },
+  edge: { marginHorizontal: -spacing.lg },
+  column: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
   fullHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   exitTool: { marginLeft: 'auto', backgroundColor: colors.white, borderWidth: 1, borderColor: '#CDDCE9' },
   modes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },

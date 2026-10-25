@@ -22,18 +22,21 @@ type Props = {
   expression: ExpressionId;
   bubble?: string;
   width: number;
+  /** Minimum height of the white surface, so the board can fill the screen. */
+  minHeight?: number;
   onWritten: () => void;
   children?: ReactNode;
 };
 
 export const handwritingFont = 'PatrickHand_400Regular';
 
-export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace, expression, bubble, width, onWritten, children }: Props) {
+export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const wide = width >= 700;
-  const size = wide ? 168 : 96;
-  const lane = wide ? size * 0.88 : size * 0.3;
+  const size = wide ? 168 : 84;
+  // The board runs edge to edge; the tutor stands inside its top-right corner.
+  const lane = 0;
   const reach = wide ? size * 0.5 : size * 0.42;
   const textTotal = lines.reduce((sum, line) => sum + line.length, 0);
   // Drawing a map branch or sketch shape takes as long as writing a few letters.
@@ -79,15 +82,15 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace
   const visible = lines.map(line => { const part = line.slice(0, Math.max(0, remaining)); remaining -= line.length; return part; });
   const cursorLine = phase === 'writing' && shown < textTotal ? visible.findIndex((part, i) => part.length < lines[i].length) : -1;
   const drawn = Math.min(steps, Math.max(0, Math.ceil((shown - textTotal) / stepCost)));
-  const innerWidth = Math.max(200, width - lane - 16 - 36);
+  const innerWidth = Math.max(200, width - 12 - 36);
   const lineSize = wide ? 34 : 25;
 
   return (
     <View style={s.stage}>
       <View style={[s.frame, { marginRight: lane }]}>
-        <View style={s.surface}>
+        <View style={[s.surface, { minHeight }]}>
           {childLine ? <Text style={[s.child, { fontSize: lineSize * 0.72 }]} numberOfLines={3}>Tú: {childLine}</Text> : null}
-          <View style={{ minHeight: size * 0.85, paddingRight: size - lane + reach * 0.6 }} accessibilityLiveRegion="polite" accessibilityLabel={lines.join('. ')}>
+          <View style={{ minHeight: size * (wide ? 1.2 : 0.85), paddingRight: size - lane + reach * 0.6 }} accessibilityLiveRegion="polite" accessibilityLabel={lines.join('. ')}>
             {phase === 'thinking' ? <View style={s.lineRow}><Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>…</Text><WritingPencil size={lineSize * 1.15} /></View> : visible.map((part, i) => part || i <= cursorLine ? (
               <View key={`${pageKey}-${i}`} style={s.lineRow}>
                 <Text style={[s.line, { fontSize: lineSize, lineHeight: lineSize * 1.3 }, i === 0 && s.firstLine]}>{part}</Text>
@@ -110,8 +113,8 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace
 
 const s = StyleSheet.create({
   stage: { position: 'relative', marginVertical: 12 },
-  frame: { backgroundColor: '#C9D6E2', borderRadius: 22, padding: 8, paddingBottom: 0, shadowColor: '#16394D', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
-  surface: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18, gap: 10, minHeight: 200 },
+  frame: { backgroundColor: '#C9D6E2', padding: 6, paddingBottom: 0, shadowColor: '#16394D', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  surface: { backgroundColor: '#FFFFFF', borderRadius: 10, padding: 18, gap: 10 },
   tray: { height: 18, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18 },
   marker: { width: 34, height: 7, borderRadius: 4 },
   eraser: { width: 40, height: 10, borderRadius: 3, backgroundColor: '#6B7C8C', marginLeft: 'auto' },
