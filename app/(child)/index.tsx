@@ -51,33 +51,32 @@ export default function ChildHome() {
 
   return (
     <View style={[styles.root, { backgroundColor: mode.bg }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 54, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
-        <View style={[styles.brandRow, { paddingHorizontal: gutter }]}>
-          <View>
-            <Text style={[styles.brand, { color: mode.ink }]}>ONE <Text style={{ color: mode.primary }}>KIDS</Text></Text>
-            <Text style={[styles.subtitle, { color: mode.primary }]}>{mode.label} · {age} años{state.child?.grade ? ' · ' + state.child.grade : ''}</Text>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.hero, { backgroundColor: mode.primary, paddingTop: insets.top + 12, paddingHorizontal: gutter }]}>
+          <View style={styles.brandRow}>
+            <Text style={styles.brand}>ONE <Text style={{ color: mode.soft }}>KIDS</Text></Text>
+            <View style={styles.stars}><Text style={styles.starLabel}>★ {state.child?.stars ?? 0}</Text></View>
           </View>
-          <View style={[styles.stars, { backgroundColor: mode.soft }]}><Text style={[styles.starLabel, { color: mode.ink }]}>★ {state.child?.stars ?? 0}</Text></View>
-        </View>
-
-        <View style={[styles.hero, { backgroundColor: mode.primary, flexDirection: compact ? 'column' : 'row', paddingHorizontal: gutter }]}>
-          <View style={styles.heroCopy}>
-            {young ? null : <Text style={styles.heroKicker}>TU ESPACIO DE APRENDIZAJE</Text>}
-            <Text style={[styles.heroTitle, { fontSize: young ? 28 : 25 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
-            <Text style={styles.heroDescription}>{allTasksDone ? '¡Excelente! Has terminado tus tareas.' : mode.welcome}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Aprender con ${companionName} en la pizarra`} onPress={openTutor} style={styles.heroHint}>
-              <Text style={styles.heroHintText}>👉 Toca a {companionName} para aprender</Text>
-            </Pressable>
-          </View>
-          <View style={styles.heroAgent}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}, tu tutor`} onPress={openTutor} style={styles.agentTap}>
-              <KikoMascot character={companion} age={age} expression={allTasksDone ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 190 : 170} />
-              <Text style={styles.agentName}>{companionName} · {COMPANIONS[companion].role}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cambiar de personaje" onPress={() => router.push('./profile')} style={styles.changeButton}>
-              <Text style={styles.changeIcon}>🔄</Text>
-              <Text style={[styles.changeText, { color: mode.primary }]}>Cambiar{'\n'}personaje</Text>
-            </Pressable>
+          <Text style={styles.subtitle}>{mode.label} · {age} años{state.child?.grade ? ' · ' + state.child.grade : ''}</Text>
+          <View style={[styles.heroBody, { flexDirection: compact ? 'column' : 'row' }]}>
+            <View style={styles.heroCopy}>
+              {young ? null : <Text style={styles.heroKicker}>TU ESPACIO DE APRENDIZAJE</Text>}
+              <Text style={[styles.heroTitle, { fontSize: young ? 28 : 25 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
+              <Text style={styles.heroDescription}>{allTasksDone ? '¡Excelente! Has terminado tus tareas.' : mode.welcome}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Aprender con ${companionName} en la pizarra`} onPress={openTutor} style={styles.heroHint}>
+                <Text style={styles.heroHintText}>👉 Toca a {companionName} para aprender</Text>
+              </Pressable>
+            </View>
+            <View style={styles.heroAgent}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}, tu tutor`} onPress={openTutor} style={styles.agentTap}>
+                <KikoMascot character={companion} age={age} expression={allTasksDone ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 190 : 170} />
+                <Text style={styles.agentName}>{companionName} · {COMPANIONS[companion].role}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar de personaje" onPress={() => router.push('./profile')} style={styles.changeButton}>
+                <Text style={styles.changeIcon}>🔄</Text>
+                <Text style={[styles.changeText, { color: mode.primary }]}>Cambiar{'\n'}personaje</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -152,12 +151,13 @@ const TILE_GAP = 12;
 const styles = StyleSheet.create({
   root: { flex: 1 },
   interests: { fontFamily: fonts.bodySemi, marginTop: 10, fontSize: 13 },
-  brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
-  brand: { fontSize: 25, fontFamily: fonts.displayBold },
-  subtitle: { fontSize: 12, fontFamily: fonts.bodyBold, marginTop: 2 },
-  stars: { borderRadius: 30, paddingHorizontal: 16, paddingVertical: 10 },
-  starLabel: { fontSize: 17, fontFamily: fonts.bodyBold },
-  hero: { paddingVertical: 24, alignItems: 'center', overflow: 'hidden', minHeight: 220, gap: 12 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 34 },
+  brand: { fontSize: 25, fontFamily: fonts.displayBold, color: '#FFFFFF' },
+  subtitle: { fontSize: 12, fontFamily: fonts.bodyBold, marginTop: 2, color: '#FFFFFF', opacity: 0.85 },
+  stars: { borderRadius: 30, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: 'rgba(255,255,255,0.2)' },
+  starLabel: { fontSize: 15, fontFamily: fonts.bodyBold, color: '#FFFFFF' },
+  hero: { paddingBottom: 20, overflow: 'hidden' },
+  heroBody: { alignItems: 'center', minHeight: 200, gap: 12, marginTop: 8 },
   heroCopy: { flex: 1, alignSelf: 'stretch', justifyContent: 'center' },
   heroKicker: { color: '#DCEAFF', fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 1.2 },
   heroTitle: { color: '#FFFFFF', fontFamily: fonts.displayBold, marginTop: 9 },

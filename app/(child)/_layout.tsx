@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SIGN_OUT_SPACE } from '@/components/AccountStatus';
 import { PinPad } from '@/components/PinPad';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
@@ -11,7 +12,7 @@ import { useFamily } from '@/lib/store';
 
 export default function ChildLayout() {
   const insets = useSafeAreaInsets();
-  const { checkPin, state } = useFamily();
+  const { checkPin, state, accountMode } = useFamily();
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -54,7 +55,7 @@ export default function ChildLayout() {
         }}
         accessibilityRole="button"
         accessibilityLabel="Panel de padres, pide el PIN"
-        style={[styles.parentBtn, { top: insets.top + 12 }]}
+        style={[styles.parentBtn, { top: insets.top + 12, right: accountMode === 'signed-out' ? 12 : 12 + SIGN_OUT_SPACE }]}
       >
         <Text style={styles.parentBtnText}>🔒 Padres</Text>
       </Pressable>
@@ -78,7 +79,6 @@ export default function ChildLayout() {
 const styles = StyleSheet.create({
   parentBtn: {
     position: 'absolute',
-    right: 16,
     zIndex: 30,
     backgroundColor: colors.white,
     paddingHorizontal: 12,
