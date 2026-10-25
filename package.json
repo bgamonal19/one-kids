@@ -49,7 +49,9 @@
     "web": "expo start --web",
     "build:web": "expo export -p web",
     "deploy": "vercel --prod",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "node --test scripts/test-*.mjs",
+    "check": "tsc --noEmit && expo lint && npm test"
   },
   "private": true
 }

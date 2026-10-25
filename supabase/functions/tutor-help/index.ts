@@ -10,7 +10,7 @@ const cors = {
 };
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-  const env = Object.fromEntries(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_MODEL', 'ANTHROPIC_MODEL', 'TUTOR_DEFAULT_PROVIDER'].map(key => [key, Deno.env.get(key)]));
+  const env = Object.fromEntries(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_MODEL', 'ANTHROPIC_MODEL', 'TUTOR_DEFAULT_PROVIDER', 'TUTOR_DISABLED'].map(key => [key, Deno.env.get(key)]));
   if (request.method === 'GET') return Response.json(tutorStatus(env), { headers: cors });
   if (request.method !== 'POST') return Response.json({ error: 'Método no permitido.' }, { status: 405, headers: cors });
   try {

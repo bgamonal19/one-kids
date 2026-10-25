@@ -27,7 +27,7 @@ export function tutorEndpoint(): string | null {
 }
 function headers(): Record<string, string> {
   const endpoint = tutorEndpoint();
-  const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   return { 'Content-Type': 'application/json', ...(endpoint === getSupabaseEndpoint() && key ? { Authorization: `Bearer ${key}`, apikey: key } : {}) };
 }
 export async function getTutorStatus(): Promise<TutorStatus> {
