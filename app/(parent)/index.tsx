@@ -11,7 +11,8 @@ import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 
 export default function ParentHome() {
-  const { state, allTasksDone, updateChildAge, accountMode, refreshFamily, logout, addChild, switchChild } = useFamily();
+  const { state, allTasksDone, updateChildAge, accountMode, refreshFamily, logout, deleteAccount, addChild, switchChild } = useFamily();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [accountError, setAccountError] = useState('');
   const [busy, setBusy] = useState(false);
   const [newName, setNewName] = useState('');
@@ -40,6 +41,13 @@ export default function ParentHome() {
     catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo cerrar sesión.'); }
     finally { setBusy(false); }
   };
+  const removeAccount = async () => {
+    if (busy) return;
+    setBusy(true); setAccountError('');
+    try { await deleteAccount(); router.replace('/(auth)/welcome'); }
+    catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo eliminar la cuenta.'); }
+    finally { setBusy(false); }
+  };
   const child = state.child;
   const profile = child ? getAgeProfile(child.age) : null;
 
@@ -54,6 +62,11 @@ export default function ParentHome() {
         <Text style={styles.statValue}>{state.parent?.email}</Text>
         {accountMode === 'cloud' ? <PrimaryButton label="Actualizar desde mi cuenta" variant="secondary" onPress={() => void refreshFamily()} /> : null}
         <PrimaryButton label={busy ? "Cerrando…" : "Cerrar sesión"} variant="ghost" onPress={signOut} disabled={busy} />
+        {accountMode === 'cloud' ? (confirmDelete ? <View style={{ gap: 8, marginTop: 8 }}>
+          <Text style={styles.statSub}>Se borrarán para siempre tu cuenta y los perfiles, tareas, agenda y estrellas de tus hijos. No se puede deshacer.</Text>
+          <PrimaryButton label={busy ? 'Eliminando…' : 'Sí, eliminar mi cuenta'} onPress={removeAccount} disabled={busy} />
+          <PrimaryButton label="Cancelar" variant="ghost" onPress={() => setConfirmDelete(false)} disabled={busy} />
+        </View> : <PrimaryButton label="Eliminar mi cuenta" variant="ghost" onPress={() => setConfirmDelete(true)} disabled={busy} />) : null}
         {accountError ? <Text style={styles.hint}>{accountError}</Text> : null}
       </View>
       <View style={styles.stat}>

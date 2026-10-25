@@ -107,11 +107,11 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
-function client(fetcher) {
+function client(fetcher, token = null) {
   const result = { exports: {} };
   const source = readFileSync(new URL('../lib/tutor.ts', import.meta.url), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-  vm.runInNewContext(code, { exports: result.exports, process: { env: {} }, AbortSignal, fetch: fetcher, require: name => name === 'react-native' ? { Platform: { OS: 'web' } } : { getTutorEndpoint: () => null } });
+  vm.runInNewContext(code, { exports: result.exports, process: { env: {} }, AbortSignal, fetch: fetcher, require: name => name === 'react-native' ? { Platform: { OS: 'web' } } : { getTutorEndpoint: () => null, getAccessToken: async () => token } });
   return result.exports;
 }
 test('client preserves the real failure instead of faking an AI response', async () => {
@@ -128,6 +128,16 @@ test('client omits the child name and does not duplicate the current message in 
   const app = client(async (_, options) => { payload = JSON.parse(options.body); return Response.json({ ...answer, source: 'openai' }); });
   await app.askTutor({ ...request, childName: 'private name' });
   assert.equal(payload.childName, undefined); assert.equal(payload.message, '8 + 3'); assert.equal(payload.history.length, 0);
+});
+test('client sends the family session and falls back to practice when the server requires an account', async () => {
+  let sent;
+  const signedIn = client(async (_, options) => { sent = options.headers; return Response.json({ ...answer, source: 'openai' }); }, 'session-token');
+  await signedIn.askTutor({ ...request, childName: 'x' });
+  assert.equal(sent.Authorization, 'Bearer session-token');
+  const demo = client(async () => Response.json({ error: 'Inicia sesión con tu cuenta familiar para continuar.' }, { status: 401 }));
+  const result = await demo.askTutor({ ...request, childName: 'x' });
+  assert.equal(result.source, 'local'); assert.match(result.reply, /Inicia sesión/);
+  await assert.rejects(demo.askTutor({ ...request, action: 'read', imageBase64: image }), /Inicia sesión/);
 });
 test('practice actions keep context and offer different explanations without pretending to see photos', () => {
   const app = client();

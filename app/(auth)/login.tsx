@@ -50,6 +50,7 @@ export default function LoginScreen() {
         <PasswordField label="Clave numérica de acceso" value={password} onChangeText={setPassword} placeholder="De 6 a 12 números" textContentType="password" />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label={loading ? "Entrando…" : "Entrar"} onPress={submit} disabled={loading} />
+        <PrimaryButton label="¿Olvidaste tu clave?" variant="ghost" onPress={() => router.push('/(auth)/forgot')} />
         <PrimaryButton label="Crear una cuenta" variant="secondary" onPress={() => router.push('/(auth)/register')} />
         <PrimaryButton label="Volver" variant="ghost" onPress={() => router.back()} />
       </View>

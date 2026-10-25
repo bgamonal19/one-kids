@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_APP_URL": "https://one-kids.vercel.app",
+        "EXPO_PUBLIC_TUTOR_API_URL": "https://one-kids.vercel.app/api/tutor",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ontnagfkouolwtkqomsi.supabase.co"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "environment": "preview",
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "extends": "base",
+      "environment": "production",
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

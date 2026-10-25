@@ -1,5 +1,6 @@
 import { preserveProfiles } from './child-profiles';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { APP_URL } from './app-url';
 import { validateRegistration, isNumericPassword } from './account-validation';
 import type { FamilyState } from './types';
 import { DEFAULT_COURSES } from './types';
@@ -23,7 +24,7 @@ export async function signUpAccount(client: SupabaseClient | null, input: { name
   if (error) throw new Error(error);
   const { data, error: authError } = await requireAccounts(client).auth.signUp({
     email: input.email.trim().toLowerCase(), password: input.password,
-    options: { data: { full_name: input.name.trim().slice(0, 80) }, emailRedirectTo: `${process.env.EXPO_PUBLIC_APP_URL || 'https://one-kids.vercel.app'}/login` },
+    options: { data: { full_name: input.name.trim().slice(0, 80) }, emailRedirectTo: `${APP_URL}/login` },
   });
   if (authError) throw accountError(authError.code);
   if (!data.user) throw new Error('No se pudo iniciar el registro. Inténtalo de nuevo.');
@@ -36,6 +37,35 @@ export async function signInAccount(client: SupabaseClient | null, email: string
   if (error) throw accountError(error.code);
   if (!data.session?.user) throw new Error('No se pudo iniciar la sesión. Vuelve a intentarlo.');
   return data.session.user;
+}
+
+// Same answer whether or not the email has an account, so nobody can probe for families.
+export async function requestPasswordReset(client: SupabaseClient | null, email: string): Promise<void> {
+  const clean = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new Error('Escribe un correo válido.');
+  const { error } = await requireAccounts(client).auth.resetPasswordForEmail(clean, { redirectTo: `${APP_URL}/reset-password` });
+  if (error && (error.code?.includes('rate_limit') || error.code === 'email_address_not_authorized')) throw accountError(error.code);
+}
+export async function updateAccountPassword(client: SupabaseClient | null, password: string, confirmPassword: string): Promise<void> {
+  if (!isNumericPassword(password)) throw new Error('La clave debe tener entre 6 y 12 números, sin letras ni espacios.');
+  if (password !== confirmPassword) throw new Error('Las claves no coinciden. Revisa los dos campos.');
+  const { error } = await requireAccounts(client).auth.updateUser({ password });
+  if (error?.code === 'same_password') throw new Error('Esa ya es tu clave actual. Elige una distinta.');
+  if (error?.code === 'session_not_found' || error?.code === 'session_expired') throw new Error('El enlace caducó. Pide uno nuevo desde «¿Olvidaste tu clave?».');
+  if (error) throw accountError(error.code);
+}
+export function accountEndpoint(web: boolean): string {
+  return web ? '/api/account' : `${APP_URL}/api/account`;
+}
+export async function deleteCloudAccount(token: string | null, endpoint: string, fetcher: typeof fetch = fetch): Promise<void> {
+  if (!token) throw new Error('Vuelve a entrar en tu cuenta antes de eliminarla.');
+  let response;
+  try { response = await fetcher(endpoint, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) }); }
+  catch { throw new Error('No se pudo conectar. Tu cuenta sigue activa; inténtalo de nuevo.'); }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(typeof data.error === 'string' ? data.error : 'No se pudo eliminar la cuenta. Inténtalo de nuevo.');
+  }
 }
 
 export function familyForUser(user: User, raw: Partial<FamilyState> & { pinHash?: string } = {}): FamilyState {

@@ -9,10 +9,10 @@ const cache = {};
 function load(name) {
   if (cache[name]) return cache[name];
   const exports = {};
-  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(`../lib/${name}.ts`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports, process, require: path => load(path.replace('./', '')) });
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(`../lib/${name}.ts`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports, process, AbortSignal, require: path => load(path.replace('./', '')) });
   return cache[name] = exports;
 }
-const { signUpAccount, signInAccount, familyForUser, familyPayload, saveCloudFamily } = load('cloud-accounts');
+const { signUpAccount, signInAccount, familyForUser, familyPayload, saveCloudFamily, requestPasswordReset, updateAccountPassword, deleteCloudAccount } = load('cloud-accounts');
 const user = { id: 'family-a', email: 'test@example.com', user_metadata: { full_name: 'Ana' } };
 const input = { name: ' Ana ', email: ' TEST@example.com ', password: '001234' };
 test('no fake local signup or login without configured backend', async () => {
@@ -31,6 +31,30 @@ test('login handles credentials and email confirmation errors', async () => {
   assert.equal(await signInAccount(client('invalid_credentials'), input.email, input.password), null);
   await assert.rejects(signInAccount(client('email_not_confirmed'), input.email, input.password), /Confirma/);
   await assert.rejects(signInAccount(client('invalid_credentials'), input.email, 'abc123'), /números/);
+});
+test('password reset never reveals whether an email has an account', async () => {
+  let sent;
+  const client = error => ({ auth: { resetPasswordForEmail: async (email, options) => { sent = { email, options }; return { data: {}, error }; } } });
+  await requestPasswordReset(client(null), ' TEST@example.com ');
+  assert.equal(sent.email, 'test@example.com'); assert.match(sent.options.redirectTo, /\/reset-password$/);
+  await requestPasswordReset(client({ code: 'user_not_found' }), 'nobody@example.com');
+  await assert.rejects(requestPasswordReset(client({ code: 'over_email_send_rate_limit' }), 'a@b.co'), /Espera/);
+  await assert.rejects(requestPasswordReset(client(null), 'no-email'), /correo válido/);
+});
+test('new passwords keep the numeric rules and confirmation', async () => {
+  let saved;
+  const client = error => ({ auth: { updateUser: async value => { saved = value; return { data: {}, error }; } } });
+  await updateAccountPassword(client(null), '000123', '000123'); assert.equal(saved.password, '000123');
+  await assert.rejects(updateAccountPassword(client(null), '000123', '000124'), /no coinciden/);
+  await assert.rejects(updateAccountPassword(client(null), 'abc123', 'abc123'), /números/);
+  await assert.rejects(updateAccountPassword(client({ code: 'same_password' }), '000123', '000123'), /actual/);
+});
+test('account deletion sends the session token and reports server errors', async () => {
+  let headers;
+  await deleteCloudAccount('token', '/api/account', async (_, options) => { headers = options.headers; return Response.json({ deleted: true }); });
+  assert.equal(headers.Authorization, 'Bearer token');
+  await assert.rejects(deleteCloudAccount(null, '/api/account', async () => { throw Error('must not call'); }), /Vuelve a entrar/);
+  await assert.rejects(deleteCloudAccount('token', '/api/account', async () => Response.json({ error: 'no activada' }, { status: 503 })), /no activada/);
 });
 test('family owner comes from authenticated user and payload excludes credentials', () => {
   const state = familyForUser(user, { parent: { id: 'attacker', password: 'secret' }, pinHash: 'hash', courses: [] });

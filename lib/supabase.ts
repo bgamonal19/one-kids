@@ -23,3 +23,10 @@ export function getTutorEndpoint(): string | null {
   if (!isSupabaseConfigured) return null;
   return `${url.replace(/\/$/, '')}/functions/v1/tutor-help`;
 }
+
+// Signed-in family's token for our own server functions; null in demo or signed out.
+export async function getAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
