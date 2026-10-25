@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveBoard, runTutor, tutorStatus, validateTutorRequest, TutorError } from '../server/tutor-core.mjs';
+import { cleanImages, cleanVisual, deriveBoard, runTutor, tutorStatus, validateTutorRequest, TutorError } from '../server/tutor-core.mjs';
 import { GET, POST, OPTIONS } from '../api/tutor.mjs';
 const env = { OPENAI_API_KEY: 'test-openai', ANTHROPIC_API_KEY: 'test-anthropic' };
 const image = 'data:image/jpeg;base64,/9j/2Q==';
@@ -107,6 +107,19 @@ test('handwritten whiteboard answers reach both providers as images and come bac
     assert.throws(() => validateTutorRequest({ ...request, ...invalid }), TutorError);
   }
 });
+test('concept maps, sketches and image searches are sanitized before reaching the board', async () => {
+  const map = { type: 'map', title: 'Las plantas', branches: [{ label: 'Raíz', details: ['Absorbe agua', 7] }, { label: 'Hojas', details: [] }, { label: '' }] };
+  assert.deepEqual(cleanVisual(map), { type: 'map', title: 'Las plantas', branches: [{ label: 'Raíz', details: ['Absorbe agua'] }, { label: 'Hojas', details: [] }] });
+  assert.equal(cleanVisual({ type: 'map', title: 'Solo', branches: [{ label: 'una' }] }), null);
+  const sketch = cleanVisual({ type: 'sketch', title: 'Mitades', shapes: [{ s: 'circle', x: 50, y: 50, r: 30, color: 'url(javascript:x)', fill: 'yes' }, { s: 'line', x1: -20, y1: 50, x2: 250, y2: 50, arrow: true, color: 'red' }, { s: 'script', x: 1 }, { s: 'text', x: 50, y: 95, text: '1/2' }] });
+  assert.deepEqual(sketch.shapes, [{ s: 'circle', x: 50, y: 50, r: 30, color: 'black', fill: false }, { s: 'line', x1: 0, y1: 50, x2: 100, y2: 50, arrow: true, color: 'red', fill: false }, { s: 'text', x: 50, y: 95, text: '1/2', size: 5, color: 'black', fill: false }]);
+  assert.deepEqual(cleanImages([{ query: 'volcán https://evil.example/x', label: 'Un volcán' }, { query: '' }, 3]), [{ query: 'volcán', label: 'Un volcán' }]);
+  const result = await runTutor({ ...request, provider: 'openai', action: 'map' }, env, async (_, options) => {
+    assert.match(JSON.parse(options.body).instructions, /mapa conceptual/);
+    return providerResponse('openai', { ...answer, visual: map, images: [{ query: 'raíces de una planta', label: 'Raíces' }] });
+  });
+  assert.equal(result.visual.type, 'map'); assert.equal(result.images.length, 1);
+});
 test('validation rejects unsupported URLs, oversized input, invalid actions and image shortcuts', () => {
   for (const invalid of [{ action: 'read' }, { message: 'a'.repeat(2001) }, { provider: 'unknown' }, { action: 'unknown' }, { imageBase64: 'https://example.com/image.jpg', action: 'read' }, { imageBase64: image, action: 'help' }, { imageBase64: 'a'.repeat(2_500_001), action: 'read' }]) {
     assert.throws(() => validateTutorRequest({ ...request, ...invalid }), TutorError);
@@ -184,4 +197,17 @@ test('provider failures log status and error code without the provider message',
     await assert.rejects(runTutor({ ...request, provider: 'openai' }, env, async () => Response.json({ error: { message: 'PRIVATE sk-secret', type: 'invalid_request_error', code: 'model_not_found' } }, { status: 404 })), e => e.status === 502);
   } finally { console.error = original; }
   assert.deepEqual(logged, ['[tutor] openai responded 404 model_not_found invalid_request_error']);
+});
+
+test('the daily board history keeps each day apart, caps its size and forgets old days', () => {
+  const result = { exports: {} };
+  const source = readFileSync(new URL('../lib/tutor-history.ts', import.meta.url), 'utf8');
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: result.exports, require: () => ({ default: {} }) });
+  const { addEntry, dayKey } = result.exports;
+  assert.equal(dayKey(new Date(2026, 9, 5, 23, 30)), '2026-10-05');
+  let history = {};
+  for (let i = 0; i < 90; i++) history = addEntry(history, { id: `e${i}`, at: '', lines: ['8 + 3'], reply: 'x' }, '2026-10-25');
+  assert.equal(history['2026-10-25'].length, 80); assert.equal(history['2026-10-25'].at(-1).id, 'e89');
+  for (let d = 1; d <= 20; d++) history = addEntry(history, { id: `d${d}`, at: '', lines: [], reply: 'x' }, `2026-09-${String(d).padStart(2, '0')}`);
+  assert.equal(Object.keys(history).length, 14); assert.ok(history['2026-10-25']); assert.ok(!history['2026-09-01']);
 });

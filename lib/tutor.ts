@@ -3,7 +3,20 @@ import type { AgeBand } from './ages';
 import { getAccessToken, getTutorEndpoint as getSupabaseEndpoint } from './supabase';
 
 export type TutorProvider = 'auto' | 'openai' | 'anthropic';
-export type TutorAction = 'help' | 'read' | 'continue' | 'simpler' | 'example' | 'hint';
+export type TutorAction = 'help' | 'read' | 'continue' | 'simpler' | 'example' | 'hint' | 'more' | 'map' | 'draw' | 'images';
+export type SketchColor = 'black' | 'blue' | 'red' | 'green' | 'orange' | 'yellow' | 'brown' | 'purple';
+type ShapeStyle = { color: SketchColor; fill: boolean };
+/** Shapes on a 0–100 grid, already sanitized by the server. */
+export type SketchShape = ShapeStyle & (
+  | { s: 'circle'; x: number; y: number; r: number }
+  | { s: 'rect'; x: number; y: number; w: number; h: number }
+  | { s: 'line'; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
+  | { s: 'poly'; points: [number, number][] }
+  | { s: 'text'; x: number; y: number; text: string; size: number });
+export type BoardVisual =
+  | { type: 'map'; title: string; branches: { label: string; details: string[] }[] }
+  | { type: 'sketch'; title: string; shapes: SketchShape[] };
+export type ImageSearch = { query: string; label: string };
 export type TutorRequest = {
   ageBand: AgeBand;
   childName: string;
@@ -20,6 +33,10 @@ export type TutorResponse = {
   reply: string;
   /** Short lines the tutor writes on the whiteboard while speaking. */
   board?: string[];
+  /** A concept map or simple sketch the tutor draws on the board. */
+  visual?: BoardVisual | null;
+  /** Kid-safe image searches; the app builds the links, never the AI. */
+  images?: ImageSearch[];
   /** What the AI read from a handwritten answer. */
   heard?: string;
   source: 'openai' | 'anthropic' | 'local';

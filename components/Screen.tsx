@@ -14,15 +14,17 @@ type Props = {
   /** Lets drawing surfaces pause page scrolling while a finger is down. */
   scrollEnabled?: boolean;
   scrollRef?: RefObject<ScrollViewInstance | null>;
+  /** No width cap: the screen manages its own columns (e.g. an edge-to-edge whiteboard). */
+  fill?: boolean;
 };
 
-export function Screen({ children, scroll, style, wide, scrollEnabled = true, scrollRef }: Props) {
+export function Screen({ children, scroll, style, wide, scrollEnabled = true, scrollRef, fill }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === 'web' && width >= 900;
   const maxW = wide || isWebWide ? 1100 : 720;
 
   const inner = (
-    <View style={[styles.inner, { maxWidth: maxW }, style]}><BackButton />{children}</View>
+    <View style={[styles.inner, { maxWidth: fill ? undefined : maxW }, style]}><BackButton />{children}</View>
   );
 
   const body = scroll ? (
