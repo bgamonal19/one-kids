@@ -1,4 +1,4 @@
-import { AccountStatus } from '@/components/AccountStatus';
+import { AccountStatus, SignOutButton } from '@/components/AccountStatus';
 import {
   Fredoka_600SemiBold,
   Fredoka_700Bold,
@@ -59,6 +59,7 @@ export default function RootLayout() {
             <Stack.Screen name="reset-password" />
           </Stack>
         </WebShell>
+        <SignOutButton />
       </FamilyProvider>
     </GestureHandlerRootView>
   );

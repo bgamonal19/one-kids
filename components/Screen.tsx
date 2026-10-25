@@ -1,7 +1,7 @@
 import { BackButton } from './BackButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode, RefObject } from 'react';
-import { Platform, ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/constants/theme';
@@ -20,8 +20,9 @@ type Props = {
 
 export function Screen({ children, scroll, style, wide, scrollEnabled = true, scrollRef, fill }: Props) {
   const { width } = useWindowDimensions();
-  const isWebWide = Platform.OS === 'web' && width >= 900;
-  const maxW = wide || isWebWide ? 1100 : 720;
+  // Edge to edge on every device: only the side gutter grows with the screen.
+  const maxW = wide ? 1100 : undefined;
+  const gutter = width >= 900 ? spacing.xl : width < 520 ? spacing.md : spacing.lg;
 
   const inner = (
     <View style={[styles.inner, { maxWidth: fill ? undefined : maxW }, style]}><BackButton />{children}</View>
@@ -30,7 +31,7 @@ export function Screen({ children, scroll, style, wide, scrollEnabled = true, sc
   const body = scroll ? (
     <ScrollView
       ref={scrollRef}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, { paddingHorizontal: gutter }]}
       keyboardShouldPersistTaps="handled"
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={false}
@@ -38,7 +39,7 @@ export function Screen({ children, scroll, style, wide, scrollEnabled = true, sc
       {inner}
     </ScrollView>
   ) : (
-    <View style={[styles.flex, styles.pad]}>{inner}</View>
+    <View style={[styles.flex, styles.pad, { paddingHorizontal: gutter }]}>{inner}</View>
   );
 
   return (
