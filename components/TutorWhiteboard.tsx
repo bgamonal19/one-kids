@@ -1,7 +1,10 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { BoardVisualView, visualSteps } from './BoardVisual';
 import { KikoMascot } from './KikoMascot';
+import { WritingPencil } from './WritingPencil';
+import type { BoardVisual } from '@/lib/tutor';
 import type { ExpressionId } from '@/lib/expressions';
 import { useFamily } from '@/lib/store';
 import { colors, fonts } from '@/constants/theme';
@@ -13,6 +16,7 @@ type Props = {
   pageKey: string;
   lines: string[];
   childLine?: string;
+  visual?: BoardVisual | null;
   /** Milliseconds per written character, so the writing roughly follows the voice. */
   pace: number;
   expression: ExpressionId;
@@ -24,14 +28,18 @@ type Props = {
 
 export const handwritingFont = 'PatrickHand_400Regular';
 
-export function TutorWhiteboard({ phase, pageKey, lines, childLine, pace, expression, bubble, width, onWritten, children }: Props) {
+export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace, expression, bubble, width, onWritten, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const wide = width >= 700;
   const size = wide ? 168 : 96;
   const lane = wide ? size * 0.88 : size * 0.3;
   const reach = wide ? size * 0.5 : size * 0.42;
-  const total = lines.reduce((sum, line) => sum + line.length, 0);
+  const textTotal = lines.reduce((sum, line) => sum + line.length, 0);
+  // Drawing a map branch or sketch shape takes as long as writing a few letters.
+  const stepCost = 8;
+  const steps = visual ? visualSteps(visual) : 0;
+  const total = textTotal + steps * stepCost;
   const [revealed, setRevealed] = useState({ key: '', count: 0 });
   const written = useEffectEvent(() => onWritten());
   const shown = phase !== 'writing' || reduced ? total : revealed.key === pageKey ? revealed.count : 0;
@@ -69,7 +77,9 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, pace, expres
 
   let remaining = shown;
   const visible = lines.map(line => { const part = line.slice(0, Math.max(0, remaining)); remaining -= line.length; return part; });
-  const cursorLine = phase === 'writing' && shown < total ? visible.findIndex((part, i) => part.length < lines[i].length) : -1;
+  const cursorLine = phase === 'writing' && shown < textTotal ? visible.findIndex((part, i) => part.length < lines[i].length) : -1;
+  const drawn = Math.min(steps, Math.max(0, Math.ceil((shown - textTotal) / stepCost)));
+  const innerWidth = Math.max(200, width - lane - 16 - 36);
   const lineSize = wide ? 34 : 25;
 
   return (
@@ -78,12 +88,14 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, pace, expres
         <View style={s.surface}>
           {childLine ? <Text style={[s.child, { fontSize: lineSize * 0.72 }]} numberOfLines={3}>Tú: {childLine}</Text> : null}
           <View style={{ minHeight: size * 0.85, paddingRight: size - lane + reach * 0.6 }} accessibilityLiveRegion="polite" accessibilityLabel={lines.join('. ')}>
-            {phase === 'thinking' ? <Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>✎ …</Text> : visible.map((part, i) => part || i <= cursorLine ? (
-              <Text key={`${pageKey}-${i}`} style={[s.line, { fontSize: lineSize, lineHeight: lineSize * 1.3 }, i === 0 && s.firstLine]}>
-                {part}{i === cursorLine ? <Text style={s.cursor}> ✎</Text> : null}
-              </Text>
+            {phase === 'thinking' ? <View style={s.lineRow}><Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>…</Text><WritingPencil size={lineSize * 1.15} /></View> : visible.map((part, i) => part || i <= cursorLine ? (
+              <View key={`${pageKey}-${i}`} style={s.lineRow}>
+                <Text style={[s.line, { fontSize: lineSize, lineHeight: lineSize * 1.3 }, i === 0 && s.firstLine]}>{part}</Text>
+                {i === cursorLine ? <WritingPencil size={lineSize * 1.15} /> : null}
+              </View>
             ) : null)}
           </View>
+          {visual && drawn > 0 ? <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={phase === 'writing' && drawn < steps} /> : null}
           {children}
         </View>
         <View style={s.tray}><View style={[s.marker, { backgroundColor: '#2C60AE' }]} /><View style={[s.marker, { backgroundColor: colors.coral }]} /><View style={[s.marker, { backgroundColor: colors.leafDeep }]} /><View style={s.eraser} /></View>
@@ -106,7 +118,7 @@ const s = StyleSheet.create({
   child: { fontFamily: handwritingFont, color: '#2C60AE' },
   line: { fontFamily: handwritingFont, color: colors.ink },
   firstLine: { color: '#1F4F95' },
-  cursor: { color: colors.coral },
+  lineRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
   walker: { position: 'absolute', right: 0, alignItems: 'center' },
   bubble: { backgroundColor: colors.white, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 2, borderWidth: 1, borderColor: '#D8E5EF' },
   bubbleText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink, textAlign: 'center' },

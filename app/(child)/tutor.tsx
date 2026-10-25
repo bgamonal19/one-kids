@@ -14,14 +14,16 @@ import { useTutorSpeech } from '@/hooks/useTutorSpeech';
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { askTutor, getTutorStatus, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
+import { askTutor, getTutorStatus, type BoardVisual, type ImageSearch, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
+import { addEntry, dayKey, dayLabel, loadHistory, saveHistory, type TutorHistory } from '@/lib/tutor-history';
 import type { TutorMessage } from '@/lib/types';
+import { openBrowserAsync } from 'expo-web-browser';
 
 type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
 type Photo = { uri: string; data: string };
 type Answer = { handwriting?: string; childLine?: string };
 type Retry = { message: string; action: TutorAction; exercise: string; fresh: boolean; answer: Answer };
-type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source'] };
+type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; review?: string };
 type InputMode = 'pen' | 'keys' | 'voice';
 const uid = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const labels = { openai: 'OpenAI', anthropic: 'Claude · Anthropic', local: 'Práctica sin IA' };
@@ -30,8 +32,15 @@ const actionMessages = {
   simpler: 'Explícame este mismo paso con palabras más fáciles.',
   example: 'Muéstrame otro ejemplo para entender este paso.',
   hint: 'Dame una pista sin decirme la respuesta.',
+  more: 'Cuéntame más sobre este tema.',
+  map: 'Hazme un mapa conceptual de este tema.',
+  draw: 'Dibújamelo en la pizarra.',
+  images: '¿Qué imágenes puedo buscar para entenderlo mejor?',
 } as const;
-const actionLines = { continue: 'Ya entendí 👍', simpler: 'Más fácil, por favor', example: 'Otro ejemplo', hint: 'Una pista' } as const;
+const actionLines = { continue: 'Ya entendí 👍', simpler: 'Más fácil, por favor', example: 'Otro ejemplo', hint: 'Una pista', more: 'Cuéntame más', map: 'Un mapa conceptual', draw: 'Dibújamelo', images: 'Quiero ver imágenes' } as const;
+const actionButtons = { continue: 'Ya entendí · Seguir →', simpler: 'Más fácil', example: 'Otro ejemplo', hint: 'Una pista', more: '📚 Cuéntame más', map: '🗺️ Mapa conceptual', draw: '✏️ Dibújamelo', images: '🖼️ Imágenes' } as const;
+// Wikimedia Commons: free, educational pictures; the link is built here from the AI's search words.
+const imageSearchUrl = (query: string) => `https://commons.wikimedia.org/w/index.php?search=${encodeURIComponent(query)}&title=Special:MediaSearch&type=image`;
 const penColors = ['#1F3A5F', '#2C60AE', '#E2553A', '#23935F'] as const;
 
 export default function TutorScreen() {
@@ -57,7 +66,9 @@ export default function TutorScreen() {
   const [fullscreen, setFullscreen] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<TutorHistory>({});
+  const [historyDay, setHistoryDay] = useState(dayKey());
+  const childId = state.child?.id ?? 'demo';
   const pad = useRef<HandwritingPadHandle>(null);
   const scroller = useRef<ScrollViewInstance>(null);
   const stageY = useRef(0);
@@ -150,10 +161,25 @@ export default function TutorScreen() {
     if (speechTimer.current) { clearTimeout(speechTimer.current); speechTimer.current = null; }
     finishTurn(generation);
   };
+  useEffect(() => {
+    let active = true;
+    void loadHistory(childId).then(saved => { if (active) setHistory(saved); });
+    return () => { active = false; };
+  }, [childId]);
+  const remember = (next: Page) => {
+    if (!next.reply) return;
+    setHistory(current => {
+      const updated = addEntry(current, { id: next.key, at: new Date().toISOString(), childLine: next.childLine, lines: next.lines, reply: next.reply ?? '', visual: next.visual, images: next.images });
+      void saveHistory(childId, updated);
+      return updated;
+    });
+    setHistoryDay(dayKey());
+  };
   const present = (next: Page) => {
     const generation = ++turn.current.generation;
     turn.current = { generation, written: false, spoken: !voiceOn || !next.reply };
-    const chars = Math.max(1, next.lines.join('').length);
+    // A drawing step lasts about as long as eight written letters.
+    const chars = Math.max(1, next.lines.join('').length + (next.visual ? (next.visual.type === 'map' ? next.visual.branches.length + 1 : next.visual.shapes.length) * 8 : 0));
     const speechMs = (next.reply ?? next.lines.join(' ')).split(/\s+/).length * (age <= 8 ? 480 : 400);
     setPace(Math.round(Math.min(110, Math.max(35, (speechMs * 0.6) / chars))));
     setPage(next); setPhase('writing'); react('explain');
@@ -186,7 +212,8 @@ export default function TutorScreen() {
       setInput(''); setExercise(confirmedExercise);
       if (answer.handwriting) pad.current?.clear();
       if (fresh) { setPhoto(null); setTranscript(null); setNeedsRetake(false); }
-      present({ key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source });
+      const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images };
+      present(next); remember(next);
       if (action === 'hint') react('hint', 6000, 'explain');
       if (result.source === 'local') setStatus({ configured: false, providers: [], vision: false });
     } catch (e) {
@@ -227,7 +254,15 @@ export default function TutorScreen() {
     </View>
     {full && (listening.listening || listening.error) ? <Text accessibilityLiveRegion="polite" style={listening.error ? styles.error : styles.voiceText}>{listening.error || listening.interim || 'Te escucho…'}</Text> : null}
   </View>;
-  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} pace={pace} expression={expression} bubble={bubble} width={full ? width - 24 : stageWidth} onWritten={onWritten}>
+  // Re-show a saved board without voice or animation, so the child can review the day.
+  const review = (entry: TutorHistory[string][number]) => {
+    turn.current.generation++;
+    void stop().catch(() => {});
+    setPage({ key: `review-${entry.id}`, review: entry.id, lines: entry.lines, childLine: entry.childLine, reply: entry.reply, replyId: entry.id, visual: entry.visual, images: entry.images });
+    setPhase('turn'); react('listen');
+    scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
+  };
+  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} pace={pace} expression={expression} bubble={bubble} width={full ? width - 24 : stageWidth} onWritten={onWritten}>
     {mode === 'pen' || full ? answerPad(full) : null}
   </TutorWhiteboard>;
 
@@ -273,13 +308,23 @@ export default function TutorScreen() {
           {page.source ? <Text style={styles.source}>{labels[page.source]}</Text> : null}
         </View>
       </View> : null}
+      {page.images?.length ? <View style={styles.said}>
+        <Text style={styles.sectionTitle}>🖼️ Imágenes para mirar con un adulto</Text>
+        <View style={styles.wrap}>
+          {page.images.map(image => <Pressable key={image.query} accessibilityRole="link" accessibilityLabel={`Buscar imágenes de ${image.query}`} onPress={() => void openBrowserAsync(imageSearchUrl(image.query))} style={styles.imageLink}>
+            <Text style={styles.link}>🔎 {image.query}</Text>
+            {image.label ? <Text style={styles.source}>{image.label}</Text> : null}
+          </Pressable>)}
+        </View>
+        <Text style={styles.footnote}>Se abre Wikimedia Commons, un banco de imágenes libres.</Text>
+      </View> : null}
       {speechError ? <Text accessibilityRole="alert" style={styles.error}>{speechError}</Text> : null}
       {loading === 'photo' || loading === 'read' ? <View style={styles.loading}><ActivityIndicator color={colors.coral} /><Text style={styles.hint}>{loading === 'photo' ? 'Preparando foto…' : 'Leyendo la escritura…'}</Text></View> : null}
       {loading === 'photo' ? <PrimaryButton label="Cancelar preparación de foto" variant="secondary" onPress={() => { photoGeneration.current++; busy.current = false; setLoading(null); }} /> : null}
       {error ? <View style={styles.errorBox}><Text accessibilityRole="alert" style={styles.error}>{error}</Text>{retry ? <PrimaryButton label="Reintentar" variant="secondary" disabled={Boolean(loading)} onPress={() => void send(retry.message, retry.action, retry.exercise, retry.fresh, retry.answer)} /> : null}</View> : null}
 
       {hasExplanation && !photo ? <View style={styles.wrap}>
-        {(['continue', 'simpler', 'example', 'hint'] as const).map(id => <Pressable key={id} accessibilityRole="button" disabled={Boolean(loading)} onPress={() => void send(actionMessages[id], id, exercise, false, { childLine: actionLines[id] })} style={[styles.chip, id === 'continue' && styles.chipMain, Boolean(loading) && styles.dim]}><Text style={[styles.chipText, id === 'continue' && styles.sendText]}>{{ continue: 'Ya entendí · Seguir →', simpler: 'Más fácil', example: 'Otro ejemplo', hint: 'Una pista' }[id]}</Text></Pressable>)}
+        {(['continue', 'simpler', 'example', 'hint', 'more', 'map', 'draw', 'images'] as const).map(id => <Pressable key={id} accessibilityRole="button" disabled={Boolean(loading)} onPress={() => void send(actionMessages[id], id, exercise, false, { childLine: actionLines[id] })} style={[styles.chip, id === 'continue' && styles.chipMain, Boolean(loading) && styles.dim]}><Text style={[styles.chipText, id === 'continue' && styles.sendText]}>{actionButtons[id]}</Text></Pressable>)}
       </View> : null}
 
       {photo ? <View style={styles.photoCard}>
@@ -306,9 +351,18 @@ export default function TutorScreen() {
         </View>
       </View>
 
-      {messages.length > 1 ? <View style={styles.composer}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: historyOpen }} onPress={() => setHistoryOpen(!historyOpen)}><Text style={styles.link}>{historyOpen ? '▾ Ocultar la conversación' : '▸ Ver toda la conversación'}</Text></Pressable>
-        {historyOpen ? messages.map(m => <Text key={m.id} style={[styles.historyLine, m.role === 'child' && styles.historyChild]} selectable>{m.role === 'child' ? 'Tú: ' : 'Tutor: '}{m.text}</Text>) : null}
+      {Object.keys(history).length ? <View style={styles.composer}>
+        <Text style={styles.sectionTitle}>📅 Lo que aprendimos</Text>
+        <View style={styles.toolRow}>
+          {Object.keys(history).sort().reverse().map(day => <Pressable key={day} accessibilityRole="tab" accessibilityState={{ selected: historyDay === day }} onPress={() => setHistoryDay(day)} style={[styles.mode, historyDay === day && styles.modeOn]}><Text style={[styles.modeText, historyDay === day && styles.modeTextOn]}>{dayLabel(day)} · {history[day].length}</Text></Pressable>)}
+        </View>
+        {(history[historyDay] ?? []).length ? [...(history[historyDay] ?? [])].reverse().map(entry => <Pressable key={entry.id} accessibilityRole="button" accessibilityLabel={`Repasar: ${entry.lines[0] ?? entry.reply}`} disabled={Boolean(loading)} onPress={() => review(entry)} style={[styles.historyItem, page.review === entry.id && styles.historyItemOn]}>
+          <Text style={styles.historyTime}>{new Date(entry.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</Text>
+          <View style={styles.flex}>
+            {entry.childLine ? <Text style={[styles.historyLine, styles.historyChild]} numberOfLines={1}>Tú: {entry.childLine}</Text> : null}
+            <Text style={styles.historyLine} numberOfLines={2}>{entry.visual ? (entry.visual.type === 'map' ? '🗺️ ' : '✏️ ') : ''}{entry.lines.join(' · ')}</Text>
+          </View>
+        </Pressable>) : <Text style={styles.hint}>Este día todavía no hay pizarras.</Text>}
       </View> : null}
 
       <View style={styles.connection}>
@@ -318,7 +372,7 @@ export default function TutorScreen() {
         {status?.configured ? <View style={styles.wrap}>
           {(['auto', 'openai', 'anthropic'] as const).map(id => <Pressable key={id} accessibilityRole="button" accessibilityLabel={`Usar ${id === 'auto' ? 'conexión automática' : labels[id]}`} accessibilityState={{ selected: provider === id, disabled: id !== 'auto' && !status.providers.includes(id) }} disabled={Boolean(loading) || (id !== 'auto' && !status.providers.includes(id))} onPress={() => setProvider(id)} style={[styles.provider, provider === id && styles.providerSelected]}><Text style={styles.providerText}>{id === 'auto' ? 'Automático' : labels[id]}</Text></Pressable>)}
         </View> : null}
-        <Text style={styles.footnote}>La voz del tutor usa la lectura del dispositivo y el dictado usa el reconocimiento de voz del navegador. Lo que el niño escribe en la pizarra se envía como imagen a la IA solo al pulsar «Enviar». Las fotos no se guardan en el perfil.</Text>
+        <Text style={styles.footnote}>La voz del tutor usa la lectura del dispositivo y el dictado usa el reconocimiento de voz del navegador. Lo que el niño escribe en la pizarra se envía como imagen a la IA solo al pulsar «Enviar». El historial de pizarras de los últimos 14 días se guarda solo en este dispositivo. Las fotos no se guardan en el perfil.</Text>
       </View>
     </Screen>
   );
@@ -377,6 +431,11 @@ const styles = StyleSheet.create({
   transcriptInput: { minHeight: 150, textAlignVertical: 'top' },
   composer: { backgroundColor: colors.white, padding: 18, borderRadius: 22, gap: 14, marginVertical: 8 },
   input: { backgroundColor: colors.paper, borderWidth: 1, borderColor: '#CEDDE9', borderRadius: radii.md, padding: 14, fontFamily: fonts.body, fontSize: 17, color: colors.ink, minHeight: 80, textAlignVertical: 'top' },
+  historyItem: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 10, borderRadius: 14, backgroundColor: colors.paper },
+  historyItemOn: { backgroundColor: colors.mist, borderWidth: 1, borderColor: colors.sky },
+  historyTime: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkMuted, paddingTop: 2 },
+  flex: { flex: 1 },
+  imageLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.mist, flexGrow: 1 },
   historyLine: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: colors.ink },
   historyChild: { color: '#2C60AE' },
   footnote: { fontFamily: fonts.body, fontSize: 12, lineHeight: 19, color: colors.inkMuted },

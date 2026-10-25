@@ -66,3 +66,10 @@ El tutor responde en una pizarra: el personaje se acerca, escribe las líneas co
 Con `TUTOR_TEST_FIXTURES=1` la vista previa devuelve líneas de pizarra simuladas y lee «11» en cualquier dibujo.
 
 El botón «⛶ Pantalla completa» abre la pizarra ocupando toda la pantalla (útil en móvil), con el mismo dibujo, «🎤 Dictar» por voz donde el navegador lo permite y «✕ Salir».
+
+## Mapas, bocetos, imágenes e historial
+
+- La IA puede añadir `visual`: un mapa conceptual (`map`: tema central y 2–6 ramas con detalles) o un boceto (`sketch`: hasta 40 formas simples en una cuadrícula 0–100). El servidor descarta todo lo que no sean formas, números acotados, colores de una lista y textos cortos; la app lo dibuja paso a paso con el lápiz.
+- `images`: hasta 3 búsquedas. La IA nunca da enlaces; la app abre la búsqueda en Wikimedia Commons.
+- Botones «📚 Cuéntame más», «🗺️ Mapa conceptual», «✏️ Dibújamelo» y «🖼️ Imágenes».
+- «📅 Lo que aprendimos» guarda en el dispositivo las pizarras de los últimos 14 días (máx. 80 por día) por niño; tocar una la vuelve a mostrar.
