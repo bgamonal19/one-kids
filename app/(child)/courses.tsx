@@ -16,6 +16,8 @@ const LINK_OPTIONS: { id: CourseLink; label: string }[] = [
   { id: 'custom', label: 'Solo lista' },
 ];
 
+const LINK_ICON: Record<CourseLink, string> = { numbers: '🔢', letters: '🔤', explorer: '🔭', tutor: '✏️', custom: '📘' };
+
 function hrefFor(link: CourseLink) {
   if (link === 'numbers') return '/(child)/worlds/numbers' as const;
   if (link === 'letters') return '/(child)/worlds/letters' as const;
@@ -42,11 +44,12 @@ export default function CoursesScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Cursos</Text>
-      <Text style={styles.sub}>Elige un curso o agrega uno nuevo a tu lista.</Text>
+      <Text style={styles.title}>📚 Cursos</Text>
+      <Text style={styles.sub}>Toca un curso para empezar.</Text>
 
       <PrimaryButton
-        label={showForm ? 'Cerrar formulario' : '+ Agregar curso'}
+        label={showForm ? 'Cerrar' : '＋ Agregar curso'}
+        variant={showForm ? 'secondary' : 'primary'}
         onPress={() => setShowForm((v) => !v)}
         style={{ marginBottom: spacing.md }}
       />
@@ -69,7 +72,7 @@ export default function CoursesScreen() {
             placeholderTextColor={colors.inkMuted}
             style={styles.input}
           />
-          <Text style={styles.label}>Al tocándolo abre</Text>
+          <Text style={styles.label}>Al tocarlo abre</Text>
           <View style={styles.chips}>
             {LINK_OPTIONS.map((opt) => (
               <Pressable
@@ -93,19 +96,27 @@ export default function CoursesScreen() {
           return (
             <View key={c.id} style={[styles.card, { backgroundColor: c.color }]}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={href ? `Abrir ${c.title}` : c.title}
+                disabled={!href}
                 onPress={() => {
                   if (href) router.push(href);
                 }}
-                style={({ pressed }) => [pressed && { opacity: 0.9 }]}
+                style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}
               >
-                <Text style={styles.cardTitle}>{c.title}</Text>
-                <Text style={styles.cardDesc}>{c.desc}</Text>
-                {!href ? (
-                  <Text style={styles.cardDesc}>Curso guardado en tu lista</Text>
-                ) : null}
+                <View style={styles.cardIcon}><Text style={styles.cardEmoji}>{LINK_ICON[c.link]}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>{c.title}</Text>
+                  {c.desc ? <Text style={styles.cardDesc}>{c.desc}</Text> : null}
+                  {href ? (
+                    <View style={styles.play}><Text style={styles.playText}>▶ Jugar</Text></View>
+                  ) : (
+                    <Text style={styles.cardDesc}>Guardado en tu lista</Text>
+                  )}
+                </View>
               </Pressable>
-              <Pressable onPress={() => removeCourse(c.id)} style={styles.remove}>
-                <Text style={styles.removeText}>Quitar</Text>
+              <Pressable onPress={() => removeCourse(c.id)} accessibilityRole="button" accessibilityLabel={`Quitar el curso ${c.title}`} hitSlop={6} style={styles.remove}>
+                <Text style={styles.removeText}>🗑️</Text>
               </Pressable>
             </View>
           );
@@ -149,8 +160,9 @@ const styles = StyleSheet.create({
   chip: {
     backgroundColor: colors.mist,
     borderRadius: radii.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   chipOn: { backgroundColor: colors.sky },
   chipText: { fontFamily: fonts.bodySemi, color: colors.ink },
@@ -159,9 +171,17 @@ const styles = StyleSheet.create({
   card: {
     minHeight: 120,
     borderRadius: radii.lg,
-    padding: 22,
-    justifyContent: 'center',
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
+  cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  cardIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center' },
+  cardEmoji: { fontSize: 40 },
+  play: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: colors.white, borderRadius: radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
+  playText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
   cardTitle: {
     fontFamily: fonts.displayBold,
     fontSize: 26,
@@ -175,12 +195,12 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   remove: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.sm,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  removeText: { fontFamily: fonts.bodyBold, color: colors.white },
+  removeText: { fontSize: 20 },
 });

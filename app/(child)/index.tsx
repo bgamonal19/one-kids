@@ -42,11 +42,11 @@ export default function ChildHome() {
   const finished = state.tasks.length - unfinished.length;
   const progress = state.tasks.length ? finished / state.tasks.length : 0;
   const routes = [
-    { label: 'Mis tareas', icon: '✓', route: '/(child)/tasks' as const, color: '#FFBFA9' },
-    { label: 'Mis cursos', icon: '▤', route: '/(child)/courses' as const, color: '#A9E8D7' },
-    { label: 'Mi agenda', icon: '▦', route: '/(child)/calendar' as const, color: '#FFE5A4' },
-    { label: young ? 'Mundos' : 'Practicar', icon: '✧', route: '/(child)/worlds' as const, color: '#D9C5FD' },
-    { label: 'Calculadora', icon: '∑', route: '/(child)/calculator' as const, color: '#B9E2FA' },
+    { label: young ? 'Tareas' : 'Mis tareas', icon: '📝', route: '/(child)/tasks' as const, color: '#FFD9CC' },
+    { label: young ? 'Jugar' : 'Practicar', icon: '🌍', route: '/(child)/worlds' as const, color: '#E6DAFE' },
+    { label: young ? 'Cursos' : 'Mis cursos', icon: '📚', route: '/(child)/courses' as const, color: '#C9F1E6' },
+    { label: young ? 'Agenda' : 'Mi agenda', icon: '📅', route: '/(child)/calendar' as const, color: '#FFEDBF' },
+    { label: 'Calculadora', icon: '🧮', route: '/(child)/calculator' as const, color: '#D3EDFC' },
   ];
 
   return (
@@ -62,10 +62,12 @@ export default function ChildHome() {
 
         <View style={[styles.hero, { backgroundColor: mode.primary, flexDirection: compact ? 'column' : 'row', paddingHorizontal: gutter }]}>
           <View style={styles.heroCopy}>
-            <Text style={styles.heroKicker}>TU ESPACIO DE APRENDIZAJE</Text>
+            {young ? null : <Text style={styles.heroKicker}>TU ESPACIO DE APRENDIZAJE</Text>}
             <Text style={[styles.heroTitle, { fontSize: young ? 28 : 25 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
             <Text style={styles.heroDescription}>{allTasksDone ? '¡Excelente! Has terminado tus tareas.' : mode.welcome}</Text>
-            <Text style={styles.heroHint}>Toca a {companionName} para aprender en la pizarra ✎</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Aprender con ${companionName} en la pizarra`} onPress={openTutor} style={styles.heroHint}>
+              <Text style={styles.heroHintText}>👉 Toca a {companionName} para aprender</Text>
+            </Pressable>
           </View>
           <View style={styles.heroAgent}>
             <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}, tu tutor`} onPress={openTutor} style={styles.agentTap}>
@@ -73,7 +75,7 @@ export default function ChildHome() {
               <Text style={styles.agentName}>{companionName} · {COMPANIONS[companion].role}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Cambiar de personaje" onPress={() => router.push('./profile')} style={styles.changeButton}>
-              <Text style={styles.changeIcon}>⇄</Text>
+              <Text style={styles.changeIcon}>🔄</Text>
               <Text style={[styles.changeText, { color: mode.primary }]}>Cambiar{'\n'}personaje</Text>
             </Pressable>
           </View>
@@ -85,28 +87,12 @@ export default function ChildHome() {
         </Pressable>
         {state.child?.interests?.length ? <Text style={[styles.interests, { color: mode.ink }]}>Me interesa: {state.child.interests.join(' · ')}</Text> : null}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: mode.ink }]}>Tu día de aprendizaje</Text>
-          <Text style={[styles.subtle, { color: mode.ink }]}>{finished}/{state.tasks.length} tareas</Text>
-        </View>
-        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: mode.primary }]} /></View>
-        <View style={styles.taskCard}>
-          {unfinished.length === 0 ? (
-            <Text style={[styles.taskText, { color: mode.ink }]}>{state.tasks.length ? '¡Todo listo! Buen trabajo.' : 'Empieza añadiendo tu primera tarea.'}</Text>
-          ) : unfinished.slice(0, 3).map((task, index) => (
-            <Pressable key={task.id} onPress={() => router.push('/(child)/tasks')} style={[styles.taskRow, index > 0 && styles.separator]}>
-              <Text style={[styles.check, { color: mode.primary }]}>○</Text>
-              <Text style={[styles.taskText, { color: mode.ink }]} numberOfLines={2}>{task.title}</Text>
-              <Text style={{ color: mode.primary }}>›</Text>
-            </Pressable>
-          ))}
-          <Pressable onPress={() => router.push('/(child)/tasks')} style={styles.textAction}><Text style={[styles.actionText, { color: mode.primary }]}>Ver todas las tareas →</Text></Pressable>
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: mode.ink }]}>Mis herramientas</Text>
+          <Text style={[styles.sectionTitle, { color: mode.ink }]}>{young ? '¿Qué hacemos hoy?' : 'Mis herramientas'}</Text>
         </View>
         <View style={styles.grid}>
-          {routes.map(item => {
+          {routes.map((item, index) => {
+            // A lone tile on the last row takes the whole width instead of leaving a gap.
+            const alone = index === routes.length - 1 && routes.length % columns === 1;
             const locked = item.route === '/(child)/worlds' && !worldsUnlocked;
             return (
               <Pressable
@@ -114,14 +100,32 @@ export default function ChildHome() {
                 accessibilityRole="button"
                 accessibilityLabel={locked ? `${item.label}, termina tus tareas para entrar` : item.label}
                 onPress={() => router.push(locked ? '/(child)/tasks' : item.route)}
-                style={[styles.tool, { width: tileWidth, opacity: locked ? 0.65 : 1 }]}
+                style={[styles.tool, { width: alone ? '100%' : tileWidth, opacity: locked ? 0.65 : 1 }]}
               >
-                <View style={[styles.iconCircle, { backgroundColor: item.color }]}><Text style={styles.toolIcon}>{locked ? '🔒' : item.icon}</Text></View>
+                <View style={[styles.iconCircle, { backgroundColor: item.color, width: young ? 68 : 56, height: young ? 68 : 56 }]}><Text style={[styles.toolIcon, { fontSize: young ? 38 : 30 }]}>{locked ? '🔒' : item.icon}</Text></View>
                 <Text style={[styles.toolLabel, { color: mode.ink }]}>{item.label}</Text>
-                {locked ? <Text style={styles.lockHint}>Termina tus tareas</Text> : null}
+                {locked ? <Text style={styles.lockHint}>Termina tus tareas 🔑</Text> : null}
               </Pressable>
             );
           })}
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: mode.ink }]}>Tu día de aprendizaje</Text>
+          <Text style={[styles.subtle, { color: mode.ink }]}>✅ {finished}/{state.tasks.length}</Text>
+        </View>
+        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: mode.primary }]} /></View>
+        <View style={styles.taskCard}>
+          {unfinished.length === 0 ? (
+            <Text style={[styles.taskText, { color: mode.ink }]}>{state.tasks.length ? '¡Todo listo! Buen trabajo.' : 'Empieza añadiendo tu primera tarea.'}</Text>
+          ) : unfinished.slice(0, 3).map((task, index) => (
+            <Pressable key={task.id} onPress={() => router.push('/(child)/tasks')} style={[styles.taskRow, index > 0 && styles.separator]}>
+              <View style={[styles.check, { borderColor: mode.primary }]} />
+              <Text style={[styles.taskText, { color: mode.ink }]} numberOfLines={2}>{task.title}</Text>
+              <Text style={[styles.chevron, { color: mode.primary }]}>›</Text>
+            </Pressable>
+          ))}
+          <Pressable onPress={() => router.push('/(child)/tasks')} style={styles.textAction} accessibilityRole="button"><Text style={[styles.actionText, { color: mode.primary }]}>Ver todas →</Text></Pressable>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -133,11 +137,10 @@ export default function ChildHome() {
             <Pressable key={course.id} onPress={() => router.push('/(child)/courses')} style={[styles.courseCard, { borderTopColor: course.color }]}>
               <Text style={[styles.courseTitle, { color: mode.ink }]} numberOfLines={2}>{course.title}</Text>
               <Text style={styles.courseDesc} numberOfLines={2}>{course.desc}</Text>
-              <Text style={[styles.actionText, { color: mode.primary }]}>Explorar →</Text>
+              <Text style={[styles.actionText, { color: mode.primary }]}>▶ Abrir</Text>
             </Pressable>
           ))}
         </ScrollView>
-        <Text style={styles.footer}>Tu aprendizaje, a tu ritmo. ✨</Text>
         </View>
       </ScrollView>
     </View>
@@ -158,35 +161,36 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, alignSelf: 'stretch', justifyContent: 'center' },
   heroKicker: { color: '#DCEAFF', fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 1.2 },
   heroTitle: { color: '#FFFFFF', fontFamily: fonts.displayBold, marginTop: 9 },
-  heroDescription: { color: '#FFFFFF', fontFamily: fonts.bodySemi, fontSize: 15, marginTop: 6, marginBottom: 14 },
-  heroHint: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 14, opacity: 0.9 },
+  heroDescription: { color: '#FFFFFF', fontFamily: fonts.bodySemi, fontSize: 17, marginTop: 6, marginBottom: 14 },
+  heroHint: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+  heroHintText: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 16 },
   heroAgent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   agentTap: { alignItems: 'center', justifyContent: 'center', borderRadius: 24, padding: 6 },
-  changeButton: { backgroundColor: '#FFFFFF', borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', minWidth: 84 },
-  changeIcon: { fontSize: 22, color: '#233C64' },
-  changeText: { fontFamily: fonts.bodyBold, fontSize: 12, textAlign: 'center' },
-  agentName: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 11, textAlign: 'center', marginTop: 4 },
+  changeButton: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', minWidth: 92, minHeight: 72, justifyContent: 'center' },
+  changeIcon: { fontSize: 26 },
+  changeText: { fontFamily: fonts.bodyBold, fontSize: 13, textAlign: 'center' },
+  agentName: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 13, textAlign: 'center', marginTop: 4 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12, gap: 8 },
-  sectionTitle: { fontFamily: fonts.displayBold, fontSize: 20, flexShrink: 1 },
-  subtle: { fontFamily: fonts.bodySemi, fontSize: 13 },
-  progressTrack: { height: 8, backgroundColor: '#DDE6F0', borderRadius: 6, overflow: 'hidden', marginBottom: 12 },
-  progressFill: { height: 8, borderRadius: 6 },
+  sectionTitle: { fontFamily: fonts.displayBold, fontSize: 22, flexShrink: 1 },
+  subtle: { fontFamily: fonts.bodyBold, fontSize: 15 },
+  progressTrack: { height: 14, backgroundColor: '#DDE6F0', borderRadius: 7, overflow: 'hidden', marginBottom: 12 },
+  progressFill: { height: 14, borderRadius: 7 },
   taskCard: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingVertical: 10, gap: 12 },
   separator: { borderTopWidth: 1, borderTopColor: '#F0F3F7' },
-  check: { fontSize: 23 },
-  taskText: { fontFamily: fonts.bodySemi, fontSize: 15, flex: 1 },
-  textAction: { paddingVertical: 11, alignSelf: 'flex-start' },
-  actionText: { fontFamily: fonts.bodyBold, fontSize: 13 },
+  check: { width: 28, height: 28, borderRadius: 14, borderWidth: 3 },
+  chevron: { fontSize: 26, fontFamily: fonts.bodyBold },
+  taskText: { fontFamily: fonts.bodySemi, fontSize: 17, flex: 1 },
+  textAction: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
+  actionText: { fontFamily: fonts.bodyBold, fontSize: 15 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP },
-  tool: { minHeight: 125, borderRadius: 19, backgroundColor: '#FFFFFF', padding: 15, justifyContent: 'center', alignItems: 'flex-start' },
-  iconCircle: { width: 48, height: 48, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  toolIcon: { fontFamily: fonts.displayBold, fontSize: 27, color: '#233C64' },
-  toolLabel: { fontFamily: fonts.bodyBold, fontSize: 15 },
-  lockHint: { fontFamily: fonts.body, fontSize: 10, color: '#607087' },
+  tool: { minHeight: 136, borderRadius: 22, backgroundColor: '#FFFFFF', padding: 14, justifyContent: 'center', alignItems: 'center' },
+  iconCircle: { borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  toolIcon: { textAlign: 'center' },
+  toolLabel: { fontFamily: fonts.displayBold, fontSize: 18, textAlign: 'center' },
+  lockHint: { fontFamily: fonts.bodySemi, fontSize: 12, color: '#607087', textAlign: 'center', marginTop: 2 },
   courseList: { gap: 12, paddingBottom: 4 },
   courseCard: { backgroundColor: '#FFFFFF', borderRadius: 17, borderTopWidth: 5, width: 175, minHeight: 135, padding: 15, justifyContent: 'space-between' },
-  courseTitle: { fontFamily: fonts.displayBold, fontSize: 16 },
-  courseDesc: { fontFamily: fonts.body, color: '#607087', fontSize: 12, marginVertical: 8 },
-  footer: { fontFamily: fonts.bodySemi, textAlign: 'center', color: '#8492A4', paddingTop: 28, paddingBottom: 6, fontSize: 12 },
+  courseTitle: { fontFamily: fonts.displayBold, fontSize: 18 },
+  courseDesc: { fontFamily: fonts.body, color: '#607087', fontSize: 14, marginVertical: 8 },
 });

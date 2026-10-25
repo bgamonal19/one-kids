@@ -43,8 +43,11 @@ export default function CalendarScreen() {
     return list;
   }, [year, month]);
 
-  const monthLabel = cursor.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+  const monthLabel = capitalize(cursor.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }));
   const dayEvents = state.agenda.filter((e) => e.date === selected);
+  const [selYear, selMonth, selDay] = selected.split('-').map(Number);
+  const selectedLabel = capitalize(new Date(selYear, selMonth - 1, selDay).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }));
   const datesWithEvents = useMemo(
     () => new Set(state.agenda.map((e) => e.date)),
     [state.agenda]
@@ -61,15 +64,15 @@ export default function CalendarScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Calendario</Text>
-      <Text style={styles.sub}>Toca un día y agrega tu agenda (estudios, deporte, etc.).</Text>
+      <Text style={styles.title}>📅 Mi agenda</Text>
+      <Text style={styles.sub}>Toca un día para ver o añadir planes.</Text>
 
       <View style={styles.nav}>
-        <Pressable onPress={() => setCursor(new Date(year, month - 1, 1))} style={styles.navBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Mes anterior" onPress={() => setCursor(new Date(year, month - 1, 1))} style={styles.navBtn}>
           <Text style={styles.navText}>←</Text>
         </Pressable>
         <Text style={styles.month}>{monthLabel}</Text>
-        <Pressable onPress={() => setCursor(new Date(year, month + 1, 1))} style={styles.navBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Mes siguiente" onPress={() => setCursor(new Date(year, month + 1, 1))} style={styles.navBtn}>
           <Text style={styles.navText}>→</Text>
         </Pressable>
       </View>
@@ -117,9 +120,10 @@ export default function CalendarScreen() {
       </View>
 
       <View style={styles.agendaBox}>
-        <Text style={styles.agendaTitle}>Mi agenda · {selected}</Text>
+        <Text style={styles.agendaTitle}>{selectedLabel}</Text>
         <PrimaryButton
-          label={showForm ? 'Cerrar' : '+ Agregar a mi agenda'}
+          label={showForm ? 'Cerrar' : '＋ Añadir un plan'}
+          variant={showForm ? 'secondary' : 'primary'}
           onPress={() => setShowForm((v) => !v)}
           style={{ marginVertical: 12 }}
         />
@@ -152,7 +156,7 @@ export default function CalendarScreen() {
         ) : null}
 
         {dayEvents.length === 0 ? (
-          <Text style={styles.empty}>No hay nada este día. ¡Agrega tu primer plan!</Text>
+          <Text style={styles.empty}>🌤️ Día libre. ¡Añade un plan si quieres!</Text>
         ) : (
           dayEvents.map((e) => (
             <View key={e.id} style={styles.event}>
@@ -163,8 +167,8 @@ export default function CalendarScreen() {
                 </Text>
                 {e.note ? <Text style={styles.eventNote}>{e.note}</Text> : null}
               </View>
-              <Pressable onPress={() => removeAgenda(e.id)}>
-                <Text style={styles.remove}>Quitar</Text>
+              <Pressable onPress={() => removeAgenda(e.id)} accessibilityRole="button" accessibilityLabel={`Quitar ${e.title}`} hitSlop={6} style={styles.remove}>
+                <Text style={styles.removeIcon}>🗑️</Text>
               </Pressable>
             </View>
           ))
@@ -206,7 +210,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.displayBold,
     fontSize: 22,
     color: colors.ink,
-    textTransform: 'capitalize',
   },
   weekRow: { flexDirection: 'row', marginBottom: 8 },
   week: {
@@ -241,7 +244,7 @@ const styles = StyleSheet.create({
   },
   agendaTitle: {
     fontFamily: fonts.displayBold,
-    fontSize: 20,
+    fontSize: 22,
     color: colors.ink,
   },
   form: { gap: 10, marginBottom: 12 },
@@ -254,7 +257,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.ink,
   },
-  empty: { fontFamily: fonts.body, color: colors.inkMuted },
+  empty: { fontFamily: fonts.bodySemi, color: colors.inkMuted, fontSize: 17, textAlign: 'center', paddingVertical: 8 },
   event: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -263,7 +266,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.mist,
   },
-  eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
+  eventTitle: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.ink },
   eventNote: { marginTop: 2, fontFamily: fonts.body, color: colors.inkMuted },
-  remove: { fontFamily: fonts.bodySemi, color: colors.coral },
+  remove: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF1EC', alignItems: 'center', justifyContent: 'center' },
+  removeIcon: { fontSize: 20 },
 });

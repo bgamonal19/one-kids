@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { CompanionStatus } from '@/components/CompanionStatus';
@@ -44,6 +44,9 @@ export default function WorldPlay() {
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [round, setRound] = useState(0);
+  const [wrongPicks, setWrongPicks] = useState<string[]>([]);
+  const [rightPick, setRightPick] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
 
   const [{ math, letter, explorer, mathOptions }, setQuestions] = useState(() => createQuestions(band));
   const { expression, react } = useCompanionReaction('curious');
@@ -54,8 +57,8 @@ export default function WorldPlay() {
   if (!world) {
     return (
       <Screen>
-        <Text style={styles.title}>Mundo no encontrado</Text>
-        <PrimaryButton label="Volver" onPress={() => router.back()} />
+        <Text style={styles.title}>Mundo no encontrado 🤔</Text>
+        <PrimaryButton label="Ver los mundos" onPress={() => router.replace('/(child)/worlds')} />
       </Screen>
     );
   }
@@ -63,144 +66,144 @@ export default function WorldPlay() {
   if (!worldsUnlocked) {
     return (
       <Screen>
-        <Text style={styles.title}>Bloqueado</Text>
-        <PrimaryButton label="Volver" onPress={() => router.back()} />
+        <Text style={styles.title}>🔒 ¡Primero las tareas!</Text>
+        <PrimaryButton label="📝 Ir a mis tareas" onPress={() => router.replace('/(child)/tasks')} />
       </Screen>
     );
   }
 
-  const correct = async () => {
+  const board =
+    worldId === 'numbers'
+      ? { prompt: `¿Cuánto es ${math.a} ${math.op} ${math.b}?`, options: mathOptions.map(String), answer: String(math.answer) }
+      : worldId === 'letters'
+        ? { prompt: letter.prompt, options: letter.options, answer: letter.word }
+        : { prompt: explorer.question, options: explorer.options, answer: explorer.answer };
+  // Four short answers fit in a 2×2 grid, which keeps every button big and in reach; three would leave one alone.
+  const twoColumns = board.options.length % 2 === 0 && (width >= 600 || board.options.every(option => option.length <= 10));
+
+  const correct = async (option: string) => {
     if (resolving.current) return;
     resolving.current = true;
+    setRightPick(option);
     react('correct');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setScore((s) => s + 1);
-    setFeedback('¡Correcto! +1 ★');
+    setFeedback('¡Correcto! +1 ⭐');
     await addStars(1);
     nextRoundTimer.current = setTimeout(() => {
       setFeedback('');
+      setWrongPicks([]);
+      setRightPick(null);
       setQuestions(createQuestions(band));
       setRound((r) => r + 1);
       react('curious');
       resolving.current = false;
-    }, 700);
+    }, 900);
   };
 
-  const wrong = () => {
+  const wrong = (option: string) => {
     if (resolving.current) return;
+    setWrongPicks(picks => (picks.includes(option) ? picks : [...picks, option]));
     react('retry');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    setFeedback('Casi… inténtalo otra vez');
+    setFeedback('¡Casi! Prueba otra 💪');
   };
 
   return (
     <Screen scroll>
-      <CompanionStatus expression={expression} message={feedback || 'Lee con calma y elige una respuesta.'} />
-      <Text style={styles.kicker}>{world.title}</Text>
-      <Text style={styles.title}>Ronda {round + 1}</Text>
-      <Text style={styles.score}>Estrellas de sesión: {score}</Text>
+      <View style={styles.topRow}>
+        <Text style={styles.kicker}>{world.title} · Ronda {round + 1}</Text>
+        <View style={styles.scorePill} accessibilityLabel={`${score} estrellas en esta sesión`}>
+          <Text style={styles.scoreText}>⭐ {score}</Text>
+        </View>
+      </View>
+      <CompanionStatus expression={expression} message="¿Cuál es la respuesta?" />
 
-      {worldId === 'numbers' ? (
-        <View style={styles.board}>
-          <Text style={styles.prompt}>
-            ¿Cuánto es {math.a} {math.op} {math.b}?
-          </Text>
-          <View style={styles.options}>
-            {mathOptions.map((n, i) => (
+      <View style={styles.board}>
+        <Text style={styles.prompt}>{board.prompt}</Text>
+        <View style={styles.options}>
+          {board.options.map((option, i) => {
+            const isRight = rightPick === option;
+            const isWrong = wrongPicks.includes(option);
+            return (
               <Pressable
-                key={`${round}-${n}-${i}`}
-                style={styles.option}
-                onPress={() => (n === math.answer ? correct() : wrong())}
+                key={`${round}-${option}-${i}`}
+                accessibilityRole="button"
+                accessibilityLabel={option}
+                accessibilityState={{ disabled: isWrong }}
+                disabled={isWrong}
+                onPress={() => (option === board.answer ? correct(option) : wrong(option))}
+                style={({ pressed }) => [
+                  styles.option,
+                  { width: twoColumns ? '48%' : '100%' },
+                  isRight && styles.optionRight,
+                  isWrong && styles.optionWrong,
+                  pressed && styles.optionPressed,
+                ]}
               >
-                <Text style={styles.optionText}>{n}</Text>
+                <Text style={[styles.optionText, isRight && styles.optionTextRight, isWrong && styles.optionTextWrong]}>
+                  {isRight ? '✓ ' : isWrong ? '✗ ' : ''}{option}
+                </Text>
               </Pressable>
-            ))}
-          </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {feedback ? (
+        <View style={[styles.feedback, rightPick ? styles.feedbackRight : styles.feedbackRetry]} accessibilityLiveRegion="polite">
+          <Text style={styles.feedbackText}>{feedback}</Text>
         </View>
       ) : null}
-
-      {worldId === 'letters' ? (
-        <View style={styles.board}>
-          <Text style={styles.prompt}>{letter.prompt}</Text>
-          <View style={styles.options}>
-            {letter.options.map((opt) => (
-              <Pressable
-                key={`${round}-${opt}`}
-                style={styles.option}
-                onPress={() => (opt === letter.word ? correct() : wrong())}
-              >
-                <Text style={styles.optionText}>{opt}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {worldId === 'explorer' ? (
-        <View style={styles.board}>
-          <Text style={styles.prompt}>{explorer.question}</Text>
-          <View style={styles.options}>
-            {explorer.options.map((opt) => (
-              <Pressable
-                key={`${round}-${opt}`}
-                style={styles.option}
-                onPress={() => (opt === explorer.answer ? correct() : wrong())}
-              >
-                <Text style={styles.optionText}>{opt}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
-      <PrimaryButton label="Salir del mundo" variant="ghost" onPress={() => router.back()} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   kicker: {
-    marginTop: spacing.md,
-    fontFamily: fonts.bodySemi,
+    flex: 1,
+    fontFamily: fonts.bodyBold,
     color: colors.skyDeep,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontSize: 12,
+    fontSize: 16,
   },
+  scorePill: { backgroundColor: colors.white, borderRadius: radii.pill, paddingHorizontal: 16, paddingVertical: 8 },
+  scoreText: { fontFamily: fonts.displayBold, fontSize: 22, color: colors.ink },
   title: {
     marginTop: 8,
+    marginBottom: spacing.lg,
     fontFamily: fonts.displayBold,
     fontSize: 28,
     color: colors.ink,
   },
-  score: {
-    marginTop: 6,
-    marginBottom: spacing.lg,
-    fontFamily: fonts.bodySemi,
-    color: colors.inkMuted,
-  },
-  board: { gap: 16 },
+  board: { gap: 18, marginTop: spacing.sm },
   prompt: {
-    fontFamily: fonts.display,
-    fontSize: 24,
+    fontFamily: fonts.displayBold,
+    fontSize: 30,
     color: colors.ink,
-    lineHeight: 32,
-  },
-  options: { gap: 10 },
-  option: {
-    backgroundColor: colors.white,
-    borderRadius: radii.md,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-  },
-  optionText: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.ink },
-  feedback: {
-    marginTop: spacing.lg,
+    lineHeight: 38,
     textAlign: 'center',
-    fontFamily: fonts.bodyBold,
-    color: colors.leafDeep,
-    fontSize: 16,
   },
+  options: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
+  option: {
+    minHeight: 84,
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    borderWidth: 3,
+    borderColor: '#D7EAF5',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionPressed: { transform: [{ scale: 0.96 }] },
+  optionRight: { backgroundColor: colors.leaf, borderColor: colors.leafDeep },
+  optionWrong: { backgroundColor: '#FFF1EC', borderColor: '#FFD3C6', opacity: 0.7 },
+  optionText: { fontFamily: fonts.displayBold, fontSize: 28, color: colors.ink, textAlign: 'center' },
+  optionTextRight: { color: colors.white },
+  optionTextWrong: { color: colors.coral },
+  feedback: { marginTop: spacing.lg, borderRadius: radii.lg, paddingVertical: 14, paddingHorizontal: 16 },
+  feedbackRight: { backgroundColor: '#DDF7EA' },
+  feedbackRetry: { backgroundColor: '#FFF4D6' },
+  feedbackText: { textAlign: 'center', fontFamily: fonts.displayBold, color: colors.ink, fontSize: 22 },
 });

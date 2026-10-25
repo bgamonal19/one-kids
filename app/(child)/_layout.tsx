@@ -33,20 +33,14 @@ export default function ChildLayout() {
   return (
     <RequireFamily><View style={{ flex: 1 }}>
       <Stack key={state.child?.id ?? 'empty'}
-        screenOptions={{
-          headerShown: true,
-          headerTitleStyle: { fontFamily: fonts.displayBold, color: colors.ink },
-          headerTintColor: colors.coral,
-          headerStyle: { backgroundColor: colors.paper },
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: colors.paper },
-        }}
+        // Each child screen has its own big title and back button, so the stack header would only repeat them.
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="profile" options={{ title: "Mi aprendizaje" }} />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="profile" options={{ title: 'Mi aprendizaje' }} />
         <Stack.Screen name="tasks" options={{ title: 'Tareas' }} />
-        <Stack.Screen name="tutor" options={{ title: 'Tutor IA' }} />
-        <Stack.Screen name="worlds" options={{ headerShown: false }} />
+        <Stack.Screen name="tutor" options={{ title: 'Tutor' }} />
+        <Stack.Screen name="worlds" />
         <Stack.Screen name="calculator" options={{ title: 'Calculadora' }} />
         <Stack.Screen name="calendar" options={{ title: 'Calendario' }} />
         <Stack.Screen name="courses" options={{ title: 'Cursos' }} />
@@ -58,16 +52,18 @@ export default function ChildLayout() {
           setPin('');
           setError('');
         }}
-        style={[styles.parentBtn, { top: insets.top + 8 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Panel de padres, pide el PIN"
+        style={[styles.parentBtn, { top: insets.top + 12 }]}
       >
-        <Text style={styles.parentBtnText}>Padres</Text>
+        <Text style={styles.parentBtnText}>🔒 Padres</Text>
       </Pressable>
 
       <Modal visible={showPin} animationType="slide" transparent>
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>PIN parental</Text>
-            <Text style={styles.modalHint}>Solo mamá o papá</Text>
+            <Text style={styles.modalHint}>Solo para mamá o papá 👋</Text>
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <PinPad value={pin} onChange={setPin} />
             <PrimaryButton label="Entrar al panel" onPress={tryParent} style={{ marginTop: 16 }} />

@@ -51,7 +51,7 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 52,
+    minHeight: 56,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.bodyBold,
     color: colors.white,
-    fontSize: 16,
+    fontSize: 17,
   },
   labelDark: { color: colors.ink },
 });
