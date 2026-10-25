@@ -57,7 +57,7 @@ async function logProviderError(provider, response) {
   let detail = '';
   try {
     const error = (await response.json())?.error ?? {};
-    detail = [error.code, error.type].filter(item => typeof item === 'string').join(' ');
+    detail = [error.code, error.type, error.param].filter(item => typeof item === 'string').join(' ');
   } catch {}
   console.error(`[tutor] ${provider} responded ${response.status}${detail ? ` ${detail}` : ''}`.slice(0, 200));
 }
@@ -78,7 +78,7 @@ export async function runTutor(raw, env, fetcher = fetch) {
         url = 'https://api.openai.com/v1/responses';
         headers = { Authorization: `Bearer ${apiKey(env, 'openai')}`, 'Content-Type': 'application/json' };
         body = { model: env.OPENAI_MODEL || 'gpt-4.1-mini', store: false, max_output_tokens: 1400, instructions: prompt,
-          input: [...req.history, { role: 'user', content: [...(req.image ? [{ type: 'input_image', image_url: req.image.url, detail: 'high' }] : []), { type: 'input_text', text }] }], text: { format: { type: 'json_object' } } };
+          input: [...req.history, { role: 'user', content: [...(req.image ? [{ type: 'input_image', image_url: req.image.url, detail: 'high' }] : []), { type: 'input_text', text: `${text}\n\nResponde solo con el JSON pedido.` }] }], text: { format: { type: 'json_object' } } };
       } else {
         url = 'https://api.anthropic.com/v1/messages';
         headers = { 'x-api-key': apiKey(env, 'anthropic'), 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' };
