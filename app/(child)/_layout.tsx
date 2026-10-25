@@ -47,6 +47,8 @@ export default function ChildLayout() {
         <Stack.Screen name="calculator" options={{ title: 'Calculadora' }} />
         <Stack.Screen name="calendar" options={{ title: 'Calendario' }} />
         <Stack.Screen name="courses" options={{ title: 'Cursos' }} />
+        <Stack.Screen name="course/[id]" options={{ title: 'Perfil del curso' }} />
+        <Stack.Screen name="schedule" options={{ title: 'Rol semanal' }} />
       </Stack>
 
       {/* Top-right pills, left to right: Cambiar personaje (home only), Padres, then Salir from the root layout. */}

@@ -66,7 +66,8 @@ type StoreApi = {
   removeTask: (id: string) => Promise<void>;
   setFocus: (active: boolean) => Promise<void>;
   addStars: (n: number) => Promise<void>;
-  addCourse: (input: { title: string; desc: string; link?: CourseLink }) => Promise<void>;
+  addCourse: (input: { title: string; desc: string; link?: CourseLink }) => Promise<string>;
+  updateCourse: (id: string, patch: Partial<Omit<CourseItem, 'id'>>) => Promise<void>;
   removeCourse: (id: string) => Promise<void>;
   addAgenda: (input: { title: string; date: string; time?: string; note?: string }) => Promise<void>;
   removeAgenda: (id: string) => Promise<void>;
@@ -385,6 +386,14 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         link: input.link ?? 'custom',
       };
       await persist({ ...state, courses: [course, ...state.courses] });
+      return course.id;
+    },
+    [persist, state]
+  );
+
+  const updateCourse = useCallback(
+    async (id: string, patch: Partial<Omit<CourseItem, 'id'>>) => {
+      await persist({ ...state, courses: state.courses.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
     },
     [persist, state]
   );
@@ -510,6 +519,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       setFocus,
       addStars,
       addCourse,
+      updateCourse,
       removeCourse,
       addAgenda,
       removeAgenda,
@@ -535,6 +545,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       setFocus,
       addStars,
       addCourse,
+      updateCourse,
       removeCourse,
       addAgenda,
       removeAgenda,

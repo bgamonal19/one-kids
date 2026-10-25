@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
+import { dayStatus, eventConflicts } from '@/lib/school-calendar';
 import { useFamily } from '@/lib/store';
 
 const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -121,6 +122,10 @@ export default function CalendarScreen() {
 
       <View style={styles.agendaBox}>
         <Text style={styles.agendaTitle}>{selectedLabel}</Text>
+        {(() => {
+          const { holiday, vacation } = dayStatus(state.child?.country, selected);
+          return holiday || vacation ? <Text style={styles.dayMark}>{holiday ? `🎉 Feriado: ${holiday}` : `🏖️ ${vacation}`}</Text> : null;
+        })()}
         <PrimaryButton
           label={showForm ? 'Cerrar' : '＋ Añadir un plan'}
           variant={showForm ? 'secondary' : 'primary'}
@@ -166,6 +171,11 @@ export default function CalendarScreen() {
                   {e.title}
                 </Text>
                 {e.note ? <Text style={styles.eventNote}>{e.note}</Text> : null}
+                {eventConflicts(e, state.courses, state.child?.country).map(({ course, slot }) => (
+                  <Text key={`${course.id}-${slot.start}`} accessibilityRole="alert" style={styles.conflict}>
+                    ⚠️ Coincide con {course.title} ({slot.start}–{slot.end}). Es posible que ese día no se lleve a cabo el curso.
+                  </Text>
+                ))}
               </View>
               <Pressable onPress={() => removeAgenda(e.id)} accessibilityRole="button" accessibilityLabel={`Quitar ${e.title}`} hitSlop={6} style={styles.remove}>
                 <Text style={styles.removeIcon}>🗑️</Text>
@@ -248,6 +258,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   form: { gap: 10, marginBottom: 12 },
+  dayMark: { marginTop: 4, fontFamily: fonts.bodySemi, color: colors.inkMuted },
   input: {
     backgroundColor: colors.mist,
     borderRadius: radii.md,
@@ -268,6 +279,7 @@ const styles = StyleSheet.create({
   },
   eventTitle: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.ink },
   eventNote: { marginTop: 2, fontFamily: fonts.body, color: colors.inkMuted },
+  conflict: { marginTop: 6, fontFamily: fonts.bodySemi, color: '#7A4B00', backgroundColor: '#FFF4E0', borderRadius: radii.sm, padding: 8, overflow: 'hidden' },
   remove: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF1EC', alignItems: 'center', justifyContent: 'center' },
   removeIcon: { fontSize: 20 },
 });
