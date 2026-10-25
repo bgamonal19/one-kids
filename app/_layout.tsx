@@ -8,6 +8,7 @@ import {
   Nunito_600SemiBold,
   Nunito_700Bold,
 } from '@expo-google-fonts/nunito';
+import { PatrickHand_400Regular } from '@expo-google-fonts/patrick-hand';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -30,6 +31,7 @@ export default function RootLayout() {
     Nunito_400Regular,
     Nunito_600SemiBold,
     Nunito_700Bold,
+    PatrickHand_400Regular,
   });
 
   useEffect(() => {

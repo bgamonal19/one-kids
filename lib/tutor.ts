@@ -10,12 +10,18 @@ export type TutorRequest = {
   message?: string;
   exercise?: string;
   imageBase64?: string;
+  /** The child's answer drawn on the whiteboard, as a small PNG/JPEG data URL. */
+  handwriting?: string;
   action?: TutorAction;
   provider?: TutorProvider;
   history?: { role: 'tutor' | 'child'; text: string }[];
 };
 export type TutorResponse = {
   reply: string;
+  /** Short lines the tutor writes on the whiteboard while speaking. */
+  board?: string[];
+  /** What the AI read from a handwritten answer. */
+  heard?: string;
   source: 'openai' | 'anthropic' | 'local';
   transcription?: string;
   needsRetake?: boolean;
@@ -50,14 +56,17 @@ export async function getTutorStatus(): Promise<TutorStatus> {
 // Deliberately limited offline practice. It never claims to read photographs.
 export function practiceTutor(req: TutorRequest): TutorResponse {
   if (req.imageBase64 || req.action === 'read') throw new Error('Para leer la foto necesitamos conectar la IA. Puedes escribir el enunciado mientras tanto.');
+  if (req.handwriting) throw new Error('Para leer lo que escribes en la pizarra necesitamos conectar la IA. Puedes usar el teclado mientras tanto.');
   const text = [req.exercise, req.message, ...(req.history ?? []).filter(h => h.role === 'child').map(h => h.text).reverse()].filter(Boolean).join('\n');
   const match = text.match(/(\d{1,4})\s*([+−-])\s*(\d{1,4})/);
   let reply = 'Estamos en modo práctica, sin IA conectada. Puedo guiarte con una suma o resta sencilla: escribe, por ejemplo, 8 + 3.';
+  let board = ['Modo práctica', 'Escribe: 8 + 3'];
   if (match) {
     const a = Number(match[1]), b = Number(match[3]);
     const sum = match[2] === '+';
     const result = sum ? a + b : a - b;
     const action = req.action ?? 'help';
+    board = [`${a} ${sum ? '+' : '−'} ${b} = ?`];
     if (action === 'continue') {
       const progressed = (req.history ?? []).filter(h => h.role === 'child' && h.text === 'Ya entendí. Continuemos con el siguiente paso.').length;
       reply = progressed === 0 ? `Ahora haz el movimiento: desde ${a}, cuenta ${b} ${sum ? 'hacia delante' : 'hacia atrás'}. Escríbeme a qué número llegaste.` : `Vamos a comprobarlo: ${a} ${sum ? '+' : '−'} ${b} = ${result}. Compara con tu resultado. Si fue distinto, podemos explicarlo de otra manera.`;
@@ -66,7 +75,7 @@ export function practiceTutor(req: TutorRequest): TutorResponse {
     else if (action === 'hint') reply = `Una pista: ${sum ? 'sumar es juntar o avanzar' : 'restar es quitar o retroceder'}. Empieza en ${a}. ¿Qué harías con el ${b}?`;
     else reply = `Vamos con ${a} ${sum ? '+' : '−'} ${b}. Primer paso: ${sum ? 'vamos a juntar dos cantidades' : 'vamos a quitar una cantidad'}. Coloca ${a} objetos delante de ti. ¿Ya los tienes?`;
   }
-  return { reply, source: 'local' };
+  return { reply, board, source: 'local' };
 }
 
 export async function askTutor(req: TutorRequest): Promise<TutorResponse> {
@@ -79,8 +88,8 @@ export async function askTutor(req: TutorRequest): Promise<TutorResponse> {
     response = await fetch(endpoint, { method: 'POST', headers: await headers(), body: JSON.stringify(payload), signal: AbortSignal.timeout(52_000) });
   } catch { throw new Error('No pude conectar con el tutor. Tu consulta sigue aquí para volver a intentarlo.'); }
   const data = await response.json().catch(() => ({}));
-  if (response.status === 503 && (!req.provider || req.provider === 'auto') && !req.imageBase64) return practiceTutor(req);
-  if (response.status === 401 && !req.imageBase64 && req.action !== 'read') {
+  if (response.status === 503 && (!req.provider || req.provider === 'auto') && !req.imageBase64 && !req.handwriting) return practiceTutor(req);
+  if (response.status === 401 && !req.imageBase64 && !req.handwriting && req.action !== 'read') {
     const practice = practiceTutor(req);
     return { ...practice, reply: `${data.error || 'El tutor IA es para cuentas familiares.'} Mientras tanto, practiquemos sin IA.\n\n${practice.reply}` };
   }

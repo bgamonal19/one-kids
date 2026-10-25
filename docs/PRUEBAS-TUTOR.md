@@ -54,3 +54,15 @@ Ese modo solo existe en el script de pruebas y nunca en la función desplegada. 
 5. Revisar resultados según edades 4–6, 7–9, 10–12 y 13–16 con supervisión adulta.
 
 La publicación permite pruebas acompañadas de la interfaz. El acceso del tutor web tiene protección básica por origen y ráfagas por instancia, no autenticación familiar ni cuotas duraderas. Antes de abrir pruebas de IA a una audiencia amplia hay que completar esas medidas y establecer presupuestos en los proveedores. El registro y PIN de la demo siguen siendo locales; no equivalen a autenticación del backend.
+
+## Pizarra interactiva
+
+El tutor responde en una pizarra: el personaje se acerca, escribe las líneas cortas que devuelve la IA (`board`) mientras lee la explicación en voz alta y se retira para que el niño conteste. El niño puede:
+
+- **Escribir con el dedo o con Apple Pencil** en la zona punteada de la pizarra. Al pulsar «Enviar», el trazo se recorta y se envía como imagen PNG pequeña (`handwriting`); la IA devuelve lo que leyó (`heard`) y responde a eso.
+- **Usar el teclado**.
+- **Hablar** (🎤) en navegadores con reconocimiento de voz (Chrome, Edge, Safari en iPad/iPhone). En la app nativa se usa el micrófono del teclado.
+
+Con `TUTOR_TEST_FIXTURES=1` la vista previa devuelve líneas de pizarra simuladas y lee «11» en cualquier dibujo.
+
+El botón «⛶ Pantalla completa» abre la pizarra ocupando toda la pantalla (útil en móvil), con el mismo dibujo, «🎤 Dictar» por voz donde el navegador lo permite y «✕ Salir».

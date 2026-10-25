@@ -1,7 +1,7 @@
 import { BackButton } from './BackButton';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ReactNode } from 'react';
-import { Platform, ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { ReactNode, RefObject } from 'react';
+import { Platform, ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/constants/theme';
@@ -11,9 +11,12 @@ type Props = {
   scroll?: boolean;
   style?: ViewStyle;
   wide?: boolean;
+  /** Lets drawing surfaces pause page scrolling while a finger is down. */
+  scrollEnabled?: boolean;
+  scrollRef?: RefObject<ScrollViewInstance | null>;
 };
 
-export function Screen({ children, scroll, style, wide }: Props) {
+export function Screen({ children, scroll, style, wide, scrollEnabled = true, scrollRef }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === 'web' && width >= 900;
   const maxW = wide || isWebWide ? 1100 : 720;
@@ -24,8 +27,10 @@ export function Screen({ children, scroll, style, wide }: Props) {
 
   const body = scroll ? (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
+      scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={false}
     >
       {inner}

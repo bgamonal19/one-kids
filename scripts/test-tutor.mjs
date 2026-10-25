@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runTutor, tutorStatus, validateTutorRequest, TutorError } from '../server/tutor-core.mjs';
+import { deriveBoard, runTutor, tutorStatus, validateTutorRequest, TutorError } from '../server/tutor-core.mjs';
 import { GET, POST, OPTIONS } from '../api/tutor.mjs';
 const env = { OPENAI_API_KEY: 'test-openai', ANTHROPIC_API_KEY: 'test-anthropic' };
 const image = 'data:image/jpeg;base64,/9j/2Q==';
@@ -80,6 +80,32 @@ test('confirmed exercise and contextual history reach both providers', async () 
     assert.match((body.input || body.messages).at(-1).content.at(-1).text, /Ejercicio confirmado/);
     return providerResponse(provider);
   });
+});
+test('whiteboard lines come from the model and fall back to the math in the reply', async () => {
+  const result = await runTutor({ ...request, provider: 'openai' }, env, async (_, options) => {
+    assert.match(JSON.parse(options.body).instructions, /pizarra/);
+    return providerResponse('openai', { ...answer, board: ['  8 + 3 = ?  ', 42, '', 'x'.repeat(90)] });
+  });
+  assert.deepEqual(result.board, ['8 + 3 = ?', 'x'.repeat(60)]); assert.equal(result.heard, '');
+  assert.deepEqual((await runTutor({ ...request, provider: 'openai' }, env, async () => providerResponse('openai', { reply: 'Restamos 14 a 35. ¿Cuánto es 35 - 14?' }))).board, ['35 - 14']);
+  assert.deepEqual(deriveBoard('Muy bien. ¿Qué número viene después?'), ['¿Qué número viene después?']);
+});
+test('handwritten whiteboard answers reach both providers as images and come back as heard text', async () => {
+  const drawing = 'data:image/png;base64,iVBORw0KGgo=';
+  for (const provider of ['openai', 'anthropic']) {
+    const result = await runTutor({ ...request, provider, message: '', handwriting: drawing }, env, async (_, options) => {
+      const body = JSON.parse(options.body);
+      const content = (body.input || body.messages).at(-1).content;
+      if (provider === 'openai') assert.equal(content[0].image_url, drawing);
+      else assert.equal(content[0].source.media_type, 'image/png');
+      assert.match(body.instructions || body.system, /dedo o un lápiz/);
+      return providerResponse(provider, { ...answer, heard: ' 32 ' });
+    });
+    assert.equal(result.heard, '32');
+  }
+  for (const invalid of [{ handwriting: 'https://example.com/a.png' }, { handwriting: drawing, action: 'read' }, { handwriting: `data:image/png;base64,${'a'.repeat(800_001)}` }]) {
+    assert.throws(() => validateTutorRequest({ ...request, ...invalid }), TutorError);
+  }
 });
 test('validation rejects unsupported URLs, oversized input, invalid actions and image shortcuts', () => {
   for (const invalid of [{ action: 'read' }, { message: 'a'.repeat(2001) }, { provider: 'unknown' }, { action: 'unknown' }, { imageBase64: 'https://example.com/image.jpg', action: 'read' }, { imageBase64: image, action: 'help' }, { imageBase64: 'a'.repeat(2_500_001), action: 'read' }]) {
