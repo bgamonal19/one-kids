@@ -1,7 +1,7 @@
 import { RequireFamily } from '@/components/RequireFamily';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SIGN_OUT_SPACE } from '@/components/AccountStatus';
@@ -12,6 +12,8 @@ import { useFamily } from '@/lib/store';
 
 export default function ChildLayout() {
   const insets = useSafeAreaInsets();
+  const onHome = usePathname() === '/';
+  const narrow = useWindowDimensions().width < 520;
   const { checkPin, state, accountMode } = useFamily();
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState('');
@@ -47,18 +49,26 @@ export default function ChildLayout() {
         <Stack.Screen name="courses" options={{ title: 'Cursos' }} />
       </Stack>
 
-      <Pressable
-        onPress={() => {
-          setShowPin(true);
-          setPin('');
-          setError('');
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Panel de padres, pide el PIN"
-        style={[styles.parentBtn, { top: insets.top + 12, right: accountMode === 'signed-out' ? 12 : 12 + SIGN_OUT_SPACE }]}
-      >
-        <Text style={styles.parentBtnText}>🔒 Padres</Text>
-      </Pressable>
+      {/* Top-right pills, left to right: Cambiar personaje (home only), Padres, then Salir from the root layout. */}
+      <View pointerEvents="box-none" style={[styles.topActions, { top: insets.top + 12, right: accountMode === 'signed-out' ? 12 : 12 + SIGN_OUT_SPACE }]}>
+        {onHome ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Cambiar de personaje" onPress={() => router.push('/(child)/profile')} style={styles.parentBtn}>
+            <Text style={styles.parentBtnText}>{narrow ? '🔄 Personaje' : '🔄 Cambiar personaje'}</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          onPress={() => {
+            setShowPin(true);
+            setPin('');
+            setError('');
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Panel de padres, pide el PIN"
+          style={styles.parentBtn}
+        >
+          <Text style={styles.parentBtnText}>🔒 Padres</Text>
+        </Pressable>
+      </View>
 
       <Modal visible={showPin} animationType="slide" transparent>
         <View style={styles.modalBg}>
@@ -77,9 +87,8 @@ export default function ChildLayout() {
 }
 
 const styles = StyleSheet.create({
+  topActions: { position: 'absolute', zIndex: 30, flexDirection: 'row', gap: 8 },
   parentBtn: {
-    position: 'absolute',
-    zIndex: 30,
     backgroundColor: colors.white,
     paddingHorizontal: 12,
     paddingVertical: 8,

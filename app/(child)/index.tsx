@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,11 +34,19 @@ export default function ChildHome() {
   const prompts = age <= 8 ? ['¡Choca esos cinco! ¿Contamos tres estrellas?', '¡Cada intento te hace crecer!'] : age <= 11 ? ['Misión: aprende algo y explícamelo con tus palabras.', 'Un error es una pista. ¡Investiguemos!'] : age <= 14 ? ['Divide tu reto en pasos. ¿Cuál harías primero?', 'Prueba otra estrategia y compara los resultados.'] : ['Define una meta concreta para esta sesión.', '¿Qué evidencia respalda tu respuesta?'];
   const personality = COMPANIONS[companion].intro;
   const compact = width < 520;
-  const agentSize = compact ? 120 : 150;
+  const agentSize = compact ? 110 : 130;
   const gutter = width >= 900 ? 32 : compact ? 16 : 24;
   const columns = width >= 900 ? 5 : compact ? 2 : 3;
   const tileWidth = (width - gutter * 2 - TILE_GAP * (columns - 1)) / columns;
   const openTutor = () => router.push('/(child)/tutor');
+  const [cheering, setCheering] = useState(false);
+  useEffect(() => {
+    if (!cheering) return;
+    const timer = setTimeout(() => setCheering(false), 4000);
+    return () => clearTimeout(timer);
+  }, [cheering]);
+  // With nothing pending, the first tap congratulates; tapping again while the bubble shows opens the tutor.
+  const tapCompanion = () => { if (allTasksDone && !cheering) setCheering(true); else openTutor(); };
   const unfinished = state.tasks.filter(task => !task.done);
   const finished = state.tasks.length - unfinished.length;
   const progress = state.tasks.length ? finished / state.tasks.length : 0;
@@ -54,23 +62,29 @@ export default function ChildHome() {
     <View style={[styles.root, { backgroundColor: mode.bg }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
         {/* Short blue band; the companion floats over its bottom edge instead of making it taller. */}
-        <View style={[styles.hero, { backgroundColor: mode.primary, paddingTop: insets.top + 12, paddingLeft: gutter, paddingRight: gutter + agentSize }]}>
-          <View style={styles.brandRow}>
-            <Text style={styles.brand}>ONE <Text style={{ color: mode.soft }}>KIDS</Text></Text>
-            <View style={styles.stars}><Text style={styles.starLabel}>★ {state.child?.stars ?? 0}</Text></View>
+        {/* On wider screens the brand sits beside the greeting, so the band is only as tall as the greeting. */}
+        <View style={[styles.hero, { backgroundColor: mode.primary, flexDirection: compact ? 'column' : 'row', paddingTop: insets.top + (compact ? 56 : 12), paddingHorizontal: gutter, paddingBottom: compact ? agentSize * 0.72 : 14 }]}>
+          <View style={compact ? null : styles.brandColumn}>
+            <View style={styles.brandRow}>
+              <Text style={styles.brand}>ONE <Text style={{ color: mode.soft }}>KIDS</Text></Text>
+              <View style={styles.stars}><Text style={styles.starLabel}>★ {state.child?.stars ?? 0}</Text></View>
+            </View>
+            <Text style={styles.subtitle}>{mode.label} · {age} años{state.child?.grade ? ' · ' + state.child.grade : ''}</Text>
           </View>
-          <Text style={styles.subtitle}>{mode.label} · {age} años{state.child?.grade ? ' · ' + state.child.grade : ''}</Text>
-          <Text style={[styles.heroTitle, { fontSize: young ? 28 : 25 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
-          <Text style={styles.heroDescription}>{allTasksDone ? '¡Excelente! Has terminado tus tareas.' : mode.welcome}</Text>
-          <View style={styles.heroActions}>
+          <View style={[styles.greeting, compact ? { marginTop: 6 } : { flex: 1 }]}>
+            <Text style={[styles.heroTitle, { fontSize: compact ? 32 : 38 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
+            <Text style={styles.heroDescription}>{mode.welcome}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={`Aprender con ${companionName} en la pizarra`} onPress={openTutor} style={styles.heroHint}>
               <Text style={styles.heroHintText}>👉 Toca a {companionName} para aprender</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cambiar de personaje" onPress={() => router.push('./profile')} style={styles.changeButton}>
-              <Text style={[styles.changeText, { color: mode.primary }]}>🔄 Cambiar personaje</Text>
-            </Pressable>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}, tu tutor`} onPress={openTutor} style={[styles.agentTap, { right: gutter, bottom: -agentSize * 0.4 }]}>
+          {compact ? null : <View style={styles.brandColumn} />}
+          {cheering ? (
+            <View accessibilityLiveRegion="polite" style={[styles.cheer, { right: gutter + agentSize * 0.7, bottom: agentSize * 0.25 }]}>
+              <Text style={[styles.cheerText, { color: mode.ink }]}>🎉 ¡Excelente! Has terminado tus pendientes.</Text>
+            </View>
+          ) : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={allTasksDone ? `${companionName}: ¡Excelente! Has terminado tus pendientes` : `Hablar con ${companionName}, tu tutor`} onPress={tapCompanion} style={[styles.agentTap, { right: gutter, bottom: -agentSize * 0.4 }]}>
             <KikoMascot character={companion} age={age} expression={allTasksDone ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={agentSize} />
           </Pressable>
         </View>
@@ -152,14 +166,15 @@ const styles = StyleSheet.create({
   stars: { borderRadius: 30, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: 'rgba(255,255,255,0.2)' },
   starLabel: { fontSize: 15, fontFamily: fonts.bodyBold, color: '#FFFFFF' },
   hero: { paddingBottom: 18, zIndex: 2 },
-  heroTitle: { color: '#FFFFFF', fontFamily: fonts.displayBold, marginTop: 12 },
-  heroDescription: { color: '#FFFFFF', fontFamily: fonts.bodySemi, fontSize: 16, marginTop: 4, marginBottom: 12 },
-  heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  heroHint: { flexShrink: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
+  brandColumn: { width: 230 },
+  heroTitle: { color: '#FFFFFF', fontFamily: fonts.displayBold, textAlign: 'center' },
+  heroDescription: { color: '#FFFFFF', fontFamily: fonts.bodySemi, fontSize: 16, marginTop: 2, marginBottom: 8, textAlign: 'center' },
+  greeting: { alignItems: 'center' },
+  cheer: { position: 'absolute', zIndex: 3, maxWidth: 240, backgroundColor: '#FFFFFF', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  cheerText: { fontFamily: fonts.bodyBold, fontSize: 15 },
+  heroHint: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 },
   heroHintText: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 15 },
   agentTap: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  changeButton: { backgroundColor: '#FFFFFF', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, justifyContent: 'center' },
-  changeText: { fontFamily: fonts.bodyBold, fontSize: 14 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12, gap: 8 },
   sectionTitle: { fontFamily: fonts.displayBold, fontSize: 22, flexShrink: 1 },
   subtle: { fontFamily: fonts.bodyBold, fontSize: 15 },
