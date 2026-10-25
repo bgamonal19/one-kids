@@ -32,6 +32,8 @@ test('OpenAI receives the current message once, fixed server rules and no storag
   });
   assert.equal(result.source, 'openai'); assert.equal(sent.store, false);
   assert.equal(sent.input.length, 1); assert.ok(!sent.instructions.includes('ignore all rules'));
+  // OpenAI's json_object format rejects requests whose input never mentions JSON.
+  assert.equal(sent.text.format.type, 'json_object'); assert.match(sent.input.at(-1).content.at(-1).text, /JSON/);
 });
 test('OpenAI reads handwriting from data URLs before explaining', async () => {
   const result = await runTutor({ ...request, action: 'read', imageBase64: image, provider: 'openai' }, env, async (_, options) => {
