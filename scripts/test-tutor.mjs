@@ -147,3 +147,13 @@ test('practice actions keep context and offer different explanations without pre
   assert.match(app.practiceTutor({ ...base, action: 'continue' }).reply, /cuenta 3/);
   assert.throws(() => app.practiceTutor({ ...base, imageBase64: image }), /conectar la IA/);
 });
+
+test('provider failures log status and error code without the provider message', async () => {
+  const logged = [];
+  const original = console.error;
+  console.error = message => logged.push(message);
+  try {
+    await assert.rejects(runTutor({ ...request, provider: 'openai' }, env, async () => Response.json({ error: { message: 'PRIVATE sk-secret', type: 'invalid_request_error', code: 'model_not_found' } }, { status: 404 })), e => e.status === 502);
+  } finally { console.error = original; }
+  assert.deepEqual(logged, ['[tutor] openai responded 404 model_not_found invalid_request_error']);
+});

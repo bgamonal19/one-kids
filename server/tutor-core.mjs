@@ -52,6 +52,16 @@ function parseResult(text, req) {
   return { reply: result.reply.trim(), transcription: req.action === 'read' ? result.transcription : '', needsRetake: req.action === 'read' ? result.needsRetake || !result.transcription.trim() : false };
 }
 
+// Logs only the provider's status and error code/type so failures can be diagnosed from Vercel logs.
+async function logProviderError(provider, response) {
+  let detail = '';
+  try {
+    const error = (await response.json())?.error ?? {};
+    detail = [error.code, error.type].filter(item => typeof item === 'string').join(' ');
+  } catch {}
+  console.error(`[tutor] ${provider} responded ${response.status}${detail ? ` ${detail}` : ''}`.slice(0, 200));
+}
+
 export async function runTutor(raw, env, fetcher = fetch) {
   const req = validateTutorRequest(raw);
   const available = tutorStatus(env).providers;
@@ -76,11 +86,17 @@ export async function runTutor(raw, env, fetcher = fetch) {
           messages: [...req.history, { role: 'user', content: [...(req.image ? [{ type: 'image', source: { type: 'base64', media_type: req.image.mime, data: req.image.data } }] : []), { type: 'text', text }] }] };
       }
       const response = await fetcher(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(22_000) });
-      if (!response.ok) throw new TutorError('El proveedor de IA no está disponible. Prueba de nuevo en un momento.', 502);
+      if (!response.ok) {
+        await logProviderError(provider, response);
+        throw new TutorError('El proveedor de IA no está disponible. Prueba de nuevo en un momento.', 502);
+      }
       const data = await response.json();
       const output = provider === 'openai' ? (data.output ?? []).flatMap(item => item.content ?? []).filter(item => item.type === 'output_text').map(item => item.text).join('') : (data.content ?? []).filter(item => item.type === 'text').map(item => item.text).join('');
       return { ...parseResult(output, req), source: provider };
-    } catch (error) { lastError = error; }
+    } catch (error) {
+      if (!(error instanceof TutorError)) console.error(`[tutor] ${provider} request failed: ${error?.name || 'Error'}`);
+      lastError = error;
+    }
   }
   throw lastError instanceof TutorError ? lastError : new TutorError('No se pudo conectar con la IA. Revisa tu conexión e inténtalo otra vez.', 502);
 }
