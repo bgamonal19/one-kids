@@ -34,12 +34,15 @@ export default function ChildHome() {
   const prompts = age <= 8 ? ['¡Choca esos cinco! ¿Contamos tres estrellas?', '¡Cada intento te hace crecer!'] : age <= 11 ? ['Misión: aprende algo y explícamelo con tus palabras.', 'Un error es una pista. ¡Investiguemos!'] : age <= 14 ? ['Divide tu reto en pasos. ¿Cuál harías primero?', 'Prueba otra estrategia y compara los resultados.'] : ['Define una meta concreta para esta sesión.', '¿Qué evidencia respalda tu respuesta?'];
   const personality = COMPANIONS[companion].intro;
   const compact = width < 520;
+  const gutter = width >= 900 ? 32 : compact ? 16 : 24;
+  const columns = width >= 900 ? 5 : compact ? 2 : 3;
+  const tileWidth = (width - gutter * 2 - TILE_GAP * (columns - 1)) / columns;
+  const openTutor = () => router.push('/(child)/tutor');
   const unfinished = state.tasks.filter(task => !task.done);
   const finished = state.tasks.length - unfinished.length;
   const progress = state.tasks.length ? finished / state.tasks.length : 0;
   const routes = [
     { label: 'Mis tareas', icon: '✓', route: '/(child)/tasks' as const, color: '#FFBFA9' },
-    { label: 'Tutor IA', icon: '✦', route: '/(child)/tutor' as const, color: '#C5CCFF' },
     { label: 'Mis cursos', icon: '▤', route: '/(child)/courses' as const, color: '#A9E8D7' },
     { label: 'Mi agenda', icon: '▦', route: '/(child)/calendar' as const, color: '#FFE5A4' },
     { label: young ? 'Mundos' : 'Practicar', icon: '✧', route: '/(child)/worlds' as const, color: '#D9C5FD' },
@@ -48,8 +51,8 @@ export default function ChildHome() {
 
   return (
     <View style={[styles.root, { backgroundColor: mode.bg }]}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 54, paddingBottom: insets.bottom + 28, maxWidth: 1080 }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.brandRow}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 54, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.brandRow, { paddingHorizontal: gutter }]}>
           <View>
             <Text style={[styles.brand, { color: mode.ink }]}>ONE <Text style={{ color: mode.primary }}>KIDS</Text></Text>
             <Text style={[styles.subtitle, { color: mode.primary }]}>{mode.label} · {age} años{state.child?.grade ? ' · ' + state.child.grade : ''}</Text>
@@ -57,25 +60,29 @@ export default function ChildHome() {
           <View style={[styles.stars, { backgroundColor: mode.soft }]}><Text style={[styles.starLabel, { color: mode.ink }]}>★ {state.child?.stars ?? 0}</Text></View>
         </View>
 
-        <View style={[styles.hero, { backgroundColor: mode.primary, flexDirection: compact ? 'column' : 'row' }]}>
+        <View style={[styles.hero, { backgroundColor: mode.primary, flexDirection: compact ? 'column' : 'row', paddingHorizontal: gutter }]}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>TU ESPACIO DE APRENDIZAJE</Text>
             <Text style={[styles.heroTitle, { fontSize: young ? 28 : 25 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
             <Text style={styles.heroDescription}>{allTasksDone ? '¡Excelente! Has terminado tus tareas.' : mode.welcome}</Text>
-            <Pressable onPress={() => router.push('/(child)/tutor')} accessibilityRole="button" style={styles.heroButton}>
-              <Text style={[styles.heroButtonText, { color: mode.primary }]}>{mode.action} →</Text>
-            </Pressable>
+            <Text style={styles.heroHint}>Toca a {companionName} para aprender en la pizarra ✎</Text>
           </View>
           <View style={styles.heroAgent}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}`} onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }}><KikoMascot character={companion} age={age} expression={allTasksDone && interaction === 0 ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 190 : 160} /></Pressable>
-            <Text style={styles.agentName}>{companionName} · {COMPANIONS[companion].role}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Hablar con ${companionName}, tu tutor`} onPress={openTutor} style={styles.agentTap}>
+              <KikoMascot character={companion} age={age} expression={allTasksDone ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={young ? 190 : 170} />
+              <Text style={styles.agentName}>{companionName} · {COMPANIONS[companion].role}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cambiar de personaje" onPress={() => router.push('./profile')} style={styles.changeButton}>
+              <Text style={styles.changeIcon}>⇄</Text>
+              <Text style={[styles.changeText, { color: mode.primary }]}>Cambiar{'\n'}personaje</Text>
+            </Pressable>
           </View>
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, marginTop: 12 }}>
-          <Text style={{ fontFamily: fonts.bodyBold, color: mode.ink, fontSize: 16 }}>{interaction ? personality + prompts[(interaction - 1) % prompts.length] : `Toca a ${companionName} para descubrir tu reto de hoy.`}</Text>
+        <View style={{ paddingHorizontal: gutter }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, marginTop: 16 }}>
+          <Text style={{ fontFamily: fonts.bodyBold, color: mode.ink, fontSize: 16 }}>{interaction ? personality + prompts[(interaction - 1) % prompts.length] : `💡 Toca aquí y ${companionName} te dará un reto para hoy.`}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push('./profile')} style={[styles.profileLink, { backgroundColor: mode.soft }]}><Text style={[styles.actionText, { color: mode.primary }]}>✦ Elegir personaje 3D y personalizar mi perfil →</Text></Pressable>
         {state.child?.interests?.length ? <Text style={[styles.interests, { color: mode.ink }]}>Me interesa: {state.child.interests.join(' · ')}</Text> : null}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: mode.ink }]}>Tu día de aprendizaje</Text>
@@ -107,7 +114,7 @@ export default function ChildHome() {
                 accessibilityRole="button"
                 accessibilityLabel={locked ? `${item.label}, termina tus tareas para entrar` : item.label}
                 onPress={() => router.push(locked ? '/(child)/tasks' : item.route)}
-                style={[styles.tool, { width: compact ? '48%' : '31%', opacity: locked ? 0.65 : 1 }]}
+                style={[styles.tool, { width: tileWidth, opacity: locked ? 0.65 : 1 }]}
               >
                 <View style={[styles.iconCircle, { backgroundColor: item.color }]}><Text style={styles.toolIcon}>{locked ? '🔒' : item.icon}</Text></View>
                 <Text style={[styles.toolLabel, { color: mode.ink }]}>{item.label}</Text>
@@ -131,29 +138,33 @@ export default function ChildHome() {
           ))}
         </ScrollView>
         <Text style={styles.footer}>Tu aprendizaje, a tu ritmo. ✨</Text>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
+const TILE_GAP = 12;
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  profileLink: { alignSelf: 'flex-start', borderRadius: 16, paddingHorizontal: 15, paddingVertical: 12, marginTop: 16 },
   interests: { fontFamily: fonts.bodySemi, marginTop: 10, fontSize: 13 },
-  container: { width: '100%', alignSelf: 'center', paddingHorizontal: 18 },
   brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
   brand: { fontSize: 25, fontFamily: fonts.displayBold },
   subtitle: { fontSize: 12, fontFamily: fonts.bodyBold, marginTop: 2 },
   stars: { borderRadius: 30, paddingHorizontal: 16, paddingVertical: 10 },
   starLabel: { fontSize: 17, fontFamily: fonts.bodyBold },
-  hero: { borderRadius: 26, padding: 22, alignItems: 'center', overflow: 'hidden', minHeight: 194 },
+  hero: { paddingVertical: 24, alignItems: 'center', overflow: 'hidden', minHeight: 220, gap: 12 },
   heroCopy: { flex: 1, alignSelf: 'stretch', justifyContent: 'center' },
   heroKicker: { color: '#DCEAFF', fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 1.2 },
   heroTitle: { color: '#FFFFFF', fontFamily: fonts.displayBold, marginTop: 9 },
   heroDescription: { color: '#FFFFFF', fontFamily: fonts.bodySemi, fontSize: 15, marginTop: 6, marginBottom: 14 },
-  heroButton: { backgroundColor: '#FFFFFF', borderRadius: 18, alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
-  heroButtonText: { fontFamily: fonts.bodyBold, fontSize: 14 },
-  heroAgent: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, minWidth: 115 },
+  heroHint: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 14, opacity: 0.9 },
+  heroAgent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  agentTap: { alignItems: 'center', justifyContent: 'center', borderRadius: 24, padding: 6 },
+  changeButton: { backgroundColor: '#FFFFFF', borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', minWidth: 84 },
+  changeIcon: { fontSize: 22, color: '#233C64' },
+  changeText: { fontFamily: fonts.bodyBold, fontSize: 12, textAlign: 'center' },
   agentName: { color: '#FFFFFF', fontFamily: fonts.bodyBold, fontSize: 11, textAlign: 'center', marginTop: 4 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12, gap: 8 },
   sectionTitle: { fontFamily: fonts.displayBold, fontSize: 20, flexShrink: 1 },
@@ -167,7 +178,7 @@ const styles = StyleSheet.create({
   taskText: { fontFamily: fonts.bodySemi, fontSize: 15, flex: 1 },
   textAction: { paddingVertical: 11, alignSelf: 'flex-start' },
   actionText: { fontFamily: fonts.bodyBold, fontSize: 13 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP },
   tool: { minHeight: 125, borderRadius: 19, backgroundColor: '#FFFFFF', padding: 15, justifyContent: 'center', alignItems: 'flex-start' },
   iconCircle: { width: 48, height: 48, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   toolIcon: { fontFamily: fonts.displayBold, fontSize: 27, color: '#233C64' },
