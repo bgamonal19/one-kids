@@ -12,7 +12,7 @@ type Props = {
 
 export function TaskChecklist({ tasks, onToggle, onRemove, editable }: Props) {
   if (tasks.length === 0) {
-    return <Text style={styles.empty}>Todavía no hay tareas. ¡El padre puede agregarlas!</Text>;
+    return <Text style={styles.empty}>🌈 Todavía no hay tareas. ¡Añade la primera!</Text>;
   }
 
   return (
@@ -26,8 +26,8 @@ export function TaskChecklist({ tasks, onToggle, onRemove, editable }: Props) {
             <Text style={[styles.title, task.done && styles.titleDone]}>{task.title}</Text>
           </Pressable>
           {editable && onRemove ? (
-            <Pressable onPress={() => onRemove(task.id)} hitSlop={8}>
-              <Text style={styles.remove}>Quitar</Text>
+            <Pressable onPress={() => onRemove(task.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Quitar la tarea ${task.title}`} style={styles.remove}>
+              <Text style={styles.removeIcon}>🗑️</Text>
             </Pressable>
           ) : null}
         </View>
@@ -44,23 +44,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.white,
     borderRadius: radii.md,
-    paddingVertical: 12,
+    minHeight: 68,
+    paddingVertical: 8,
     paddingHorizontal: 14,
+    gap: 8,
   },
-  main: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  main: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, minHeight: 52 },
   box: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 2,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    borderWidth: 3,
     borderColor: colors.sky,
     alignItems: 'center',
     justifyContent: 'center',
   },
   boxOn: { backgroundColor: colors.leaf, borderColor: colors.leafDeep },
-  check: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: 14 },
-  title: { flex: 1, fontFamily: fonts.bodySemi, color: colors.ink, fontSize: 16 },
+  check: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: 22 },
+  title: { flex: 1, fontFamily: fonts.bodySemi, color: colors.ink, fontSize: 18 },
   titleDone: { textDecorationLine: 'line-through', color: colors.inkMuted },
-  remove: { fontFamily: fonts.bodySemi, color: colors.coral, fontSize: 13 },
-  empty: { fontFamily: fonts.body, color: colors.inkMuted, fontSize: 15 },
+  remove: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF1EC', alignItems: 'center', justifyContent: 'center' },
+  removeIcon: { fontSize: 20 },
+  empty: { fontFamily: fonts.bodySemi, color: colors.inkMuted, fontSize: 17, textAlign: 'center', paddingVertical: 16 },
 });

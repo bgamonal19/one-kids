@@ -66,7 +66,7 @@ export default function CalculatorScreen() {
   const keypad = (rows: string[][], small = false) => <View style={styles.pad}>{rows.map((row, i) => <View key={i} style={styles.row}>{row.map((key, j) => <Pressable key={`${key}-${j}`} accessibilityRole="button" accessibilityLabel={LABEL[key] || key} onPress={() => press(key)} style={({ pressed }) => [styles.key, small && styles.scientificKey, ['÷', '×', '−', '+', '='].includes(key) && styles.keyOp, key === 'C' && styles.keyClear, pressed && { opacity: 0.7 }]}><Text style={[styles.keyText, small && { fontSize: 17 }, ['÷', '×', '−', '+', '=', 'C'].includes(key) && { color: colors.white }]}>{LABEL[key] || key}</Text></Pressable>)}</View>)}</View>;
 
   return <Screen scroll>
-    <Text style={styles.title}>Calculadora</Text>
+    <Text style={styles.title}>🧮 Calculadora</Text>
     <View style={styles.row}>{[false, true].map(mode => <Pressable key={String(mode)} accessibilityRole="button" accessibilityState={{ selected: mode === scientific }} onPress={() => setScientific(mode)} style={[styles.mode, scientific === mode && styles.selected]}><Text style={styles.modeText}>{mode ? 'Científica' : 'Básica'}</Text></Pressable>)}</View>
     <Text style={styles.hint}>Escribe o toca los botones. La operación completa queda visible.</Text>
     <View style={styles.display}>

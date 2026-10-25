@@ -22,5 +22,5 @@ const s = StyleSheet.create({
   panel: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFEFA', borderRadius: 22, padding: 10, gap: 12, marginVertical: 12 },
   copy: { flex: 1 }, name: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.ink },
   label: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.skyDeep, marginTop: 3 },
-  message: { fontFamily: fonts.body, color: colors.inkMuted, fontSize: 14, lineHeight: 20, marginTop: 5 },
+  message: { fontFamily: fonts.bodySemi, color: colors.ink, fontSize: 17, lineHeight: 23, marginTop: 5 },
 });
