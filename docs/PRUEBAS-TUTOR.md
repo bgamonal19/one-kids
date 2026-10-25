@@ -64,3 +64,5 @@ El tutor responde en una pizarra: el personaje se acerca, escribe las líneas co
 - **Hablar** (🎤) en navegadores con reconocimiento de voz (Chrome, Edge, Safari en iPad/iPhone). En la app nativa se usa el micrófono del teclado.
 
 Con `TUTOR_TEST_FIXTURES=1` la vista previa devuelve líneas de pizarra simuladas y lee «11» en cualquier dibujo.
+
+El botón «⛶ Pantalla completa» abre la pizarra ocupando toda la pantalla (útil en móvil), con el mismo dibujo, «🎤 Dictar» por voz donde el navegador lo permite y «✕ Salir».

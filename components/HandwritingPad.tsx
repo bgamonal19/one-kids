@@ -4,9 +4,9 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import { colors, fonts } from '@/constants/theme';
 
 type Point = [number, number];
-type Stroke = { color: string; points: Point[] };
+export type Stroke = { color: string; points: Point[] };
 export type HandwritingPadHandle = { clear(): void; undo(): void; isEmpty(): boolean; toImage(): Promise<string | null> };
-type Props = { height: number; color: string; enabled: boolean; placeholder: string; onStrokesChange?: (count: number) => void; onDrawingChange?: (drawing: boolean) => void };
+type Props = { height: number; color: string; enabled: boolean; placeholder: string; initialStrokes?: Stroke[]; onStrokesChange?: (strokes: Stroke[]) => void; onDrawingChange?: (drawing: boolean) => void };
 
 const WIDTH = 5;
 // Midpoint quadratic curves keep fast finger strokes smooth without extra points.
@@ -45,14 +45,15 @@ function webImage(strokes: Stroke[]): string | null {
 }
 
 /** Finger, mouse or Apple Pencil drawing surface for the child's whiteboard answer. */
-export const HandwritingPad = forwardRef<HandwritingPadHandle, Props>(function HandwritingPad({ height, color, enabled, placeholder, onStrokesChange, onDrawingChange }, ref) {
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const strokesRef = useRef<Stroke[]>([]);
+export const HandwritingPad = forwardRef<HandwritingPadHandle, Props>(function HandwritingPad({ height, color, enabled, placeholder, initialStrokes = [], onStrokesChange, onDrawingChange }, ref) {
+  // initialStrokes carries the drawing across the inline and full-screen boards.
+  const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
+  const strokesRef = useRef<Stroke[]>(initialStrokes);
   const svg = useRef<Svg & { toDataURL?: (cb: (base64: string) => void) => void }>(null);
   const colorRef = useRef(color); colorRef.current = color;
   const enabledRef = useRef(enabled); enabledRef.current = enabled;
   const callbacks = useRef({ onStrokesChange, onDrawingChange }); callbacks.current = { onStrokesChange, onDrawingChange };
-  const update = (next: Stroke[]) => { strokesRef.current = next; setStrokes(next); callbacks.current.onStrokesChange?.(next.length); };
+  const update = (next: Stroke[]) => { strokesRef.current = next; setStrokes(next); callbacks.current.onStrokesChange?.(next); };
   const point = (e: GestureResponderEvent): Point => [Math.round(e.nativeEvent.locationX * 10) / 10, Math.round(e.nativeEvent.locationY * 10) / 10];
 
   const responder = useMemo(() => PanResponder.create({
