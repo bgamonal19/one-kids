@@ -3,8 +3,12 @@ export class TutorError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
 }
 
+// Keys pasted into a dashboard often carry stray spaces or line breaks.
+const apiKey = (env, id) => (env[id === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY'] || '').trim();
+// TUTOR_DISABLED=true switches the AI off without deleting the keys.
+const disabled = env => ['1', 'true', 'yes'].includes(String(env.TUTOR_DISABLED || '').trim().toLowerCase());
 export function tutorStatus(env) {
-  const providers = ['openai', 'anthropic'].filter(id => env[id === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY']);
+  const providers = disabled(env) ? [] : ['openai', 'anthropic'].filter(id => apiKey(env, id));
   return { configured: providers.length > 0, providers, vision: providers.length > 0 };
 }
 
@@ -62,12 +66,12 @@ export async function runTutor(raw, env, fetcher = fetch) {
       let url, headers, body;
       if (provider === 'openai') {
         url = 'https://api.openai.com/v1/responses';
-        headers = { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' };
+        headers = { Authorization: `Bearer ${apiKey(env, 'openai')}`, 'Content-Type': 'application/json' };
         body = { model: env.OPENAI_MODEL || 'gpt-4.1-mini', store: false, max_output_tokens: 1400, instructions: prompt,
           input: [...req.history, { role: 'user', content: [...(req.image ? [{ type: 'input_image', image_url: req.image.url, detail: 'high' }] : []), { type: 'input_text', text }] }], text: { format: { type: 'json_object' } } };
       } else {
         url = 'https://api.anthropic.com/v1/messages';
-        headers = { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' };
+        headers = { 'x-api-key': apiKey(env, 'anthropic'), 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' };
         body = { model: env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 1400, system: prompt,
           messages: [...req.history, { role: 'user', content: [...(req.image ? [{ type: 'image', source: { type: 'base64', media_type: req.image.mime, data: req.image.data } }] : []), { type: 'text', text }] }] };
       }

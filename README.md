@@ -42,4 +42,4 @@ Sin claves, el tutor muestra «Modo práctica» y solo ofrece ejercicios locales
 
 Cada respuesta permite escucharla, continuar cuando se entiende, pedir una explicación más fácil, otro ejemplo o una pista.
 
-Consulta [la guía de activación y pruebas](docs/PRUEBAS-TUTOR.md) para límites, pruebas pendientes y configuración móvil. El backend Supabase es opcional; usa la misma lógica de proveedores y requiere despliegue separado.
+Paso a paso para pegar las claves: [docs/ACTIVAR-IA.md](docs/ACTIVAR-IA.md). Consulta también [la guía de activación y pruebas](docs/PRUEBAS-TUTOR.md) para límites, pruebas pendientes y configuración móvil. El backend Supabase es opcional; usa la misma lógica de proveedores y requiere despliegue separado.

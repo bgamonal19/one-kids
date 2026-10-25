@@ -13,6 +13,14 @@ test('status reports configured providers without exposing credentials', () => {
   assert.deepEqual(tutorStatus(env).providers, ['openai', 'anthropic']);
   assert.ok(!JSON.stringify(tutorStatus(env)).includes('test-openai'));
 });
+test('pasted keys are trimmed and TUTOR_DISABLED switches the AI off', async () => {
+  assert.deepEqual(tutorStatus({ OPENAI_API_KEY: '  ', ANTHROPIC_API_KEY: ' sk-ant-test\n' }).providers, ['anthropic']);
+  let sent;
+  await runTutor({ ...request, provider: 'anthropic' }, { ANTHROPIC_API_KEY: ' sk-ant-test\n' }, async (_, options) => { sent = options.headers; return providerResponse('anthropic'); });
+  assert.equal(sent['x-api-key'], 'sk-ant-test');
+  assert.deepEqual(tutorStatus({ ...env, TUTOR_DISABLED: 'true' }), { configured: false, providers: [], vision: false });
+  await assert.rejects(runTutor(request, { ...env, TUTOR_DISABLED: '1' }, () => { throw Error('must not call'); }), e => e.status === 503);
+});
 test('missing keys produces an honest 503 without making a provider request', async () => {
   await assert.rejects(runTutor(request, {}, () => { throw Error('must not call'); }), e => e instanceof TutorError && e.status === 503);
 });
