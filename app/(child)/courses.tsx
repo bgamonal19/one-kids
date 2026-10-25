@@ -6,6 +6,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
+import { slotLabel } from '@/lib/school-calendar';
 import type { CourseLink } from '@/lib/types';
 
 const LINK_OPTIONS: { id: CourseLink; label: string }[] = [
@@ -35,17 +36,20 @@ export default function CoursesScreen() {
 
   const submit = async () => {
     if (!title.trim()) return;
-    await addCourse({ title, desc, link });
+    const id = await addCourse({ title, desc, link });
     setTitle('');
     setDesc('');
     setLink('custom');
     setShowForm(false);
+    // Straight to the profile so the teacher, reference and days can be filled in.
+    router.push({ pathname: '/(child)/course/[id]', params: { id } });
   };
 
   return (
     <Screen scroll>
       <Text style={styles.title}>📚 Cursos</Text>
-      <Text style={styles.sub}>Toca un curso para empezar.</Text>
+      <Text style={styles.sub}>Toca un curso para empezar. En «Perfil» pones profesor, número de referencia y horario.</Text>
+      <PrimaryButton label="🗓️ Ver rol semanal" variant="secondary" onPress={() => router.push('/(child)/schedule')} style={{ marginBottom: spacing.sm }} />
 
       <PrimaryButton
         label={showForm ? 'Cerrar' : '＋ Agregar curso'}
@@ -108,6 +112,8 @@ export default function CoursesScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{c.title}</Text>
                   {c.desc ? <Text style={styles.cardDesc}>{c.desc}</Text> : null}
+                  {c.teacher || c.reference ? <Text style={styles.cardMeta}>{[c.teacher && `👩‍🏫 ${c.teacher}`, c.reference && `N.º ${c.reference}`].filter(Boolean).join(' · ')}</Text> : null}
+                  {c.schedule?.length ? <Text style={styles.cardMeta}>🗓️ {c.schedule.map(slotLabel).join(' · ')}</Text> : null}
                   {href ? (
                     <View style={styles.play}><Text style={styles.playText}>▶ Jugar</Text></View>
                   ) : (
@@ -115,9 +121,14 @@ export default function CoursesScreen() {
                   )}
                 </View>
               </Pressable>
+              <View style={{ gap: 8 }}>
+              <Pressable onPress={() => router.push({ pathname: '/(child)/course/[id]', params: { id: c.id } })} accessibilityRole="button" accessibilityLabel={`Perfil del curso ${c.title}`} hitSlop={6} style={styles.profileBtn}>
+                <Text style={styles.profileText}>Perfil</Text>
+              </Pressable>
               <Pressable onPress={() => removeCourse(c.id)} accessibilityRole="button" accessibilityLabel={`Quitar el curso ${c.title}`} hitSlop={6} style={styles.remove}>
                 <Text style={styles.removeText}>🗑️</Text>
               </Pressable>
+              </View>
             </View>
           );
         })}
@@ -203,4 +214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   removeText: { fontSize: 20 },
+  cardMeta: { marginTop: 4, fontFamily: fonts.bodySemi, fontSize: 14, color: colors.white },
+  profileBtn: { minWidth: 48, height: 48, paddingHorizontal: 12, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  profileText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
 });

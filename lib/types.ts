@@ -27,12 +27,24 @@ export type ParentAccount = {
 
 export type CourseLink = 'numbers' | 'letters' | 'explorer' | 'tutor' | 'custom';
 
+/** One weekly class: ISO weekday (1 = lunes … 7 = domingo) and times as HH:mm. */
+export type CourseSlot = {
+  day: number;
+  start: string;
+  end: string;
+};
+
 export type CourseItem = {
   id: string;
   title: string;
   desc: string;
   color: string;
   link: CourseLink;
+  teacher?: string;
+  reference?: string;
+  schedule?: CourseSlot[];
+  /** false for activities outside school (e.g. a sports club) that keep going during school holidays. */
+  followsSchool?: boolean;
 };
 
 export type AgendaEvent = {

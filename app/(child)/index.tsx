@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COMPANIONS, KikoMascot } from '@/components/KikoMascot';
 import { fonts } from '@/constants/theme';
 import { useCompanionReaction } from '@/hooks/useCompanionReaction';
+import { toDateKey, upcomingConflictCount } from '@/lib/school-calendar';
 import { useFamily } from '@/lib/store';
 
 type Stage = 'junior' | 'adventure' | 'creator' | 'pro';
@@ -50,10 +51,12 @@ export default function ChildHome() {
   const unfinished = state.tasks.filter(task => !task.done);
   const finished = state.tasks.length - unfinished.length;
   const progress = state.tasks.length ? finished / state.tasks.length : 0;
-  const routes = [
+  // Classes in the next 7 days that clash with an agenda plan, shown as a badge on the weekly-schedule tile.
+  const scheduleAlerts = upcomingConflictCount(state.courses, state.agenda, state.child?.country, toDateKey(new Date()));
+  const routes: { label: string; icon: string; route: '/(child)/tasks' | '/(child)/worlds' | '/(child)/schedule' | '/(child)/calendar' | '/(child)/calculator'; color: string; alerts?: number }[] = [
     { label: young ? 'Tareas' : 'Mis tareas', icon: '📝', route: '/(child)/tasks' as const, color: '#FFD9CC' },
     { label: young ? 'Jugar' : 'Practicar', icon: '🌍', route: '/(child)/worlds' as const, color: '#E6DAFE' },
-    { label: young ? 'Cursos' : 'Mis cursos', icon: '📚', route: '/(child)/courses' as const, color: '#C9F1E6' },
+    { label: 'Rol semanal', icon: '🗓️', route: '/(child)/schedule' as const, color: '#C9F1E6', alerts: scheduleAlerts },
     { label: young ? 'Agenda' : 'Mi agenda', icon: '📅', route: '/(child)/calendar' as const, color: '#FFEDBF' },
     { label: 'Calculadora', icon: '🧮', route: '/(child)/calculator' as const, color: '#D3EDFC' },
   ];
@@ -113,6 +116,7 @@ export default function ChildHome() {
                 <View style={[styles.iconCircle, { backgroundColor: item.color, width: young ? 68 : 56, height: young ? 68 : 56 }]}><Text style={[styles.toolIcon, { fontSize: young ? 38 : 30 }]}>{locked ? '🔒' : item.icon}</Text></View>
                 <Text style={[styles.toolLabel, { color: mode.ink }]}>{item.label}</Text>
                 {locked ? <Text style={styles.lockHint}>Termina tus tareas 🔑</Text> : null}
+                {item.alerts ? <Text style={styles.alertHint}>⚠️ {item.alerts === 1 ? '1 aviso' : `${item.alerts} avisos`}</Text> : null}
               </Pressable>
             );
           })}
@@ -194,6 +198,7 @@ const styles = StyleSheet.create({
   toolIcon: { textAlign: 'center' },
   toolLabel: { fontFamily: fonts.displayBold, fontSize: 18, textAlign: 'center' },
   lockHint: { fontFamily: fonts.bodySemi, fontSize: 12, color: '#607087', textAlign: 'center', marginTop: 2 },
+  alertHint: { fontFamily: fonts.bodyBold, fontSize: 12, color: '#7A4B00', backgroundColor: '#FFF4E0', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4, overflow: 'hidden' },
   courseList: { gap: 12, paddingBottom: 4 },
   courseCard: { backgroundColor: '#FFFFFF', borderRadius: 17, borderTopWidth: 5, width: 175, minHeight: 135, padding: 15, justifyContent: 'space-between' },
   courseTitle: { fontFamily: fonts.displayBold, fontSize: 18 },
