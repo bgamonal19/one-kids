@@ -1,7 +1,8 @@
 import { addChildProfile, selectChildProfile, preserveProfiles } from './child-profiles';
 import { isCompanionId, type CompanionId } from './companions';
-import { familyForUser, familyPayload, loadCloudFamily, saveCloudFamily, signInAccount, signUpAccount, type RegistrationResult } from './cloud-accounts';
-import { supabase } from './supabase';
+import { accountEndpoint, deleteCloudAccount, familyForUser, familyPayload, loadCloudFamily, saveCloudFamily, signInAccount, signUpAccount, type RegistrationResult } from './cloud-accounts';
+import { getAccessToken, supabase } from './supabase';
+import { Platform } from 'react-native';
 import type { User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
@@ -52,6 +53,7 @@ type StoreApi = {
   registerParent: (input: { email: string; name: string; password: string }) => Promise<RegistrationResult>;
   loginParent: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   setPin: (pin: string) => Promise<void>;
   checkPin: (pin: string) => Promise<boolean>;
   switchChild: (id: string) => Promise<void>;
@@ -250,6 +252,21 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signOut();
         if (error) throw new Error('No se pudo cerrar la sesión. Revisa tu conexión e inténtalo otra vez.');
       }
+      generation.current++; currentUser.current = null; loadedCloud.current = false; pending.current = null;
+      chooseMode('signed-out'); setState(emptyState); setSyncStatus('idle'); setSyncError(''); setReady(true);
+    } finally { authOperation.current = false; }
+  }, [chooseMode]);
+
+  const deleteAccount = useCallback(async () => {
+    const user = currentUser.current;
+    if (!supabase || mode.current !== 'cloud' || !user) throw new Error('Solo se puede eliminar una cuenta real con la sesión iniciada.');
+    authOperation.current = true;
+    try {
+      await queue.current.catch(() => {});
+      await deleteCloudAccount(await getAccessToken(), accountEndpoint(Platform.OS === 'web'));
+      // The server already removed the user; only this device's session and copy remain.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      await AsyncStorage.removeItem(cloudKey(user.id));
       generation.current++; currentUser.current = null; loadedCloud.current = false; pending.current = null;
       chooseMode('signed-out'); setState(emptyState); setSyncStatus('idle'); setSyncError(''); setReady(true);
     } finally { authOperation.current = false; }
@@ -481,7 +498,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       accountMode, syncStatus, syncError, retrySync, refreshFamily,
       registerParent,
       loginParent,
-      logout,
+      logout, deleteAccount,
       setPin,
       checkPin,
       setChild, switchChild, addChild,
@@ -506,7 +523,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       accountMode, syncStatus, syncError, retrySync, refreshFamily,
       registerParent,
       loginParent,
-      logout,
+      logout, deleteAccount,
       setPin,
       checkPin,
       setChild, switchChild, addChild,

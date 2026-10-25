@@ -54,6 +54,7 @@ export default function RootLayout() {
             <Stack.Screen name="(onboarding)" />
             <Stack.Screen name="(parent)" />
             <Stack.Screen name="(child)" />
+            <Stack.Screen name="reset-password" />
           </Stack>
         </WebShell>
       </FamilyProvider>

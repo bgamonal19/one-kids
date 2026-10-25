@@ -12,9 +12,11 @@
       "infoPlist": {
         "NSCameraUsageDescription": "ONE KIDS usa la cámara para que el tutor IA vea tus tareas.",
         "NSPhotoLibraryUsageDescription": "ONE KIDS puede usar una foto de tu tarea para ayudarte."
-      }
+      },
+      "bundleIdentifier": "com.bgamonal19.onekids"
     },
     "android": {
+      "package": "com.bgamonal19.onekids",
       "adaptiveIcon": {
         "backgroundColor": "#3DB8E8",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

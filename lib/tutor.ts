@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import type { AgeBand } from './ages';
-import { getTutorEndpoint as getSupabaseEndpoint } from './supabase';
+import { getAccessToken, getTutorEndpoint as getSupabaseEndpoint } from './supabase';
 
 export type TutorProvider = 'auto' | 'openai' | 'anthropic';
 export type TutorAction = 'help' | 'read' | 'continue' | 'simpler' | 'example' | 'hint';
@@ -20,20 +20,27 @@ export type TutorResponse = {
   transcription?: string;
   needsRetake?: boolean;
 };
-export type TutorStatus = { configured: boolean; providers: ('openai' | 'anthropic')[]; vision: boolean };
+export type TutorStatus = { configured: boolean; providers: ('openai' | 'anthropic')[]; vision: boolean; accountRequired?: boolean };
 
 export function tutorEndpoint(): string | null {
   return process.env.EXPO_PUBLIC_TUTOR_API_URL || (Platform.OS === 'web' ? '/api/tutor' : getSupabaseEndpoint());
 }
-function headers(): Record<string, string> {
+async function headers(): Promise<Record<string, string>> {
   const endpoint = tutorEndpoint();
   const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-  return { 'Content-Type': 'application/json', ...(endpoint === getSupabaseEndpoint() && key ? { Authorization: `Bearer ${key}`, apikey: key } : {}) };
+  // The family's session lets the server require an account; the demo has none.
+  const token = await getAccessToken().catch(() => null);
+  const result: Record<string, string> = { 'Content-Type': 'application/json' };
+  const supabaseFunction = endpoint === getSupabaseEndpoint() && key;
+  if (supabaseFunction) result.apikey = key;
+  const bearer = token || (supabaseFunction ? key : '');
+  if (bearer) result.Authorization = `Bearer ${bearer}`;
+  return result;
 }
 export async function getTutorStatus(): Promise<TutorStatus> {
   const endpoint = tutorEndpoint();
   if (!endpoint) return { configured: false, providers: [], vision: false };
-  const response = await fetch(endpoint, { headers: headers(), signal: AbortSignal.timeout(10_000) });
+  const response = await fetch(endpoint, { headers: await headers(), signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error('No se pudo comprobar la conexión del tutor.');
   const status = await response.json();
   if (typeof status.configured !== 'boolean' || !Array.isArray(status.providers)) throw new Error('El servicio del tutor necesita actualizarse.');
@@ -69,10 +76,14 @@ export async function askTutor(req: TutorRequest): Promise<TutorResponse> {
   try {
     // Only learning context is sent; the child's name stays on the device.
     const { childName: _name, ...payload } = req;
-    response = await fetch(endpoint, { method: 'POST', headers: headers(), body: JSON.stringify(payload), signal: AbortSignal.timeout(52_000) });
+    response = await fetch(endpoint, { method: 'POST', headers: await headers(), body: JSON.stringify(payload), signal: AbortSignal.timeout(52_000) });
   } catch { throw new Error('No pude conectar con el tutor. Tu consulta sigue aquí para volver a intentarlo.'); }
   const data = await response.json().catch(() => ({}));
   if (response.status === 503 && (!req.provider || req.provider === 'auto') && !req.imageBase64) return practiceTutor(req);
+  if (response.status === 401 && !req.imageBase64 && req.action !== 'read') {
+    const practice = practiceTutor(req);
+    return { ...practice, reply: `${data.error || 'El tutor IA es para cuentas familiares.'} Mientras tanto, practiquemos sin IA.\n\n${practice.reply}` };
+  }
   if (!response.ok) throw new Error(data.error || 'El tutor no pudo responder. Inténtalo de nuevo.');
   if (typeof data.reply !== 'string' || !['openai', 'anthropic'].includes(data.source)) throw new Error('El servicio del tutor necesita actualizarse.');
   return data;

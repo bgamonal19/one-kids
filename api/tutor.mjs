@@ -1,34 +1,30 @@
 import { runTutor, tutorStatus, TutorError } from '../server/tutor-core.mjs';
+import { AccountError, bearerToken, verifyUser } from '../server/account-core.mjs';
+import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
 
 const requests = new Map();
-function response(data, status = 200, origin) {
-  return Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...(origin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {}) } });
-}
-function allowedOrigin(request) {
-  const origin = request.headers.get('origin');
-  const allowed = [new URL(request.url).origin, ...(process.env.TUTOR_ALLOWED_ORIGINS || '').split(',').filter(Boolean)];
-  if (origin && !allowed.includes(origin)) throw new TutorError('Origen no permitido.', 403);
-  return origin;
-}
+// TUTOR_REQUIRE_ACCOUNT=true limits the AI to signed-in families (the demo keeps practice mode).
+const accountRequired = env => ['1', 'true', 'yes'].includes(String(env.TUTOR_REQUIRE_ACCOUNT || '').trim().toLowerCase());
+const perMinute = env => Math.min(Math.max(Number.parseInt(env.TUTOR_REQUESTS_PER_MINUTE, 10) || 15, 1), 120);
+
 export function GET(request) {
-  try { return response(tutorStatus(process.env), 200, allowedOrigin(request)); }
-  catch { return response({ error: 'Origen no permitido.' }, 403); }
+  try { return json({ ...tutorStatus(process.env), accountRequired: accountRequired(process.env) }, 200, allowedOrigin(request)); }
+  catch { return json({ error: 'Origen no permitido.' }, 403); }
 }
-export function OPTIONS(request) {
-  try { return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': allowedOrigin(request) || new URL(request.url).origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', Vary: 'Origin' } }); }
-  catch { return response({ error: 'Origen no permitido.' }, 403); }
-}
+export function OPTIONS(request) { return preflight(request, 'GET, POST, OPTIONS'); }
 export async function POST(request) {
   let origin;
   try {
     origin = allowedOrigin(request);
     if (!request.headers.get('content-type')?.includes('application/json')) throw new TutorError('Envía la consulta como JSON.', 415);
+    const key = accountRequired(process.env)
+      ? `user:${(await verifyUser(bearerToken(request), process.env)).id}`
+      : request.headers.get('x-real-ip') || 'unknown';
     // Best-effort burst protection per warm instance; not a durable account quota.
     const now = Date.now();
-    for (const [key, entry] of requests) if (entry.until < now) requests.delete(key);
-    const key = request.headers.get('x-real-ip') || 'unknown';
+    for (const [k, entry] of requests) if (entry.until < now) requests.delete(k);
     const entry = requests.get(key) || { count: 0, until: now + 60_000 };
-    if (entry.count >= 15 || requests.size >= 5000) throw new TutorError('Espera un momento antes de enviar otra consulta.', 429);
+    if (entry.count >= perMinute(process.env) || requests.size >= 5000) throw new TutorError('Espera un momento antes de enviar otra consulta.', 429);
     entry.count++; requests.set(key, entry);
     const reader = request.body?.getReader();
     if (!reader) throw new TutorError('La consulta está vacía.');
@@ -45,8 +41,10 @@ export async function POST(request) {
     let body;
     try { body = JSON.parse(new TextDecoder().decode(bytes)); }
     catch { throw new TutorError('La consulta no es válida.'); }
-    return response(await runTutor(body, process.env), 200, origin);
+    return json(await runTutor(body, process.env), 200, origin);
   } catch (error) {
-    return response({ error: error instanceof TutorError ? error.message : 'No se pudo preparar la respuesta del tutor.' }, error instanceof TutorError ? error.status : 500, origin);
+    if (error instanceof OriginError) return json({ error: error.message }, 403);
+    const known = error instanceof TutorError || error instanceof AccountError;
+    return json({ error: known ? error.message : 'No se pudo preparar la respuesta del tutor.' }, known ? error.status : 500, origin);
   }
 }
