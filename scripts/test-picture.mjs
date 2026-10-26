@@ -31,29 +31,45 @@ test('runPicture reports missing key and provider errors', async () => {
   await assert.rejects(runPicture({ prompt: 'A frog' }, { OPENAI_API_KEY: 'k' }, async () => new Response('no', { status: 400 })), e => e.status === 502);
 });
 
-test('picture requests appear only when the server enables them, in both modes', async () => {
+test('photos only when the child asks for one; drawings are traced as a sketch', async () => {
   let instructions;
-  const fetcher = async (url, init) => { instructions = JSON.parse(init.body).instructions; return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Aquí tienes una rana', board: ['Rana'], picture: { prompt: 'A frog', label: 'Rana' } }) }] }] }); };
-  const tutor = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher);
+  const reply = { reply: 'Aquí tienes una foto de una rana', board: ['Rana'], picture: { prompt: 'A frog', label: 'Rana' } };
+  const fetcher = answer => async (url, init) => { instructions = JSON.parse(init.body).instructions; return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(answer) }] }] }); };
+  const tutor = await runTutor({ ageBand: '7-9', message: 'muéstrame una foto de una rana', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher(reply));
   assert.deepEqual(tutor.picture, { prompt: 'A frog', label: 'Rana', style: 'photo' });
-  assert.match(instructions, /No le pidas que lo dibuje él/);
-  const open = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', mode: 'open', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher);
+  assert.match(instructions, /SOLO cuando el niño pida expresamente una foto/);
+  assert.match(instructions, /trazo a trazo/);
+  const open = await runTutor({ ageBand: '7-9', message: 'una foto de una rana', mode: 'open', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher(reply));
   assert.equal(open.picture.prompt, 'A frog');
-  const off = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', mode: 'open' }, { OPENAI_API_KEY: 'k' }, fetcher);
+  const off = await runTutor({ ageBand: '7-9', message: 'una foto de una rana', mode: 'open' }, { OPENAI_API_KEY: 'k' }, fetcher(reply));
   assert.equal(off.picture, null);
   assert.doesNotMatch(instructions, /"picture":null/);
+  // "Dibújame" gets the traced sketch even if the model also asked for a picture.
+  const sketch = { type: 'sketch', title: 'Rana', shapes: [{ s: 'ellipse', x: 50, y: 50, rx: 30, ry: 20, color: 'green' }] };
+  const drawn = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher({ ...reply, visual: sketch }));
+  assert.equal(drawn.picture, null);
+  assert.equal(drawn.visual.type, 'sketch');
 });
 
-test('the picture endpoint is refused without a metered family account', async () => {
-  const response = await POST(new Request('https://app.test/api/tutor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ picture: { prompt: 'A frog' } }) }));
-  assert.equal(response.status, 403);
-});
-
-test('draws anyway when the tutor promises a picture but leaves it empty', async () => {
+test('a photo is made anyway when the tutor promises one but leaves it empty', async () => {
   const { fallbackPicture } = await import('../server/tutor-core.mjs');
-  const lion = fallbackPicture({ message: 'no lo veo' }, 'Aquí tienes el dibujo realista de un león.', ['León: melena grande']);
+  const lion = fallbackPicture({ message: 'no lo veo' }, 'Aquí tienes una foto realista de un león.', ['León: melena grande']);
   assert.equal(lion.label, 'León: melena grande');
   assert.match(lion.prompt, /león/);
-  assert.equal(fallbackPicture({ message: 'dibújame una rana a lápiz' }, 'Las ranas son anfibios.', ['Rana']).style, 'sketch');
+  assert.match(fallbackPicture({ message: 'quiero una foto de un tigre' }, 'Mira.', ['Tigre']).prompt, /^un tigre/);
+  assert.equal(fallbackPicture({ message: 'dibújame una rana' }, 'Las ranas son anfibios.', ['Rana']), null);
   assert.equal(fallbackPicture({ message: 'cuánto es 8 + 3' }, 'Vamos a sumar.', ['8 + 3']), null);
+});
+
+test('drawings grow from simple cartoons to detailed structures with age', async () => {
+  const { drawLevel } = await import('../server/tutor-core.mjs');
+  assert.match(drawLevel(6), /caricatura simple/);
+  assert.match(drawLevel(10), /proporciones correctas/);
+  assert.match(drawLevel(13), /estructura/);
+  let body;
+  const fetcher = async (url, init) => { body = JSON.parse(init.body); return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Hola', board: ['Hola'] }) }] }] }); };
+  await runTutor({ ageBand: '13-16', age: 14, message: 'dibújame una célula' }, { OPENAI_API_KEY: 'k' }, fetcher);
+  assert.match(body.instructions, /hasta 120 formas/);
+  assert.equal(body.max_output_tokens, 5000);
+  assert.match(body.instructions, /especialista en ciencias/);
 });

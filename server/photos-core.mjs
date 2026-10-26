@@ -23,3 +23,11 @@ export async function findPhotos(images, fetcher = fetch) {
   }));
   return found.filter(photo => photo.url).map(photo => ({ query: photo.query, label: photo.label, url: photo.url, width: photo.width, height: photo.height, title: photo.title, page: photo.page }));
 }
+
+/** A sketch that annotates a real photo gets that photo as its background; without one it stays a plain drawing. */
+export async function attachBackground(visual, fetcher = fetch) {
+  if (visual?.type !== 'sketch' || !visual.photo) return visual;
+  const { photo, ...sketch } = visual;
+  const [found] = await findPhotos([{ query: photo, label: visual.title }], fetcher).catch(() => []);
+  return found ? { ...sketch, background: { url: found.url, width: found.width, height: found.height, title: found.title, page: found.page } } : sketch;
+}
