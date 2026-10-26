@@ -46,6 +46,7 @@ export const PIECE_GAP = 8;
 const MIN_FIT = 0.55;
 const KEEP_DAYS = 14;
 const MAX_BOARDS = 60;
+const MAX_DRAWINGS = 8;
 const key = (childId: string) => `onekids.tutor-boards.v1.${childId}`;
 const uid = () => `b_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
@@ -132,7 +133,16 @@ export function keepBoard(boards: Board[], board: Board): Board[] {
   const light = { ...board, blocks: board.blocks.map(({ drawingLabel: _d, ...b }) => ({ ...b, photos: b.photos?.filter(p => !p.generated) })).filter(b => b.segments || b.col !== undefined) };
   const next = [...boards.filter(b => b.id !== board.id), light];
   const days = new Set([...new Set(next.map(b => dayKey(new Date(b.at))))].sort().reverse().slice(0, KEEP_DAYS));
-  return next.filter(b => days.has(dayKey(new Date(b.at)))).slice(-MAX_BOARDS);
+  // AI line drawings are kept for the latest boards only, so the device doesn't fill up.
+  let drawings = 0;
+  return next.filter(b => days.has(dayKey(new Date(b.at)))).slice(-MAX_BOARDS).reverse().map(b => ({ ...b, blocks: b.blocks.map(block => {
+    const visual = block.visual;
+    if (visual?.type !== 'sketch' || !(visual.illustration || visual.trace?.image)) return block;
+    const { illustration: _i, trace, ...rest } = visual;
+    const keep = trace?.image && ++drawings <= MAX_DRAWINGS;
+    const kept = keep ? { ...rest, trace } : rest;
+    return { ...block, visual: kept.shapes.length || keep ? kept : null };
+  }) })).reverse();
 }
 
 export async function loadBoards(childId: string): Promise<Board[]> {

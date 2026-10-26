@@ -100,7 +100,9 @@ export function drawLevel(age) {
   return 'Para su edad haz un dibujo detallado o una estructura (partes internas, cortes, esquemas científicos o técnicos): de 50 a 120 formas, proporciones realistas, detalles, sombreado con líneas y todas las partes etiquetadas con flechas.';
 }
 const drawRules = req => `Dibujos: cuando el niño pida que le dibujes algo, un boceto, un esquema o una caricatura, dibújalo TÚ en la pizarra con visual type sketch: la app lo traza trazo a trazo con el lápiz, como si dibujaras delante de él. Nunca respondas un dibujo con fotos ni con picture. ${drawLevel(req.age)} Traza en el orden en que lo haría una persona: primero el contorno grande, luego las partes, los detalles, los rellenos de color y al final las etiquetas. Para curvas y contornos naturales (orejas, colas, hojas, ramas, cabello) usa poly con "open":true y muchos puntos.
-Foto anotada (ahorra trazos): si algo se entiende mejor sobre una imagen real (el mapa de un país, una comida, un animal, una planta, un monumento, una obra de arte…) y el niño no pidió que lo dibujes, añade al sketch "photo":"nombre exacto del artículo de Wikipedia en español" y traza encima solo de 5 a 20 formas: flechas, círculos, subrayados y textos cortos que describan lo que se ve. La foto ocupa todo el cuadro de 0 a 100 (en un mapa, el norte arriba). Decide según la conversación: dibujo trazado si pide que dibujes, foto anotada si quiere ver o conocer algo real.`;
+Foto anotada (ahorra trazos): si algo se entiende mejor sobre una imagen real (el mapa de un país, una comida, un animal, una planta, un monumento, una obra de arte…) y el niño no pidió que lo dibujes, añade al sketch "photo":"nombre exacto del artículo de Wikipedia en español" y traza encima solo de 5 a 20 formas: flechas, círculos, subrayados y textos cortos que describan lo que se ve. La foto ocupa todo el cuadro de 0 a 100 (en un mapa, el norte arriba). Decide según la conversación: dibujo trazado si pide que dibujes, foto anotada si quiere ver o conocer algo real.
+Mapas reales: si hay que mostrar países, continentes, fronteras o dónde está algo en el mundo, NO dibujes el mapa con formas ni uses foto: añade al sketch "geo":{"region":"world, europe, asia, africa, north-america, central-america, south-america, latin-america, oceania, middle-east o el nombre en inglés de un país para acercarte a él","countries":[{"name":"nombre del país en inglés","label":"nombre en español","color":"red"}]} (hasta 12 países, cada uno con un color que puedes explicar). La app traza el contorno real de los países y colorea y rotula los que nombras; shapes puede ir vacío o llevar solo flechas o notas extra.${req.pictures ? `
+Ilustraciones tipo animación de pizarra blanca: cuando haya que dibujar algo con detalle (un animal, una persona, un objeto, una máquina, un lugar, una escena, un proceso o una historia), añade al sketch "illustration":"descripción visual detallada EN INGLÉS de la escena, con las partes que deben verse" y deja shapes vacío: la app hace un dibujo profesional de línea negra con toques de color y el lápiz lo traza delante del niño. Explica las partes en board y en reply, porque tú no ves dónde quedan. Usa shapes solo para esquemas sencillos (fracciones, ángulos, gráficos, rectas numéricas, diagramas con flechas).` : ''}`;
 
 // Each subject gets its own specialist teacher.
 const subjects = [
@@ -148,7 +150,14 @@ const palette = ['black', 'blue', 'red', 'green', 'orange', 'yellow', 'brown', '
 const num = (value, max = 100) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(0, Math.round(value * 10) / 10)) : null;
 const label = (value, max) => typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : '';
 // The model's drawing is data for our own renderer: only known shapes, bounded numbers and short text survive.
-export function cleanVisual(raw, limit = 40) {
+// The AI line drawing gets the level of detail of the child's age.
+export function illustrationStyle(age) {
+  if (age <= 8) return 'simple cute cartoon for a young child, big friendly shapes';
+  if (age <= 12) return 'clear educational illustration with the main parts drawn accurately';
+  return 'detailed, accurate educational illustration with internal structures and fine details';
+}
+
+export function cleanVisual(raw, limit = 40, { pictures = false, age = 9 } = {}) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.type === 'map') {
     const branches = (Array.isArray(raw.branches) ? raw.branches : []).map(b => ({ label: label(b?.label, 26), details: (Array.isArray(b?.details) ? b.details : []).map(d => label(d, 30)).filter(Boolean).slice(0, 3) })).filter(b => b.label).slice(0, 6);
@@ -174,7 +183,15 @@ export function cleanVisual(raw, limit = 40) {
     }
     // A real photo (Wikipedia article) under the strokes: the tutor annotates it instead of drawing everything.
     const photo = label(raw.photo, 60).replace(/https?:\/\/\S+/g, '').trim();
-    return shapes.length ? { type: 'sketch', title: label(raw.title, 30), shapes, ...(photo ? { photo } : {}) } : null;
+    // A real map: the server traces the country outlines (see geo-core).
+    const geo = raw.geo && typeof raw.geo === 'object' && (typeof raw.geo.region === 'string' || Array.isArray(raw.geo.countries))
+      ? { region: label(raw.geo.region, 40), countries: (Array.isArray(raw.geo.countries) ? raw.geo.countries : []).slice(0, 12).map(c => ({ name: label(c?.name, 40), label: label(c?.label, 30), color: palette.includes(c?.color) ? c.color : 'red' })).filter(c => c.name) }
+      : null;
+    // An AI line drawing revealed under the pencil; only for families whose account meters pictures.
+    const asked = pictures && !photo && !geo ? label(raw.illustration, 400).replace(/https?:\/\/\S+/g, '').trim() : '';
+    const illustration = asked.length >= 3 ? `${illustrationStyle(age)}: ${asked}` : '';
+    const extra = { ...(photo ? { photo } : {}), ...(geo ? { geo } : {}), ...(illustration ? { illustration } : {}) };
+    return shapes.length || geo || illustration ? { type: 'sketch', title: label(raw.title, 30), shapes, ...extra } : null;
   }
   return null;
 }
@@ -211,7 +228,7 @@ function parseResult(text, req) {
   if (req.action === 'read' && (typeof result.transcription !== 'string' || result.transcription.length > 4000 || typeof result.needsRetake !== 'boolean')) throw new TutorError('No pudimos leer la foto. Prueba otra imagen.', 502);
   const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 60)).filter(Boolean).slice(0, 6);
   const summary = (Array.isArray(result.summary) ? result.summary : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 140)).filter(Boolean).slice(0, 6);
-  const visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req));
+  const visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req), { pictures: req.pictures, age: req.age });
   let picture = req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null;
   if (req.pictures && req.action !== 'read' && !picture && !visual) picture = fallbackPicture(req, result.reply.trim(), board);
   // A drawing request is traced, never answered with a picture.

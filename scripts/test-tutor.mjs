@@ -249,6 +249,10 @@ test('boards fill each column line by line, continue to the side and carry the r
   assert.equal(saved.length, 1); assert.equal(saved[0].blocks.length, 2);
   assert.equal(saved[0].blocks.at(-1).drawingLabel, undefined); assert.equal(saved[0].blocks.at(-1).photos.length, 1);
   assert.equal(keepBoard([], newBoard('vacía')).length, 0);
+  // A finished AI drawing is kept with its strokes; one still being made is dropped.
+  const seg = [{ col: 0, from: 0, height: 10 }];
+  const drawn = keepBoard([], { ...newBoard('León'), blocks: [{ ...block('i'), segments: seg, visual: { type: 'sketch', title: 'León', shapes: [], trace: { rings: [[[1, 1], [2, 2]]], image: 'data:image/jpeg;base64,x' } } }, { ...block('j'), segments: seg, visual: { type: 'sketch', title: 'Tigre', shapes: [], illustration: 'a tiger' } }] });
+  assert.equal(drawn[0].blocks[0].visual.trace.image, 'data:image/jpeg;base64,x'); assert.equal(drawn[0].blocks[1].visual, null);
 });
 
 test('tutor mode explains first and closes topics with a summary; open mode is a different assistant', async () => {
