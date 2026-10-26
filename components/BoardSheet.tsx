@@ -7,8 +7,8 @@ import { colors, fonts } from '@/constants/theme';
 
 const handwriting = 'PatrickHand_400Regular';
 export const COLUMN_GAP = 30;
-// Drawing a map branch or sketch shape takes as long as writing a few letters.
-export const STEP_COST = 8;
+// Tracing one map branch or sketch shape takes as long as writing about a dozen letters.
+export const STEP_COST = 12;
 
 export function blockTotals(block: BoardBlock) {
   const text = block.lines.reduce((sum, line) => sum + line.length, 0);
@@ -23,7 +23,8 @@ function BlockView({ block, shown, writing, lineSize, width, onZoom }: { block: 
   const starts = block.lines.map((_, i) => block.lines.slice(0, i).reduce((sum, line) => sum + line.length, 0));
   const visible = block.lines.map((line, i) => line.slice(0, Math.max(0, count - starts[i])));
   const cursorLine = writing && count < text ? visible.findIndex((part, i) => part.length < block.lines[i].length) : -1;
-  const drawn = Math.min(steps, Math.max(0, Math.ceil((count - text) / STEP_COST)));
+  // Fractional while drawing, so the pencil can trace each stroke.
+  const drawn = Math.min(steps, Math.max(0, (count - text) / STEP_COST));
   const visual = block.visual;
   return (
     <View style={s.block} accessibilityLabel={block.lines.join('. ')}>

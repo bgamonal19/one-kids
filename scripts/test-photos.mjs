@@ -51,9 +51,23 @@ test('free mode asks for rich answers, Wikipedia photos and detailed sketches wi
   assert.equal(body.max_output_tokens, 4000);
   assert.match(body.instructions, /Wikipedia/);
   assert.match(body.instructions, /"picture":null/);
-  assert.match(body.instructions, /imagen realista/);
+  assert.match(body.instructions, /Fotos realistas/);
   assert.match(body.instructions, /hasta 80 formas/);
   await runTutor({ ageBand: '7-9', message: 'qué es la fotosíntesis' }, { OPENAI_API_KEY: 'k' }, fetcher);
   assert.equal(body.max_output_tokens, 2400);
   assert.match(body.instructions, /de 5 a 10 frases/);
+});
+
+test('an annotated sketch gets its Wikipedia photo as background, or stays a plain drawing', async () => {
+  const { attachBackground } = await import('../server/photos-core.mjs');
+  const { cleanVisual } = await import('../server/tutor-core.mjs');
+  const sketch = cleanVisual({ type: 'sketch', title: 'Perú', photo: 'Perú https://x.y', shapes: [{ s: 'text', x: 50, y: 50, text: 'Lima' }] });
+  assert.equal(sketch.photo, 'Perú');
+  const found = async () => Response.json({ query: { pages: [{ title: 'Perú', index: 1, thumbnail: { source: 'https://upload.wikimedia.org/peru.png', width: 800, height: 1000 } }] } });
+  const withPhoto = await attachBackground(sketch, found);
+  assert.equal(withPhoto.background.url, 'https://upload.wikimedia.org/peru.png');
+  assert.equal(withPhoto.photo, undefined);
+  const none = await attachBackground(sketch, async () => Response.json({ query: { pages: [] } }));
+  assert.equal(none.background, undefined); assert.equal(none.photo, undefined); assert.equal(none.shapes.length, 1);
+  assert.equal(await attachBackground(null), null);
 });
