@@ -16,11 +16,13 @@ import React, {
 } from 'react';
 
 import { clampAge } from './ages';
+import { completeTopic } from './study-plan';
 import { hashPin, verifyPin } from './pin';
 import type {
   AgendaEvent,
   CourseItem,
   CourseLink,
+  CourseTopic,
   FamilyState,
   TaskItem,
 } from './types';
@@ -61,7 +63,8 @@ type StoreApi = {
   setChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
   updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => Promise<void>;
-  addTask: (title: string) => Promise<void>;
+  addTask: (title: string, extra?: Pick<TaskItem, 'courseId' | 'dueDate' | 'note' | 'addedBy'>) => Promise<void>;
+  updateTask: (id: string, patch: Partial<Pick<TaskItem, 'title' | 'courseId' | 'dueDate' | 'note'>>) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
   setFocus: (active: boolean) => Promise<void>;
@@ -69,6 +72,9 @@ type StoreApi = {
   addCourse: (input: { title: string; desc: string; link?: CourseLink }) => Promise<string>;
   updateCourse: (id: string, patch: Partial<Omit<CourseItem, 'id'>>) => Promise<void>;
   removeCourse: (id: string) => Promise<void>;
+  setCourseTopics: (id: string, topics: CourseTopic[]) => Promise<void>;
+  /** Saves a study-mode quiz; a passed quiz finishes the topic and gives stars. */
+  finishTopic: (courseId: string, topicId: string, score: { right: number; total: number }, stars: number) => Promise<void>;
   addAgenda: (input: { title: string; date: string; time?: string; note?: string }) => Promise<void>;
   removeAgenda: (id: string) => Promise<void>;
   loadDemo: () => Promise<void>;
@@ -325,21 +331,37 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   }, [persist, state]);
 
   const addTask = useCallback(
-    async (title: string) => {
+    async (title: string, extra: Pick<TaskItem, 'courseId' | 'dueDate' | 'note' | 'addedBy'> = {}) => {
       const task: TaskItem = {
         id: uid('task'),
-        title: title.trim(),
+        title: title.trim().slice(0, 160),
         done: false,
         createdAt: new Date().toISOString(),
+        ...(extra.courseId ? { courseId: extra.courseId } : {}),
+        ...(extra.dueDate ? { dueDate: extra.dueDate } : {}),
+        ...(extra.note?.trim() ? { note: extra.note.trim().slice(0, 300) } : {}),
+        ...(extra.addedBy ? { addedBy: extra.addedBy } : {}),
       };
       await persist({ ...state, tasks: [task, ...state.tasks] });
     },
     [persist, state]
   );
 
+  const updateTask = useCallback(
+    async (id: string, patch: Partial<Pick<TaskItem, 'title' | 'courseId' | 'dueDate' | 'note'>>) => {
+      await persist({ ...state, tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+    },
+    [persist, state]
+  );
+
   const toggleTask = useCallback(
     async (id: string) => {
-      const tasks = state.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+      // doneAt lets the parent report say when the work was finished.
+      const tasks = state.tasks.map((t) => {
+        if (t.id !== id) return t;
+        if (t.done) { const { doneAt: _doneAt, ...rest } = t; return { ...rest, done: false }; }
+        return { ...t, done: true, doneAt: new Date().toISOString() };
+      });
       const allDone = tasks.length > 0 && tasks.every((t) => t.done);
       await persist({
         ...state,
@@ -401,6 +423,22 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   const removeCourse = useCallback(
     async (id: string) => {
       await persist({ ...state, courses: state.courses.filter((c) => c.id !== id) });
+    },
+    [persist, state]
+  );
+
+  const setCourseTopics = useCallback(
+    async (id: string, topics: CourseTopic[]) => {
+      await persist({ ...state, courses: state.courses.map((c) => (c.id === id ? { ...c, topics } : c)) });
+    },
+    [persist, state]
+  );
+
+  const finishTopic = useCallback(
+    async (courseId: string, topicId: string, score: { right: number; total: number }, stars: number) => {
+      const courses = state.courses.map((c) => (c.id === courseId ? { ...c, topics: completeTopic(c.topics ?? [], topicId, score) } : c));
+      const child = state.child && stars > 0 ? { ...state.child, stars: state.child.stars + stars } : state.child;
+      await persist({ ...state, courses, child });
     },
     [persist, state]
   );
@@ -513,14 +551,14 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       setChild, switchChild, addChild,
       updateChildAge,
       updateLearningProfile,
-      addTask,
+      addTask, updateTask,
       toggleTask,
       removeTask,
       setFocus,
       addStars,
       addCourse,
       updateCourse,
-      removeCourse,
+      removeCourse, setCourseTopics, finishTopic,
       addAgenda,
       removeAgenda,
       loadDemo,
@@ -539,14 +577,14 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       setChild, switchChild, addChild,
       updateChildAge,
       updateLearningProfile,
-      addTask,
+      addTask, updateTask,
       toggleTask,
       removeTask,
       setFocus,
       addStars,
       addCourse,
       updateCourse,
-      removeCourse,
+      removeCourse, setCourseTopics, finishTopic,
       addAgenda,
       removeAgenda,
       loadDemo,

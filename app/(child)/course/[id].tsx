@@ -126,6 +126,7 @@ export default function CourseProfileScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {saved ? <Text style={styles.saved}>✅ Guardado. Ya aparece en tu rol semanal.</Text> : null}
       <PrimaryButton label="Guardar perfil" onPress={save} />
+      <PrimaryButton label="📖 Modo estudio" variant="secondary" onPress={() => router.push({ pathname: '/(child)/study/[id]', params: { id: course.id } })} />
       <PrimaryButton label="🗓️ Ver rol semanal" variant="ghost" onPress={() => router.push('/(child)/schedule')} />
     </Screen>
   );

@@ -24,8 +24,8 @@ export default function ParentLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Panel',
-          tabBarLabel: ({ focused }) => <TabLabel label="Panel" focused={focused} />,
+          title: 'Perfil',
+          tabBarLabel: ({ focused }) => <TabLabel label="Perfil" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -33,6 +33,13 @@ export default function ParentLayout() {
         options={{
           title: 'Tareas',
           tabBarLabel: ({ focused }) => <TabLabel label="Tareas" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="courses"
+        options={{
+          title: 'Cursos',
+          tabBarLabel: ({ focused }) => <TabLabel label="Cursos" focused={focused} />,
         }}
       />
       <Tabs.Screen
