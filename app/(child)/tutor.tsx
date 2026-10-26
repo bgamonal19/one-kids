@@ -20,8 +20,8 @@ import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type PictureRequest, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
-import { keepBoard, loadBoards, newBoard, placeBlock, saveBoards, type Board, type BoardBlock } from '@/lib/tutor-boards';
-import { BoardGallery } from '@/components/BoardGallery';
+import { dayKey, keepBoard, latestOfChain, loadBoards, newBoard, placeBlock, saveBoards, type Board, type BoardBlock } from '@/lib/tutor-boards';
+import { BoardStrip } from '@/components/BoardStrip';
 import type { CourseItem, TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
 import { useLocalSearchParams } from 'expo-router';
@@ -83,7 +83,6 @@ export default function TutorScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [stageWidth, setStageWidth] = useState(Math.min(width, 1100));
-  const [galleryWidth, setGalleryWidth] = useState(Math.min(width, 900) - 64);
   const wide = stageWidth >= 700;
   const [phase, setPhase] = useState<BoardPhase>('writing');
   const [page, setPage] = useState<Page>({ key: 'welcome', lines: [] });
@@ -95,6 +94,14 @@ export default function TutorScreen() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [viewing, setViewing] = useState<Board | null>(null);
   const retired = useRef<Board[]>([]);
+  // The board that comes after the eraser: the rest of a long answer, or a new topic.
+  const [nextBoard, setNextBoard] = useState<Board | null>(null);
+  const nextRef = useRef<Board | null>(null);
+  useEffect(() => { nextRef.current = nextBoard; }, [nextBoard]);
+  const [erasing, setErasing] = useState(false);
+  const boardRef = useRef(board);
+  useEffect(() => { boardRef.current = board; }, [board]);
+  const resumeLater = useRef<(saved: Board, all: Board[]) => void>(() => {});
   const [pace, setPace] = useState(70);
   const [mode, setMode] = useState<InputMode>('pen');
   const [penColor, setPenColor] = useState<string>(penColors[0]);
@@ -206,10 +213,16 @@ export default function TutorScreen() {
   };
   useEffect(() => {
     let active = true;
-    void loadBoards(childId).then(saved => { if (active) setBoards(current => current.length ? current : saved); });
+    void loadBoards(childId).then(saved => {
+      if (!active) return;
+      setBoards(current => current.length ? current : saved);
+      // Coming back to the tutor the same day picks up the last board where it was left.
+      const last = saved.at(-1);
+      if (last && dayKey(new Date(last.at)) === dayKey() && !params.topic && !boardRef.current.blocks.some(b => b.reply)) resumeLater.current(last, saved);
+    });
     void readCourseMemory(childId).then(saved => { if (active) setCourseMemory(saved); });
     return () => { active = false; };
-  }, [childId]);
+  }, [childId]); // eslint-disable-line react-hooks/exhaustive-deps
   // Every board is kept on this device so the child can look back at the day's boards.
   useEffect(() => {
     const done = retired.current.splice(0);
@@ -220,19 +233,54 @@ export default function TutorScreen() {
       return updated;
     });
   }, [board, childId]);
-  // The measured answer goes down the column, then to the next one; a full board slides up for a new one.
-  const place = (id: string, height: number, cols: number, maxHeight: number) => setBoard(current => {
-    const placed = placeBlock(current, id, height, cols, maxHeight);
-    if (!placed.next) return placed.board;
-    if (!retired.current.some(b => b.id === placed.board.id)) retired.current.push(placed.board);
-    return placed.next;
-  });
-  const updateBlock = (id: string, change: (block: BoardBlock) => BoardBlock) => setBoard(current => current.blocks.some(b => b.id === id) ? { ...current, blocks: current.blocks.map(b => b.id === id ? change(b) : b) } : current);
+  // The measured answer goes down the column line by line, then into the next one. What doesn't fit waits for a clean board.
+  const place = (id: string, heights: number[], cols: number, maxHeight: number) => {
+    const placed = placeBlock(boardRef.current, id, heights, cols, maxHeight);
+    boardRef.current = placed.board;
+    setBoard(placed.board);
+    if (!placed.next) return;
+    nextRef.current = placed.next; setNextBoard(placed.next);
+    // Nothing of the answer fits here: wipe the board now. Otherwise the tutor first fills this board.
+    if (!placed.board.blocks.some(b => b.id === id)) setErasing(true);
+  };
+  // After the eraser the full board is kept in «Mis pizarras» and the clean one takes its place.
+  const erased = () => {
+    if (boardRef.current.blocks.some(b => b.reply) && !retired.current.some(b => b.id === boardRef.current.id)) retired.current.push(boardRef.current);
+    if (nextBoard) setBoard(nextBoard);
+    nextRef.current = null; setNextBoard(null); setErasing(false);
+  };
+  // Wipe the board with the eraser before writing on a clean one.
+  const changeBoard = (next: Board) => {
+    if (!boardRef.current.blocks.some(b => b.reply)) { setBoard(next); return; }
+    nextRef.current = next; setNextBoard(next); setErasing(true);
+  };
+  // Continue an earlier board: the tutor gets back that conversation and writes after its last part.
+  const resume = (saved: Board, all: Board[] = boards) => {
+    const target = latestOfChain(all, saved);
+    const chain = all.filter(b => (b.chain ?? b.id) === (target.chain ?? target.id)).sort((a, b) => a.part - b.part);
+    const seen = new Set<string>();
+    const blocks = chain.flatMap(b => b.blocks).filter(b => b.reply && !seen.has(b.id) && seen.add(b.id));
+    turn.current.generation++;
+    void stop().catch(() => {});
+    setBoard(target); setActiveId(''); setViewing(null); nextRef.current = null; setNextBoard(null); setErasing(false);
+    setMessages(current => [...current.filter(m => m.id === 'welcome'), ...blocks.flatMap(b => [
+      ...(b.childLine ? [{ id: `${b.id}-child`, role: 'child' as const, text: b.childLine }] : []),
+      { id: b.id, role: 'tutor' as const, text: b.reply },
+    ])]);
+    setExercise(''); topic.current = target.topic; setCourseId(target.courseId ?? '');
+    setPhase('turn'); react('listen');
+  };
+  useEffect(() => { resumeLater.current = resume; });
+  const updateBlock = (id: string, change: (block: BoardBlock) => BoardBlock) => {
+    const apply = (current: Board) => current.blocks.some(b => b.id === id) ? { ...current, blocks: current.blocks.map(b => b.id === id ? change(b) : b) } : current;
+    setBoard(apply);
+    setNextBoard(current => current && apply(current));
+  };
   const freshBoard = () => {
     if (busy.current) return;
     turn.current.generation++;
     void stop().catch(() => {});
-    setBoard(welcomeBoard()); setActiveId('welcome'); setViewing(null); setPage({ key: 'welcome', lines: [] });
+    changeBoard(welcomeBoard()); setActiveId('welcome'); setViewing(null); setPage({ key: 'welcome', lines: [] });
     setMessages(current => current.filter(m => m.id === 'welcome')); setExercise(''); topic.current = '';
     setPhase('turn'); react('listen');
   };
@@ -279,7 +327,13 @@ export default function TutorScreen() {
       if (result.account) setAccount(result.account);
       const block: BoardBlock = { id: reply.id, at: new Date().toISOString(), childLine: next.childLine, lines: next.lines, reply: result.reply, visual: result.visual, images: result.images, photos: result.photos, summary: result.summary };
       const title = (result.topic || (fresh ? confirmedExercise : message).split('\n')[0]).trim().slice(0, 50);
-      setBoard(current => !current.blocks.some(b => b.reply) || fresh || result.newTopic ? newBoard(title, [block], course?.id) : { ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
+      // A new topic gets a clean board, wiped with the eraser; the same topic keeps writing where it was.
+      const current = boardRef.current;
+      // The board is full and waiting for the eraser: the new answer goes after the rest on the clean board.
+      if (nextRef.current && !fresh && !result.newTopic) { const pending = { ...nextRef.current, blocks: [...nextRef.current.blocks, block] }; nextRef.current = pending; setNextBoard(pending); setErasing(true); }
+      else if (!current.blocks.some(b => b.reply)) setBoard(newBoard(title, [block], course?.id));
+      else if (fresh || result.newTopic) changeBoard(newBoard(title, [block], course?.id));
+      else setBoard({ ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
       present(next);
       if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
@@ -377,11 +431,15 @@ export default function TutorScreen() {
   const extraImages = (page.images ?? []).filter(image => !saidPhotos?.some(photo => photo.query === image.query));
   const reviewBanner = viewing ? <View style={styles.reviewBanner}>
     <Text style={styles.reviewText}>👀 Repasando una pizarra de las {new Date(viewing.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</Text>
-    <Pressable accessibilityRole="button" onPress={() => setViewing(null)} style={styles.tool}><Text style={styles.toolText}>← Volver a mi pizarra</Text></Pressable>
+    <View style={[styles.wrap, styles.reviewActions]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Seguir aprendiendo en esta pizarra" disabled={Boolean(loading)} onPress={() => resume(viewing)} style={[styles.tool, styles.sendTool]}><Text style={[styles.toolText, styles.sendText]}>✏️ Seguir en esta pizarra</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => setViewing(null)} style={styles.tool}><Text style={styles.toolText}>← Volver a mi pizarra</Text></Pressable>
+    </View>
   </View> : null;
   const renderBoard = (full: boolean) => viewing
     ? <TutorWhiteboard readOnly phase="turn" board={viewing} pace={pace} expression={expression} width={full ? width : stageWidth} onWritten={() => {}} banner={reviewBanner} />
-    : <TutorWhiteboard phase={phase} board={board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={place} onWritten={onWritten}>
+    : <TutorWhiteboard phase={phase} board={board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={place} onWritten={onWritten}
+      onBoardFull={() => setErasing(true)} erasing={erasing} onErased={erased}>
       {mode === 'pen' || full ? answerPad(full) : null}
     </TutorWhiteboard>;
 
@@ -402,6 +460,7 @@ export default function TutorScreen() {
       {cameraOpen ? <TaskCamera onClose={() => setCameraOpen(false)} onCapture={captured => void pickPhoto(false, captured)} /> : null}
       <Text style={styles.eyebrow}>APRENDEMOS A TU RITMO</Text>
       <Text style={styles.title}>La pizarra de tu tutor</Text>
+      <BoardStrip boards={boards} wide={stageWidth >= 700} openId={viewing?.id} currentId={board.id} onOpen={review} />
       <View style={styles.edge} onLayout={e => { setStageWidth(e.nativeEvent.layout.width); stageY.current = e.nativeEvent.layout.y; }}>
         {fullscreen ? <Text style={styles.hint}>La pizarra está en pantalla completa.</Text> : renderBoard(false)}
       </View>
@@ -494,9 +553,6 @@ export default function TutorScreen() {
         </View>
       </View>
 
-      {boards.length ? <View style={styles.composer} onLayout={e => setGalleryWidth(e.nativeEvent.layout.width - 36)}>
-        <BoardGallery boards={boards} width={galleryWidth} openId={viewing?.id} onOpen={review} />
-      </View> : null}
 
       <View style={styles.connection}>
         <Text style={styles.eyebrow}>PARA ADULTOS</Text>
@@ -574,6 +630,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.paper, borderWidth: 1, borderColor: '#CEDDE9', borderRadius: radii.md, padding: 14, fontFamily: fonts.body, fontSize: 17, color: colors.ink, minHeight: 80, textAlignVertical: 'top' },
   reviewBanner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: 8, borderRadius: 12, backgroundColor: colors.mist },
   reviewText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  reviewActions: { flexShrink: 1, maxWidth: '100%' },
   historyItem: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', padding: 10, borderRadius: 14, backgroundColor: colors.paper },
   historyItemOn: { backgroundColor: colors.mist, borderWidth: 1, borderColor: colors.sky },
   historyTime: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkMuted, paddingTop: 2 },
