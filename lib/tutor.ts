@@ -59,6 +59,9 @@ export type TutorResponse = {
   heard?: string;
   /** What was done, sent when a topic or exercise is finished. */
   summary?: string[];
+  /** The topic's title, and whether the child just started a different one (a new board). */
+  topic?: string;
+  newTopic?: boolean;
   account?: TutorAccount | null;
   source: 'openai' | 'anthropic' | 'local';
   transcription?: string;

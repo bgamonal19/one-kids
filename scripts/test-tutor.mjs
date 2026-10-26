@@ -200,17 +200,30 @@ test('provider failures log status and error code without the provider message',
   assert.deepEqual(logged, ['[tutor] openai responded 404 model_not_found invalid_request_error']);
 });
 
-test('the daily board history keeps each day apart, caps its size and forgets old days', () => {
+test('boards fill a column, continue to the side and start a new part when full', () => {
   const result = { exports: {} };
-  const source = readFileSync(new URL('../lib/tutor-history.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../lib/tutor-boards.ts', import.meta.url), 'utf8');
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: result.exports, require: () => ({ default: {} }) });
-  const { addEntry, dayKey } = result.exports;
+  const { placeBlock, newBoard, keepBoard, dayKey, BLOCK_GAP } = result.exports;
   assert.equal(dayKey(new Date(2026, 9, 5, 23, 30)), '2026-10-05');
-  let history = {};
-  for (let i = 0; i < 90; i++) history = addEntry(history, { id: `e${i}`, at: '', lines: ['8 + 3'], reply: 'x' }, '2026-10-25');
-  assert.equal(history['2026-10-25'].length, 80); assert.equal(history['2026-10-25'].at(-1).id, 'e89');
-  for (let d = 1; d <= 20; d++) history = addEntry(history, { id: `d${d}`, at: '', lines: [], reply: 'x' }, `2026-09-${String(d).padStart(2, '0')}`);
-  assert.equal(Object.keys(history).length, 14); assert.ok(history['2026-10-25']); assert.ok(!history['2026-09-01']);
+  const block = id => ({ id, at: '', lines: ['8 + 3'], reply: 'x' });
+  let board = newBoard('Suma');
+  const add = (id, height) => { board = { ...board, blocks: [...board.blocks, block(id)] }; const placed = placeBlock(board, id, height, 2, 500); board = placed.board; return placed.next; };
+  add('a', 300); add('b', 150);
+  assert.equal(board.blocks.map(b => b.col).join(), '0,0');
+  add('c', 200);
+  assert.equal(board.blocks.at(-1).col, 1);
+  add('d', 100);
+  assert.equal(board.blocks.at(-1).col, 1);
+  const next = add('e', 400);
+  assert.equal(board.blocks.length, 4);
+  assert.equal(next.part, 2); assert.equal(next.topic, 'Suma'); assert.equal(JSON.stringify(next.blocks.map(b => [b.id, b.col])), '[["e",0]]');
+  // A block taller than the board still fits in an empty column.
+  assert.equal(placeBlock({ ...newBoard('x'), blocks: [block('z')] }, 'z', 900, 2, 500).board.blocks[0].col, 0);
+  assert.ok(BLOCK_GAP > 0);
+  const saved = keepBoard(keepBoard([], board), { ...board, blocks: [...board.blocks, { ...block('f'), drawingLabel: 'x', photos: [{ url: 'data:', generated: true }, { url: 'https://upload.wikimedia.org/a.jpg' }] }] });
+  assert.equal(saved.length, 1); assert.equal(saved[0].blocks.at(-1).drawingLabel, undefined); assert.equal(saved[0].blocks.at(-1).photos.length, 1);
+  assert.equal(keepBoard([], newBoard('vacía')).length, 0);
 });
 
 test('tutor mode explains first and closes topics with a summary; open mode is a different assistant', async () => {
