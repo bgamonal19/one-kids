@@ -304,7 +304,15 @@ export default function TutorScreen() {
       </View>
 
       {mode === 'keys' ? <View style={styles.composer}>
-        <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder={listening.supported ? 'Escribe tu respuesta o tu duda…' : 'Escribe tu respuesta o tu duda… (o usa el micrófono del teclado 🎤)'} placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!loading} style={styles.input} />
+        <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder={listening.supported ? 'Escribe tu respuesta o tu duda…' : 'Escribe tu respuesta o tu duda… (o usa el micrófono del teclado 🎤)'} placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!loading} style={styles.input}
+          submitBehavior="submit" onSubmitEditing={() => { if (!loading && input.trim()) void send(); }}
+          onKeyPress={event => {
+            // Web: Enter sends, Shift+Enter keeps a new line (native uses submitBehavior instead).
+            const key = event as unknown as { key?: string; shiftKey?: boolean; nativeEvent: { isComposing?: boolean }; preventDefault?: () => void };
+            if (Platform.OS !== 'web' || key.key !== 'Enter' || key.shiftKey || key.nativeEvent.isComposing) return;
+            key.preventDefault?.();
+            if (!loading && input.trim()) void send();
+          }} />
         <PrimaryButton label="Enviar →" onPress={() => void send()} disabled={Boolean(loading) || !input.trim()} />
       </View> : null}
       {mode === 'voice' ? <View style={[styles.composer, styles.voiceBox]}>
