@@ -17,7 +17,7 @@ import { DEFAULT_VOICE, loadVoiceChoice, saveVoiceChoice, VOICE_SAMPLE, type Voi
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { askTutor, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
+import { askTutor, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type TutorPhoto, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
 import { addEntry, dayKey, dayLabel, loadHistory, saveHistory, type TutorHistory } from '@/lib/tutor-history';
 import type { TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
@@ -26,7 +26,7 @@ type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
 type Photo = { uri: string; data: string };
 type Answer = { handwriting?: string; childLine?: string };
 type Retry = { message: string; action: TutorAction; exercise: string; fresh: boolean; answer: Answer };
-type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; summary?: string[]; review?: string };
+type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; photos?: TutorPhoto[]; summary?: string[]; review?: string };
 type InputMode = 'pen' | 'keys' | 'voice';
 const uid = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const labels = { openai: 'OpenAI', anthropic: 'Claude · Anthropic', local: 'Práctica sin IA' };
@@ -185,7 +185,7 @@ export default function TutorScreen() {
   const remember = (next: Page) => {
     if (!next.reply) return;
     setHistory(current => {
-      const updated = addEntry(current, { id: next.key, at: new Date().toISOString(), childLine: next.childLine, lines: next.lines, reply: next.reply ?? '', visual: next.visual, images: next.images, summary: next.summary });
+      const updated = addEntry(current, { id: next.key, at: new Date().toISOString(), childLine: next.childLine, lines: next.lines, reply: next.reply ?? '', visual: next.visual, images: next.images, photos: next.photos, summary: next.summary });
       void saveHistory(childId, updated);
       return updated;
     });
@@ -228,7 +228,7 @@ export default function TutorScreen() {
       setInput(''); setExercise(confirmedExercise);
       if (answer.handwriting) pad.current?.clear();
       if (fresh) { setPhoto(null); setTranscript(null); setNeedsRetake(false); }
-      const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images, summary: result.summary };
+      const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images, photos: result.photos, summary: result.summary };
       if (result.account) setAccount(result.account);
       present(next); remember(next);
       if (action === 'hint') react('hint', 6000, 'explain');
@@ -275,11 +275,13 @@ export default function TutorScreen() {
   const review = (entry: TutorHistory[string][number]) => {
     turn.current.generation++;
     void stop().catch(() => {});
-    setPage({ key: `review-${entry.id}`, review: entry.id, lines: entry.lines, childLine: entry.childLine, reply: entry.reply, replyId: entry.id, visual: entry.visual, images: entry.images, summary: entry.summary });
+    setPage({ key: `review-${entry.id}`, review: entry.id, lines: entry.lines, childLine: entry.childLine, reply: entry.reply, replyId: entry.id, visual: entry.visual, images: entry.images, photos: entry.photos, summary: entry.summary });
     setPhase('turn'); react('listen');
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
   };
-  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} summary={page.summary} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
+  // Searches already shown as a taped photo don't need a link too.
+  const extraImages = (page.images ?? []).filter(image => !page.photos?.some(photo => photo.query === image.query));
+  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} photos={page.photos} summary={page.summary} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
     {mode === 'pen' || full ? answerPad(full) : null}
   </TutorWhiteboard>;
 
@@ -340,10 +342,10 @@ export default function TutorScreen() {
           {page.source ? <Text style={styles.source}>{labels[page.source]}</Text> : null}
         </View>
       </View> : null}
-      {page.images?.length ? <View style={styles.said}>
-        <Text style={styles.sectionTitle}>🖼️ Imágenes para mirar con un adulto</Text>
+      {extraImages.length ? <View style={styles.said}>
+        <Text style={styles.sectionTitle}>🖼️ {page.photos?.length ? 'Más imágenes' : 'Imágenes'} para mirar con un adulto</Text>
         <View style={styles.wrap}>
-          {page.images.map(image => <Pressable key={image.query} accessibilityRole="link" accessibilityLabel={`Buscar imágenes de ${image.query}`} onPress={() => void openBrowserAsync(imageSearchUrl(image.query))} style={styles.imageLink}>
+          {extraImages.map(image => <Pressable key={image.query} accessibilityRole="link" accessibilityLabel={`Buscar imágenes de ${image.query}`} onPress={() => void openBrowserAsync(imageSearchUrl(image.query))} style={styles.imageLink}>
             <Text style={styles.link}>🔎 {image.query}</Text>
             {image.label ? <Text style={styles.source}>{image.label}</Text> : null}
           </Pressable>)}

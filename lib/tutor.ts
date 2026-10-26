@@ -12,14 +12,17 @@ type ShapeStyle = { color: SketchColor; fill: boolean };
 /** Shapes on a 0–100 grid, already sanitized by the server. */
 export type SketchShape = ShapeStyle & (
   | { s: 'circle'; x: number; y: number; r: number }
+  | { s: 'ellipse'; x: number; y: number; rx: number; ry: number }
   | { s: 'rect'; x: number; y: number; w: number; h: number }
   | { s: 'line'; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
-  | { s: 'poly'; points: [number, number][] }
+  | { s: 'poly'; points: [number, number][]; open?: boolean }
   | { s: 'text'; x: number; y: number; text: string; size: number });
 export type BoardVisual =
   | { type: 'map'; title: string; branches: { label: string; details: string[] }[] }
   | { type: 'sketch'; title: string; shapes: SketchShape[] };
 export type ImageSearch = { query: string; label: string };
+/** A real photo found for an image search (Wikipedia article lead image). */
+export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string };
 export type TutorRequest = {
   ageBand: AgeBand;
   childName: string;
@@ -42,6 +45,7 @@ export type TutorResponse = {
   visual?: BoardVisual | null;
   /** Kid-safe image searches; the app builds the links, never the AI. */
   images?: ImageSearch[];
+  photos?: TutorPhoto[];
   /** What the AI read from a handwritten answer. */
   heard?: string;
   /** What was done, sent when a topic or exercise is finished. */
