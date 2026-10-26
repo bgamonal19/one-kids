@@ -1,12 +1,11 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { BoardVisualView, visualSteps } from './BoardVisual';
-import { TapedPhotos, ZoomView, type Zoomed } from './BoardPhotos';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Animated, { cancelAnimation, Easing, SlideInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { BoardSheet, blockTotals } from './BoardSheet';
+import { ZoomView, type Zoomed } from './BoardPhotos';
 import { KikoMascot } from './KikoMascot';
-import { WritingPencil } from './WritingPencil';
-import type { BoardVisual, TutorPhoto } from '@/lib/tutor';
 import type { ExpressionId } from '@/lib/expressions';
+import type { Board } from '@/lib/tutor-boards';
 import { useFamily } from '@/lib/store';
 import { colors, fonts } from '@/constants/theme';
 
@@ -14,71 +13,79 @@ import { colors, fonts } from '@/constants/theme';
 export type BoardPhase = 'away' | 'thinking' | 'writing' | 'turn';
 type Props = {
   phase: BoardPhase;
-  pageKey: string;
-  lines: string[];
+  board: Board;
+  /** The block the tutor is writing now. */
+  activeId?: string;
+  /** What the child just said, shown while the tutor thinks. */
   childLine?: string;
-  visual?: BoardVisual | null;
-  /** Real photos, taped on once the text is written. */
-  photos?: TutorPhoto[];
-  /** Set while the AI picture is being made: a 'drawing…' card is taped on meanwhile. */
-  drawingLabel?: string;
-  /** Shown once the page is written: what the child and tutor did on this topic. */
-  summary?: string[];
   /** Milliseconds per written character, so the writing roughly follows the voice. */
   pace: number;
   expression: ExpressionId;
   bubble?: string;
   width: number;
-  /** Minimum height of the white surface, so the board can fill the screen. */
-  minHeight?: number;
+  /** Fixed height for the columns (full screen); otherwise it follows the window. */
+  columnHeight?: number;
+  /** A board shown for review: nothing is written or placed. */
+  readOnly?: boolean;
+  /** A new answer was measured: the parent decides its column, or starts the next board. */
+  onPlace?: (id: string, height: number, cols: number, maxHeight: number) => void;
   onWritten: () => void;
+  banner?: ReactNode;
   children?: ReactNode;
 };
 
-export const handwritingFont = 'PatrickHand_400Regular';
+/** How many columns and how tall: a teacher's board on big screens, one column on phones. */
+export function boardLayout(width: number, windowHeight: number, wide: boolean) {
+  const inset = wide ? 168 * 0.62 : 0;
+  const inner = Math.max(200, width - 12 - 36 - inset);
+  const cols = inner >= 940 ? 3 : inner >= 560 ? 2 : 1;
+  const maxHeight = cols > 1 ? Math.round(Math.min(680, Math.max(360, windowHeight * 0.62))) : Math.round(Math.min(900, Math.max(440, windowHeight * 0.8)));
+  const lineSize = cols === 1 ? (wide ? 32 : 25) : cols === 2 ? 27 : 25;
+  return { inner, inset, cols, maxHeight, lineSize };
+}
 
-export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, photos, drawingLabel, summary, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
+export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, banner, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
+  const { height: windowHeight } = useWindowDimensions();
   const wide = width >= 700;
   const size = wide ? 168 : 84;
-  // The board runs edge to edge; the tutor stands inside its top-right corner.
-  const lane = 0;
   const reach = wide ? size * 0.5 : size * 0.42;
-  const textTotal = lines.reduce((sum, line) => sum + line.length, 0);
-  // Drawing a map branch or sketch shape takes as long as writing a few letters.
-  const stepCost = 8;
-  const steps = visual ? visualSteps(visual) : 0;
-  const total = textTotal + steps * stepCost;
+  const layout = boardLayout(width, windowHeight, wide);
+  const maxHeight = columnHeight ?? layout.maxHeight;
+  const active = readOnly ? undefined : board.blocks.find(b => b.id === activeId && b.col !== undefined);
+  const total = active ? blockTotals(active).total : 0;
   const [revealed, setRevealed] = useState({ key: '', count: 0 });
   const [zoomed, setZoomed] = useState<Zoomed>(null);
   const written = useEffectEvent(() => onWritten());
-  const shown = phase !== 'writing' || reduced ? total : revealed.key === pageKey ? revealed.count : 0;
+  const writing = phase === 'writing' && !readOnly;
+  const shown = !writing || reduced ? total : revealed.key === activeId ? revealed.count : 0;
+  const waiting = writing && Boolean(activeId) && !active;
 
-  // Reveal the page letter by letter while the tutor is at the board.
+  // Reveal the answer letter by letter once it has its place on the board.
   useEffect(() => {
-    if (phase !== 'writing') return;
+    if (!writing || waiting) return;
     if (reduced || !total) { written(); return; }
     let count = 0;
     const timer = setInterval(() => {
       count++;
-      setRevealed({ key: pageKey, count });
+      setRevealed({ key: activeId ?? '', count });
       if (count >= total) { clearInterval(timer); written(); }
     }, pace);
     return () => clearInterval(timer);
-  }, [phase, pageKey, total, pace, reduced]);
+  }, [writing, waiting, activeId, total, pace, reduced]);
 
   const progress = useSharedValue(0);
   const scribble = useSharedValue(0);
-  const atBoard = phase === 'thinking' || phase === 'writing';
+  const atBoard = (phase === 'thinking' || phase === 'writing') && !readOnly;
   useEffect(() => {
     progress.value = reduced ? (atBoard ? 1 : 0) : withTiming(atBoard ? 1 : 0, { duration: 1100, easing: Easing.inOut(Easing.cubic) });
   }, [atBoard, reduced, progress]);
   useEffect(() => {
     cancelAnimation(scribble);
-    scribble.value = phase === 'writing' && !reduced ? withRepeat(withTiming(1, { duration: 240 }), -1, true) : withTiming(0, { duration: 150 });
+    scribble.value = writing && !waiting && !reduced ? withRepeat(withTiming(1, { duration: 240 }), -1, true) : withTiming(0, { duration: 150 });
     return () => cancelAnimation(scribble);
-  }, [phase, reduced, scribble]);
+  }, [writing, waiting, reduced, scribble]);
   // Small hops make the slide read as walking; the lean faces the board while writing.
   const walker = useAnimatedStyle(() => ({ transform: [
     { translateX: -reach * progress.value },
@@ -86,39 +93,21 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, phot
     { rotate: `${-5 * progress.value - scribble.value * 4}deg` },
   ] }));
 
-  let remaining = shown;
-  const visible = lines.map(line => { const part = line.slice(0, Math.max(0, remaining)); remaining -= line.length; return part; });
-  const cursorLine = phase === 'writing' && shown < textTotal ? visible.findIndex((part, i) => part.length < lines[i].length) : -1;
-  const drawn = Math.min(steps, Math.max(0, Math.ceil((shown - textTotal) / stepCost)));
-  const innerWidth = Math.max(200, width - 12 - 36);
-  const lineSize = wide ? 34 : 25;
-
   return (
     <View style={s.stage}>
-      <View style={[s.frame, { marginRight: lane }]}>
-        <View style={[s.surface, { minHeight }]}>
-          {childLine ? <Text style={[s.child, { fontSize: lineSize * 0.72 }]} numberOfLines={3}>Tú: {childLine}</Text> : null}
-          <View style={{ minHeight: size * (wide ? 1.2 : 0.85), paddingRight: size - lane + reach * 0.6 }} accessibilityLiveRegion="polite" accessibilityLabel={lines.join('. ')}>
-            {phase === 'thinking' ? <View style={s.lineRow}><Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>…</Text><WritingPencil size={lineSize * 1.15} /></View> : visible.map((part, i) => part || i <= cursorLine ? (
-              <View key={`${pageKey}-${i}`} style={s.lineRow}>
-                <Text style={[s.line, { fontSize: lineSize, lineHeight: lineSize * 1.3 }, i === 0 && s.firstLine]}>{part}</Text>
-                {i === cursorLine ? <WritingPencil size={lineSize * 1.15} /> : null}
-              </View>
-            ) : null)}
+      <View style={s.frame}>
+        {/* A full board slides up and a clean one comes in for the next part. */}
+        <Animated.View key={board.id} entering={reduced || readOnly ? undefined : SlideInDown.duration(650)} style={[s.surface, { paddingRight: 18 + layout.inset }]}>
+          {banner}
+          <View style={layout.cols > 1 ? { minHeight: maxHeight } : undefined}>
+            <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={wide ? 0 : size * 1.15}
+              active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
+              thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
+              onZoom={setZoomed}
+              onMeasured={readOnly ? undefined : (id, height) => onPlace?.(id, height, layout.cols, maxHeight)} />
           </View>
-          {visual && drawn > 0 ? (drawn >= steps
-            ? <Pressable accessibilityRole="imagebutton" accessibilityLabel="Ver el dibujo en grande" onPress={() => setZoomed({ visual })}>
-              <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={false} />
-              <Text style={s.zoomHint}>🔍 Toca el dibujo para verlo en grande</Text>
-            </Pressable>
-            : <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={phase === 'writing'} />) : null}
-          {(photos?.length || drawingLabel) && shown >= textTotal && phase !== 'thinking' ? <TapedPhotos key={pageKey} photos={photos ?? []} drawingLabel={drawingLabel} width={innerWidth} onOpen={photo => setZoomed({ photo })} /> : null}
-          {summary?.length && shown >= total && phase !== 'thinking' ? <View style={s.summary} accessibilityLabel={`Resumen: ${summary.join('. ')}`}>
-            <Text style={[s.summaryTitle, { fontSize: lineSize * 0.8 }]}>📝 Resumen</Text>
-            {summary.map((line, i) => <Text key={i} style={[s.summaryLine, { fontSize: lineSize * 0.66 }]}>• {line}</Text>)}
-          </View> : null}
           {children}
-        </View>
+        </Animated.View>
         <ZoomView zoomed={zoomed} onClose={() => setZoomed(null)} />
         <View style={s.tray}><View style={[s.marker, { backgroundColor: '#2C60AE' }]} /><View style={[s.marker, { backgroundColor: colors.coral }]} /><View style={[s.marker, { backgroundColor: colors.leafDeep }]} /><View style={s.eraser} /></View>
       </View>
@@ -132,19 +121,11 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, phot
 
 const s = StyleSheet.create({
   stage: { position: 'relative', marginVertical: 12 },
-  frame: { backgroundColor: '#C9D6E2', padding: 6, paddingBottom: 0, shadowColor: '#16394D', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  frame: { backgroundColor: '#C9D6E2', padding: 6, paddingBottom: 0, shadowColor: '#16394D', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4, overflow: 'hidden' },
   surface: { backgroundColor: '#FFFFFF', borderRadius: 10, padding: 18, gap: 10 },
   tray: { height: 18, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18 },
   marker: { width: 34, height: 7, borderRadius: 4 },
   eraser: { width: 40, height: 10, borderRadius: 3, backgroundColor: '#6B7C8C', marginLeft: 'auto' },
-  child: { fontFamily: handwritingFont, color: '#2C60AE' },
-  line: { fontFamily: handwritingFont, color: colors.ink },
-  firstLine: { color: '#1F4F95' },
-  zoomHint: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.inkMuted, textAlign: 'center', marginTop: 4 },
-  summary: { backgroundColor: '#E4F4EE', borderRadius: 12, padding: 14, gap: 4, borderWidth: 2, borderColor: colors.leaf },
-  summaryTitle: { fontFamily: handwritingFont, color: colors.leafDeep },
-  summaryLine: { fontFamily: handwritingFont, color: colors.ink },
-  lineRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
   walker: { position: 'absolute', right: 0, alignItems: 'center' },
   bubble: { backgroundColor: colors.white, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 2, borderWidth: 1, borderColor: '#D8E5EF' },
   bubbleText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink, textAlign: 'center' },

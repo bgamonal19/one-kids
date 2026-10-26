@@ -6,12 +6,16 @@ import { colors, fonts, radii } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 import { PERIOD_LABEL, requestReport, type ParentReport as Report } from '@/lib/study';
 import { reportInput, type ReportMemory, type ReportPeriod } from '@/lib/study-plan';
-import { loadHistory } from '@/lib/tutor-history';
+import { readCourseMemory } from '@/lib/course-memory';
+import { loadBoards } from '@/lib/tutor-boards';
+import type { CourseItem } from '@/lib/types';
 
-/** Tutor sessions kept on this device: the summaries the tutor wrote when a topic was finished. */
-async function tutorNotes(childId: string): Promise<ReportMemory[]> {
-  const history = await loadHistory(childId);
-  return Object.values(history).flat().filter((e) => e.summary?.length).map((e) => ({ at: e.at, course: '', topic: e.childLine ?? '', summary: (e.summary ?? []).join(' ') }));
+/** What the tutor kept on this device: summaries written on each topic's board, and the topics worked on per course. */
+async function tutorNotes(childId: string, courses: CourseItem[]): Promise<ReportMemory[]> {
+  const [boards, memory] = await Promise.all([loadBoards(childId), readCourseMemory(childId)]);
+  const title = (id?: string) => courses.find((c) => c.id === id)?.title ?? '';
+  const fromBoards = boards.flatMap((b) => b.blocks.filter((e) => e.summary?.length).map((e) => ({ at: e.at, course: title(b.courseId), topic: b.topic, summary: (e.summary ?? []).join(' ') })));
+  return [...fromBoards, ...memory.map((m) => ({ at: m.at, course: title(m.courseId), topic: m.topic, summary: m.summary }))];
 }
 
 export function ParentReport() {
@@ -26,7 +30,7 @@ export function ParentReport() {
   const ask = async (preset?: string) => {
     setLoading(true); setError(''); setReport(null);
     try {
-      const notes = await tutorNotes(state.child!.id).catch(() => []);
+      const notes = await tutorNotes(state.child!.id, state.courses).catch(() => []);
       setReport(await requestReport(reportInput(state, period, notes), preset ?? question));
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo preparar el resumen.'); }
     finally { setLoading(false); }

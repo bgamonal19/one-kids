@@ -73,3 +73,10 @@ Cuando el tutor propone imágenes, el servidor busca la foto principal del artí
 ## Imágenes realistas creadas por la IA
 
 En el tutor (tareas y modo libre), cuando el niño pide que le dibujen o muestren algo, el tutor pide una imagen a OpenAI (`gpt-image-1-mini`, calidad baja, 1024 px, JPEG comprimido: la opción más barata) y la pega en la pizarra cuando llega; mientras tanto se ve «🎨 Dibujando…». Cada imagen cuenta como unas dos consultas en el límite mensual. Usa la misma `OPENAI_API_KEY`; opcional `OPENAI_IMAGE_MODEL`. Requiere una cuenta familiar con el contador activado (tabla `tutor_accounts`). Las imágenes no se guardan en el historial del día.
+
+## Nivel por edad, ensayos, memoria por curso e impresión
+
+- **Nivel según la edad**: el tutor recibe la edad exacta del niño y ajusta el detalle cada dos años (4-6, 7-8, 9-10, 11-12, 13-14, 15-16). Desde los 13 responde como un profesor de secundaria, con datos concretos, fotos reales e ilustraciones o bocetos detallados.
+- **Ensayos y tesis**: el tutor guía por etapas (tema, tesis, información, esquema, redacción, revisión) y al final hace el resumen de todo.
+- **Memoria por curso**: en la pantalla del tutor el niño elige el curso. Cada tema trabajado se guarda en el dispositivo (hasta 30 por curso) y el tutor lo usa para explicar a partir de lo que ya vio. Si el curso tiene temario del año, el tutor sigue ese avance. El modo estudio puede abrir el tutor con `/tutor?course=<id>&topic=<tema>`.
+- **Imprimir**: al tocar una foto, imagen o dibujo de la pizarra se abre en grande con el botón «🖨️ Imprimir», que imprime solo esa imagen.
