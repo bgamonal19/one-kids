@@ -20,6 +20,8 @@ type Props = {
   visual?: BoardVisual | null;
   /** Real photos, taped on once the text is written. */
   photos?: TutorPhoto[];
+  /** Set while the AI picture is being made: a 'drawing…' card is taped on meanwhile. */
+  drawingLabel?: string;
   /** Shown once the page is written: what the child and tutor did on this topic. */
   summary?: string[];
   /** Milliseconds per written character, so the writing roughly follows the voice. */
@@ -35,7 +37,7 @@ type Props = {
 
 export const handwritingFont = 'PatrickHand_400Regular';
 
-export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, photos, summary, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
+export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, photos, drawingLabel, summary, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const wide = width >= 700;
@@ -110,7 +112,7 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, phot
               <Text style={s.zoomHint}>🔍 Toca el dibujo para verlo en grande</Text>
             </Pressable>
             : <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={phase === 'writing'} />) : null}
-          {photos?.length && shown >= textTotal && phase !== 'thinking' ? <TapedPhotos key={pageKey} photos={photos} width={innerWidth} onOpen={photo => setZoomed({ photo })} /> : null}
+          {(photos?.length || drawingLabel) && shown >= textTotal && phase !== 'thinking' ? <TapedPhotos key={pageKey} photos={photos ?? []} drawingLabel={drawingLabel} width={innerWidth} onOpen={photo => setZoomed({ photo })} /> : null}
           {summary?.length && shown >= total && phase !== 'thinking' ? <View style={s.summary} accessibilityLabel={`Resumen: ${summary.join('. ')}`}>
             <Text style={[s.summaryTitle, { fontSize: lineSize * 0.8 }]}>📝 Resumen</Text>
             {summary.map((line, i) => <Text key={i} style={[s.summaryLine, { fontSize: lineSize * 0.66 }]}>• {line}</Text>)}

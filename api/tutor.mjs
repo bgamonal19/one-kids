@@ -3,6 +3,7 @@ import { AccountError, bearerToken, verifyUser } from '../server/account-core.mj
 import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
 import { addUsage, getUsage, saveSettings, validateSettings } from '../server/usage-core.mjs';
 import { findPhotos } from '../server/photos-core.mjs';
+import { PictureError, runPicture } from '../server/picture-core.mjs';
 
 const requests = new Map();
 // TUTOR_REQUIRE_ACCOUNT=true limits the AI to signed-in families (the demo keeps practice mode).
@@ -59,6 +60,14 @@ export async function POST(request) {
       return json({ account: await getUsage(user.id, process.env) }, 200, origin);
     }
     const usage = user ? await getUsage(user.id, process.env) : null;
+    // Free mode: a realistic picture the tutor asked for, made after the reply so the board isn't kept waiting.
+    if (body && typeof body === 'object' && 'picture' in body) {
+      if (!usage?.openMode) throw new TutorError('Las imágenes con IA son del modo libre, que activa un adulto.', 403);
+      if (usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes.', 429);
+      const { photo, tokens } = await runPicture(body.picture, process.env);
+      const used = (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens;
+      return json({ photo, account: { ...usage, used } }, 200, origin);
+    }
     if (body?.mode === 'open' && !usage?.openMode) throw new TutorError('El modo libre lo activa un adulto desde el panel de padres.', 403);
     if (usage && usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
     const { tokens, ...result } = await runTutor(body, process.env);
@@ -69,7 +78,7 @@ export async function POST(request) {
     return json({ ...result, photos, account }, 200, origin);
   } catch (error) {
     if (error instanceof OriginError) return json({ error: error.message }, 403);
-    const known = error instanceof TutorError || error instanceof AccountError;
+    const known = error instanceof TutorError || error instanceof AccountError || error instanceof PictureError;
     return json({ error: known ? error.message : 'No se pudo preparar la respuesta del tutor.' }, known ? error.status : 500, origin);
   }
 }

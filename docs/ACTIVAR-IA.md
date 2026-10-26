@@ -69,3 +69,7 @@ En la web, el botón **🗣️ Cambiar voz** del tutor ofrece voces naturales ge
 ## Fotos reales y bocetos en la pizarra
 
 Cuando el tutor propone imágenes, el servidor busca la foto principal del artículo de Wikipedia (primero en español, luego en inglés, solo con licencia libre) y la app la pega en la pizarra; al tocarla se ve en grande con el enlace a Wikipedia. No necesita claves. En modo libre o con «Dibújamelo» el tutor puede hacer bocetos de hasta 80 formas, que también se amplían al tocarlos.
+
+## Imágenes realistas creadas por la IA (modo libre)
+
+En modo libre, cuando el niño pide que le dibujen o muestren algo, el tutor pide una imagen a OpenAI (`gpt-image-1-mini`, calidad baja, 1024 px, JPEG comprimido: la opción más barata) y la pega en la pizarra cuando llega; mientras tanto se ve «🎨 Dibujando…». Cada imagen cuenta como unas dos consultas en el límite mensual. Usa la misma `OPENAI_API_KEY`; opcional `OPENAI_IMAGE_MODEL`. Requiere el modo libre activado (tabla `tutor_accounts`). Las imágenes no se guardan en el historial del día.

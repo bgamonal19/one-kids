@@ -17,7 +17,7 @@ import { DEFAULT_VOICE, loadVoiceChoice, saveVoiceChoice, VOICE_SAMPLE, type Voi
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { askTutor, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type TutorPhoto, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
+import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type TutorPhoto, type PictureRequest, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
 import { addEntry, dayKey, dayLabel, loadHistory, saveHistory, type TutorHistory } from '@/lib/tutor-history';
 import type { TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
@@ -26,7 +26,7 @@ type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
 type Photo = { uri: string; data: string };
 type Answer = { handwriting?: string; childLine?: string };
 type Retry = { message: string; action: TutorAction; exercise: string; fresh: boolean; answer: Answer };
-type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; photos?: TutorPhoto[]; summary?: string[]; review?: string };
+type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; photos?: TutorPhoto[]; summary?: string[]; review?: string; drawingLabel?: string };
 type InputMode = 'pen' | 'keys' | 'voice';
 const uid = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const labels = { openai: 'OpenAI', anthropic: 'Claude · Anthropic', local: 'Práctica sin IA' };
@@ -231,11 +231,28 @@ export default function TutorScreen() {
       const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images, photos: result.photos, summary: result.summary };
       if (result.account) setAccount(result.account);
       present(next); remember(next);
+      // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
+      // It is not kept in the day's history, so the device doesn't fill up with images.
+      if (result.picture && openMode) void paint(next.key, result.picture);
       if (action === 'hint') react('hint', 6000, 'explain');
       if (result.source === 'local') setStatus({ configured: false, providers: [], vision: false });
     } catch (e) {
       if (alive.current) { setError(e instanceof Error ? e.message : 'No se pudo recibir la respuesta.'); setRetry({ message, action, exercise: confirmedExercise, fresh, answer }); setPage(previousPage); setPhase('turn'); react('retry'); }
     } finally { busy.current = false; if (alive.current) setLoading(null); }
+  };
+  const paint = async (key: string, picture: PictureRequest) => {
+    const drawingLabel = picture.label || 'tu imagen';
+    setPage(current => current.key === key ? { ...current, drawingLabel } : current);
+    try {
+      const { photo, account: nextAccount } = await generatePicture(picture);
+      if (!alive.current) return;
+      if (nextAccount) setAccount(nextAccount);
+      setPage(current => current.key === key ? { ...current, drawingLabel: undefined, photos: [photo, ...(current.photos ?? [])] } : current);
+    } catch (e) {
+      if (!alive.current) return;
+      setPage(current => current.key === key ? { ...current, drawingLabel: undefined } : current);
+      setError(e instanceof Error ? e.message : 'No pude terminar la imagen.');
+    }
   };
   const sendDrawing = async () => {
     const image = await pad.current?.toImage();
@@ -281,7 +298,7 @@ export default function TutorScreen() {
   };
   // Searches already shown as a taped photo don't need a link too.
   const extraImages = (page.images ?? []).filter(image => !page.photos?.some(photo => photo.query === image.query));
-  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} photos={page.photos} summary={page.summary} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
+  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} photos={page.photos} drawingLabel={page.drawingLabel} summary={page.summary} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
     {mode === 'pen' || full ? answerPad(full) : null}
   </TutorWhiteboard>;
 

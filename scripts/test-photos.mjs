@@ -50,7 +50,8 @@ test('free mode asks for rich answers, Wikipedia photos and detailed sketches wi
   await runTutor({ ageBand: '7-9', message: 'muéstrame un tigre', mode: 'open' }, { OPENAI_API_KEY: 'k' }, fetcher);
   assert.equal(body.max_output_tokens, 4000);
   assert.match(body.instructions, /Wikipedia/);
-  assert.match(body.instructions, /boceto COMPLETO/);
+  assert.match(body.instructions, /"picture":null/);
+  assert.match(body.instructions, /imagen realista/);
   assert.match(body.instructions, /hasta 80 formas/);
   await runTutor({ ageBand: '7-9', message: 'qué es la fotosíntesis' }, { OPENAI_API_KEY: 'k' }, fetcher);
   assert.equal(body.max_output_tokens, 2400);

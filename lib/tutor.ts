@@ -22,7 +22,9 @@ export type BoardVisual =
   | { type: 'sketch'; title: string; shapes: SketchShape[] };
 export type ImageSearch = { query: string; label: string };
 /** A real photo found for an image search (Wikipedia article lead image). */
-export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string };
+export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string; generated?: boolean };
+/** Free mode: what the tutor wants to draw as a realistic AI picture. */
+export type PictureRequest = { prompt: string; label: string; style: 'photo' | 'sketch' };
 export type TutorRequest = {
   ageBand: AgeBand;
   childName: string;
@@ -46,6 +48,7 @@ export type TutorResponse = {
   /** Kid-safe image searches; the app builds the links, never the AI. */
   images?: ImageSearch[];
   photos?: TutorPhoto[];
+  picture?: PictureRequest | null;
   /** What the AI read from a handwritten answer. */
   heard?: string;
   /** What was done, sent when a topic or exercise is finished. */
@@ -148,4 +151,16 @@ export async function fetchTutorVoice(text: string, voice: string, age: number, 
     throw new Error(data?.error || 'No se pudo generar la voz.');
   }
   return response.blob();
+}
+
+/** Free mode: makes the realistic picture the tutor asked for (counts against the monthly limit). */
+export async function generatePicture(picture: PictureRequest): Promise<{ photo: TutorPhoto; account?: TutorAccount | null }> {
+  const endpoint = tutorEndpoint();
+  if (!endpoint) throw new Error('El tutor no está conectado.');
+  let response;
+  try { response = await fetch(endpoint, { method: 'POST', headers: await headers(), body: JSON.stringify({ picture }), signal: AbortSignal.timeout(58_000) }); }
+  catch { throw new Error('No pude terminar la imagen. Inténtalo otra vez.'); }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || typeof data.photo?.url !== 'string' || !data.photo.url.startsWith('data:image/')) throw new Error(data.error || 'No pude terminar la imagen.');
+  return data;
 }
