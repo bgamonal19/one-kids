@@ -61,3 +61,7 @@ Para activarlo, una sola vez:
 2. Comprueba que `SUPABASE_SECRET_KEY` sigue en las variables de Production de Vercel (ya se usa para borrar cuentas).
 
 Sin la tabla, el tutor sigue funcionando sin contador y el modo libre no se puede activar (el panel lo indica). Solo funciona con cuentas reales, no en el modo demo.
+
+## Voces naturales del tutor
+
+En la web, el botón **🗣️ Cambiar voz** del tutor ofrece voces naturales generadas por OpenAI (`gpt-4o-mini-tts`, ruta `/api/tts`) además de las voces del dispositivo. Usan la misma `OPENAI_API_KEY`, no necesitan configuración extra y cuentan en el límite mensual de la familia (cada respuesta leída equivale aproximadamente a una consulta). Si la voz natural falla o no hay cuenta, el tutor lee con la mejor voz en español del dispositivo. Opcional: `OPENAI_TTS_MODEL` para cambiar el modelo. En la app nativa (EAS) por ahora se usan solo las voces del dispositivo.

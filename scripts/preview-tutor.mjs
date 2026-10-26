@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { GET, POST, OPTIONS } from '../api/tutor.mjs';
+import { POST as ttsPOST } from '../api/tts.mjs';
 import { runTutor } from '../server/tutor-core.mjs';
 const port = Number(process.env.PORT || 8102);
 const root = path.resolve('dist');
@@ -12,6 +13,19 @@ const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 't
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${port}`);
+    if (url.pathname === '/api/tts') {
+      const chunks = []; for await (const chunk of req) chunks.push(chunk);
+      let response;
+      if (fixtures) {
+        // A short tone stands in for the natural voice; no OpenAI call.
+        const rate = 8000, samples = rate / 2, wav = Buffer.alloc(44 + samples);
+        wav.write('RIFF', 0); wav.writeUInt32LE(36 + samples, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+        wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate, 28); wav.writeUInt16LE(1, 32); wav.writeUInt16LE(8, 34); wav.write('data', 36); wav.writeUInt32LE(samples, 40);
+        for (let i = 0; i < samples; i++) wav[44 + i] = 128 + Math.round(40 * Math.sin(i / 6));
+        response = new Response(wav, { headers: { 'Content-Type': 'audio/wav' } });
+      } else response = await ttsPOST(new Request(url, { method: req.method, headers: req.headers, body: Buffer.concat(chunks) }));
+      res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer())); return;
+    }
     if (url.pathname === '/api/tutor') {
       let response;
       const chunks = []; let size = 0;

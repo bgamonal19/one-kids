@@ -48,7 +48,7 @@ export function TutorParentSettings() {
               <Text style={[s.chipText, account.limit === limit && s.chipTextOn]}>≈ {approxQuestions(limit)} consultas</Text>
             </Pressable>)}
           </View>
-          <Text style={s.sub}>Cuenta todo el uso del tutor (tareas y modo libre). Al llegar al límite el tutor se pausa hasta el mes siguiente o hasta que lo amplíes.</Text>
+          <Text style={s.sub}>Cuenta todo el uso del tutor (tareas, modo libre y voces naturales; cada respuesta leída en voz natural cuenta como una consulta más o menos). Al llegar al límite el tutor se pausa hasta el mes siguiente o hasta que lo amplíes.</Text>
           {error ? <Text style={s.error}>{error}</Text> : null}
         </View>}
     </View>

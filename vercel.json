@@ -7,6 +7,9 @@
   "functions": {
     "api/tutor.mjs": {
       "maxDuration": 60
+    },
+    "api/tts.mjs": {
+      "maxDuration": 30
     }
   }
 }
