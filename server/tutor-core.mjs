@@ -57,7 +57,7 @@ Imágenes: cuando el niño pida ver, mostrar, cómo es, una foto o una imagen de
 Sigue siendo un espacio para niños: nada de contenido adulto, violento, peligroso, de odio ni para engañar; en ese caso explica con amabilidad que no puedes ayudar con eso y propone hablar con un adulto. Si pide un resumen de lo hablado, rellena summary.`;
 
 // Signed-in families with metering on: the tutor can ask for one realistic AI picture per answer.
-const pictureRules = `Imágenes realistas: cuando el niño pida que le dibujes, le hagas, le muestres o imagines algo (un animal, una planta, un paisaje, un personaje, cómo era algo, una escena de un cuento…), rellena picture con {"prompt":"descripción visual detallada EN INGLÉS de la imagen","label":"título corto en español","style":"photo"} (o "style":"sketch" si pidió un dibujo o boceto) y deja visual en null: la app crea una imagen realista y la pega en la pizarra. No le pidas que lo dibuje él: dibújalo tú con picture y explica lo que se ve. Solo una imagen por respuesta.
+const pictureRules = `Imágenes realistas: cuando el niño pida que le dibujes, le hagas, le muestres o imagines algo (un animal, una planta, un paisaje, un personaje, cómo era algo, una escena de un cuento…), rellena picture con {"prompt":"descripción visual detallada EN INGLÉS de la imagen","label":"título corto en español","style":"photo"} (o "style":"sketch" si pidió un dibujo o boceto) y deja visual en null: la app crea una imagen realista y la pega en la pizarra. No le pidas que lo dibuje él: dibújalo tú con picture y explica lo que se ve. Solo una imagen por respuesta. Si en reply dices que muestras o dibujas una imagen, picture NUNCA puede ser null.
 Esquemas: usa visual (mapa o boceto con formas) solo para esquemas con etiquetas, números o pasos (fracciones, partes con nombres, ciclos), con todas sus partes y etiquetas.`;
 
 // Free mode and explicit drawing requests get room for complete, detailed sketches.
@@ -122,6 +122,17 @@ export function deriveBoard(reply) {
   return [question.length > 60 ? `${question.slice(0, 57)}…` : question];
 }
 
+const asksPicture = /dib[uú]j|dibuja|boceto|ilustr|imagen|foto|mu[eé]str|ens[eé][ñn]a|c[oó]mo es|no (lo|la|los|las) veo|quiero ver/i;
+const promisesPicture = /(aqu[ií] (tienes|est[aá]|va)|te (muestro|dibujo|hago|enseño)|mira).{0,40}(dibujo|imagen|foto|ilustraci[oó]n|boceto)|(dibujo|imagen|foto|ilustraci[oó]n) realista/i;
+// The model sometimes says "here is the drawing" without filling picture; draw it anyway.
+export function fallbackPicture(req, reply, board) {
+  const said = `${req.message} ${reply}`;
+  if (!asksPicture.test(req.message) && !promisesPicture.test(reply)) return null;
+  const subject = req.message.replace(/^(por favor,?\s*)?(dib[uú]j\w*|haz\w*|mu[eé]str\w*|ens[eé][ñn]\w*|quiero ver|ens[eé]ñame)\s*/i, '').trim();
+  const prompt = [asksPicture.test(req.message) && !/no (lo|la|los|las) veo/i.test(req.message) ? subject : '', reply.slice(0, 200), board.join(', ')].map(part => part.replace(/[.\s]+$/, '')).filter(Boolean).join('. ');
+  return cleanPicture({ prompt, label: (board[0] || subject).slice(0, 60), style: /boceto|l[aá]piz|sketch|a mano/i.test(said) ? 'sketch' : 'photo' });
+}
+
 function parseResult(text, req) {
   let result;
   try { result = JSON.parse(text.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')); }
@@ -130,7 +141,11 @@ function parseResult(text, req) {
   if (req.action === 'read' && (typeof result.transcription !== 'string' || result.transcription.length > 4000 || typeof result.needsRetake !== 'boolean')) throw new TutorError('No pudimos leer la foto. Prueba otra imagen.', 502);
   const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 60)).filter(Boolean).slice(0, 6);
   const summary = (Array.isArray(result.summary) ? result.summary : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 140)).filter(Boolean).slice(0, 6);
-  return { reply: result.reply.trim(), picture: req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null, summary: req.action === 'read' ? [] : summary, visual: req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req)), images: req.action === 'read' ? [] : cleanImages(result.images), board: req.action === 'read' ? [] : board.length ? board : deriveBoard(result.reply), heard: req.handwriting && typeof result.heard === 'string' ? result.heard.trim().slice(0, 200) : '', transcription: req.action === 'read' ? result.transcription : '', needsRetake: req.action === 'read' ? result.needsRetake || !result.transcription.trim() : false };
+  const visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req));
+  let picture = req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null;
+  if (req.pictures && req.action !== 'read' && !picture && !visual) picture = fallbackPicture(req, result.reply.trim(), board);
+  if (req.pictures && req.action !== 'read') console.log(`[tutor] picture ${result.picture ? 'model' : picture ? 'fallback' : 'none'}`);
+  return { reply: result.reply.trim(), picture, summary: req.action === 'read' ? [] : summary, visual, images: req.action === 'read' ? [] : cleanImages(result.images), board: req.action === 'read' ? [] : board.length ? board : deriveBoard(result.reply), heard: req.handwriting && typeof result.heard === 'string' ? result.heard.trim().slice(0, 200) : '', transcription: req.action === 'read' ? result.transcription : '', needsRetake: req.action === 'read' ? result.needsRetake || !result.transcription.trim() : false };
 }
 
 // Logs only the provider's status and error code/type so failures can be diagnosed from Vercel logs.
