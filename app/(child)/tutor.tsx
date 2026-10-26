@@ -233,7 +233,7 @@ export default function TutorScreen() {
       present(next); remember(next);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
       // It is not kept in the day's history, so the device doesn't fill up with images.
-      if (result.picture && openMode) void paint(next.key, result.picture);
+      if (result.picture && account) void paint(next.key, result.picture);
       if (action === 'hint') react('hint', 6000, 'explain');
       if (result.source === 'local') setStatus({ configured: false, providers: [], vision: false });
     } catch (e) {

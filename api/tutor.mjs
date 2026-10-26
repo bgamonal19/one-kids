@@ -60,9 +60,10 @@ export async function POST(request) {
       return json({ account: await getUsage(user.id, process.env) }, 200, origin);
     }
     const usage = user ? await getUsage(user.id, process.env) : null;
-    // Free mode: a realistic picture the tutor asked for, made after the reply so the board isn't kept waiting.
+    // A realistic picture the tutor asked for, made after the reply so the board isn't kept waiting.
+    // Any signed-in family with metering gets it, in both modes, within the monthly limit.
     if (body && typeof body === 'object' && 'picture' in body) {
-      if (!usage?.openMode) throw new TutorError('Las imágenes con IA son del modo libre, que activa un adulto.', 403);
+      if (!usage) throw new TutorError('Las imágenes con IA necesitan una cuenta familiar con el contador del tutor activado.', 403);
       if (usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes.', 429);
       const { photo, tokens } = await runPicture(body.picture, process.env);
       const used = (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens;
@@ -70,7 +71,7 @@ export async function POST(request) {
     }
     if (body?.mode === 'open' && !usage?.openMode) throw new TutorError('El modo libre lo activa un adulto desde el panel de padres.', 403);
     if (usage && usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
-    const { tokens, ...result } = await runTutor(body, process.env);
+    const { tokens, ...result } = await runTutor({ ...body, pictures: Boolean(usage) }, process.env);
     // Real photos for the board; a lookup failure only leaves the search labels.
     const photos = result.images?.length ? await findPhotos(result.images).catch(() => []) : [];
     let account = usage;
