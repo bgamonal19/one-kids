@@ -80,6 +80,7 @@ export function useTutorSpeech(age: number, choice: VoiceChoice) {
     pendingEnd.current = finish;
     const deviceVoice = voice.kind === 'device' ? voice.id : bestDeviceVoice.current;
     const audio = webPlayer();
+    if (voice.kind === 'ai' && aiBlocked.current) setSpeechError('La voz natural no respondió; por ahora leemos con la voz del dispositivo. Recarga la página para intentarlo otra vez.');
     if (voice.kind !== 'ai' || !aiVoicesAvailable || !audio || aiBlocked.current) { speakDevice(text, current, deviceVoice, finish); return; }
     try {
       const key = `${voice.id}|${age}|${text}`;
@@ -96,7 +97,10 @@ export function useTutorSpeech(age: number, choice: VoiceChoice) {
       await audio.play();
     } catch (error) {
       if (current !== generation.current) return;
-      if (error instanceof Error && error.name !== 'NotAllowedError') aiBlocked.current = true;
+      if (error instanceof Error && error.name !== 'NotAllowedError') {
+        aiBlocked.current = true;
+        setSpeechError(`La voz natural no está disponible ahora (${error.message}). Leemos con la voz del dispositivo.`);
+      }
       // The natural voice failed: read it with the device voice instead of staying silent.
       speakDevice(text, current, deviceVoice, finish);
     }

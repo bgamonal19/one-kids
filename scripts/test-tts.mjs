@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runTts, ttsTokens, validateTtsRequest, TtsError } from '../server/tts-core.mjs';
+import { runTts, spokenText, ttsTokens, validateTtsRequest, TtsError } from '../server/tts-core.mjs';
 import { POST } from '../api/tts.mjs';
 
 test('voice requests are cleaned and limited to known voices', () => {
-  assert.deepEqual(validateTtsRequest({ text: '  **Hola**   niño ', voice: 'coral', age: 7 }), { text: 'Hola niño', voice: 'coral', age: 7 });
+  assert.deepEqual(validateTtsRequest({ text: '  **Hola**   niño ', voice: 'marin', age: 7 }), { text: 'Hola niño', voice: 'marin', age: 7 });
   assert.equal(validateTtsRequest({ text: 'x'.repeat(5000), voice: 'nova' }).text.length, 1500);
   assert.equal(validateTtsRequest({ text: 'Hola', voice: 'nova', age: 99 }).age, 8);
   assert.throws(() => validateTtsRequest({ text: 'Hola', voice: 'robot' }), TtsError);
+  assert.throws(() => validateTtsRequest({ text: 'Hola', voice: 'onyx' }), TtsError);
   assert.throws(() => validateTtsRequest({ text: '   ', voice: 'coral' }), TtsError);
 });
 
@@ -45,4 +46,12 @@ test('the voice endpoint requires an account when the tutor does', async () => {
 test('the voice endpoint rejects other origins and bad JSON', async () => {
   assert.equal((await POST(new Request('https://app.test/api/tts', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.test' }, body: '{}' }))).status, 403);
   assert.equal((await POST(new Request('https://app.test/api/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{nope' }))).status, 400);
+});
+
+test('symbols and emojis are spoken naturally', () => {
+  assert.equal(spokenText('8 + 3 = ? 🎉'), '8 más 3 es igual a… ¿cuánto?');
+  assert.equal(spokenText('9 − 4 = 5 ✓'), '9 menos 4 es igual a 5');
+  assert.equal(spokenText('3 × 4 y 12 ÷ 3'), '3 por 4 y 12 entre 3');
+  assert.equal(spokenText('**¡Muy bien!** 😊 A las 10:30'), '¡Muy bien! A las 10:30');
+  assert.equal(spokenText('8 → 9, 10'), '8, 9, 10');
 });
