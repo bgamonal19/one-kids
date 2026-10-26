@@ -9,6 +9,8 @@ import { Screen } from '@/components/Screen';
 import { TaskCamera, type TaskPhoto } from '@/components/TaskCamera';
 import { TutorUsageBar } from '@/components/TutorUsageBar';
 import { TutorWhiteboard, type BoardPhase } from '@/components/TutorWhiteboard';
+import { STEP_COST } from '@/components/BoardSheet';
+import { visualSteps } from '@/components/BoardVisual';
 import { useCompanionReaction } from '@/hooks/useCompanionReaction';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
 import { useTutorSpeech } from '@/hooks/useTutorSpeech';
@@ -72,8 +74,8 @@ export default function TutorScreen() {
   const [status, setStatus] = useState<TutorStatus | null>(null);
   // Parent settings and monthly usage; the open mode only shows when a parent enabled it.
   const [account, setAccount] = useState<TutorAccount | null>(null);
-  const [tutorMode, setTutorMode] = useState<'tutor' | 'open'>('tutor');
-  const openMode = tutorMode === 'open' && Boolean(account?.openMode);
+  // Only a parent turns the free mode on (Padres, with the PIN); the child cannot switch it.
+  const openMode = Boolean(account?.openMode);
   const [connectionError, setConnectionError] = useState('');
   const [provider, setProvider] = useState<TutorProvider>('auto');
   const greeting = `¡Hola${state.child?.name ? `, ${state.child.name}` : ''}!`;
@@ -237,10 +239,12 @@ export default function TutorScreen() {
   const present = (next: Page) => {
     const generation = ++turn.current.generation;
     turn.current = { generation, written: false, spoken: !voiceOn || !next.reply };
-    // A drawing step lasts about as long as eight written letters.
-    const chars = Math.max(1, next.lines.join('').length + (next.visual ? (next.visual.type === 'map' ? next.visual.branches.length + 1 : next.visual.shapes.length) * 8 : 0));
+    // Tracing one shape lasts about as long as writing STEP_COST letters.
+    const chars = Math.max(1, next.lines.join('').length + (next.visual ? visualSteps(next.visual) * STEP_COST : 0));
     const speechMs = (next.reply ?? next.lines.join(' ')).split(/\s+/).length * (age <= 8 ? 480 : 400);
-    setPace(Math.round(Math.min(110, Math.max(35, (speechMs * 0.6) / chars))));
+    // A drawing takes about twelve seconds to trace whatever its size: small ones slower, detailed ones faster.
+    const drawPace = next.visual ? Math.min(45, Math.max(18, 12000 / (visualSteps(next.visual) * STEP_COST))) : 0;
+    setPace(Math.round(Math.min(110, Math.max(drawPace || 35, (speechMs * 0.6) / chars))));
     setPage(next); setActiveId(next.key); setPhase('writing'); react('explain');
     if (voiceOn && next.reply && next.replyId) {
       // Some browsers never report the end of an utterance; don't leave the child waiting.
@@ -403,9 +407,7 @@ export default function TutorScreen() {
       </View>
       <View style={styles.column}>
 
-      {account?.openMode ? <View style={styles.modes} accessibilityRole="tablist">
-        {([['tutor', '🎓 Tutor de tareas'], ['open', '💬 Modo libre']] as const).map(([id, label]) => <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tutorMode === id }} onPress={() => setTutorMode(id)} style={[styles.mode, tutorMode === id && styles.modeOn]}><Text style={[styles.modeText, tutorMode === id && styles.modeTextOn]}>{label}</Text></Pressable>)}
-      </View> : null}
+      {openMode ? <Text style={styles.hint}>💬 Modo libre activado por tus padres: puedes preguntar lo que quieras.</Text> : null}
       {account ? <TutorUsageBar account={account} compact /> : null}
       {state.courses.length ? <View style={styles.courses}>
         <Text style={styles.courseLabel}>📚 ¿De qué curso es?</Text>

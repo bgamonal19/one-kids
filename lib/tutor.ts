@@ -19,7 +19,7 @@ export type SketchShape = ShapeStyle & (
   | { s: 'text'; x: number; y: number; text: string; size: number });
 export type BoardVisual =
   | { type: 'map'; title: string; branches: { label: string; details: string[] }[] }
-  | { type: 'sketch'; title: string; shapes: SketchShape[] };
+  | { type: 'sketch'; title: string; shapes: SketchShape[]; background?: { url: string; width?: number; height?: number; title?: string; page?: string } };
 export type ImageSearch = { query: string; label: string };
 /** A real photo found for an image search (Wikipedia article lead image). */
 export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string; generated?: boolean };

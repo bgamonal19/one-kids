@@ -2,7 +2,7 @@ import { runTutor, tutorStatus, TutorError } from '../server/tutor-core.mjs';
 import { AccountError, bearerToken, verifyUser } from '../server/account-core.mjs';
 import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
 import { addUsage, getUsage, saveSettings, validateSettings } from '../server/usage-core.mjs';
-import { findPhotos } from '../server/photos-core.mjs';
+import { attachBackground, findPhotos } from '../server/photos-core.mjs';
 import { PictureError, runPicture } from '../server/picture-core.mjs';
 
 const requests = new Map();
@@ -73,10 +73,10 @@ export async function POST(request) {
     if (usage && usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
     const { tokens, ...result } = await runTutor({ ...body, pictures: Boolean(usage) }, process.env);
     // Real photos for the board; a lookup failure only leaves the search labels.
-    const photos = result.images?.length ? await findPhotos(result.images).catch(() => []) : [];
+    const [photos, visual] = await Promise.all([result.images?.length ? findPhotos(result.images).catch(() => []) : [], attachBackground(result.visual)]);
     let account = usage;
     if (user && usage) account = { ...usage, used: (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens };
-    return json({ ...result, photos, account }, 200, origin);
+    return json({ ...result, visual, photos, account }, 200, origin);
   } catch (error) {
     if (error instanceof OriginError) return json({ error: error.message }, 403);
     const known = error instanceof TutorError || error instanceof AccountError || error instanceof PictureError;

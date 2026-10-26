@@ -80,3 +80,10 @@ En el tutor (tareas y modo libre), cuando el niño pide que le dibujen o muestre
 - **Ensayos y tesis**: el tutor guía por etapas (tema, tesis, información, esquema, redacción, revisión) y al final hace el resumen de todo.
 - **Memoria por curso**: en la pantalla del tutor el niño elige el curso. Cada tema trabajado se guarda en el dispositivo (hasta 30 por curso) y el tutor lo usa para explicar a partir de lo que ya vio. Si el curso tiene temario del año, el tutor sigue ese avance. El modo estudio puede abrir el tutor con `/tutor?course=<id>&topic=<tema>`.
 - **Imprimir**: al tocar una foto, imagen o dibujo de la pizarra se abre en grande con el botón «🖨️ Imprimir», que imprime solo esa imagen.
+
+## Pizarras, profesor especialista y dibujos trazados
+
+- **Pizarras por tema**: el tutor escribe en columnas como un profesor; al llenarse aparece una pizarra nueva y «Mis pizarras» guarda las del día.
+- **Profesor especialista**: según el curso elegido (o el tema de la pregunta) el tutor actúa como especialista de esa materia.
+- **Dibujos trazados**: «dibújame…» se dibuja en la pizarra trazo a trazo con el lápiz (caricaturas simples para los pequeños, estructuras detalladas desde los 13). Para ahorrar, el tutor puede poner una foto real de Wikipedia y escribir y trazar encima. Las fotos creadas por IA solo se hacen si el niño pide expresamente una foto.
+- **Modo libre**: lo activa solo el adulto en Padres; el niño ya no ve el selector.
