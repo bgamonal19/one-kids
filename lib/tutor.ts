@@ -133,3 +133,15 @@ export async function saveTutorSettings(settings: { openMode?: boolean; monthlyL
   if (!response.ok) throw new Error(data.error || 'No se pudo guardar el ajuste.');
   return data.account ?? null;
 }
+
+/** Natural AI voice (web): the server turns the tutor's reply into an MP3. */
+export async function fetchTutorVoice(text: string, voice: string, age: number, signal?: AbortSignal): Promise<Blob> {
+  const endpoint = tutorEndpoint();
+  if (!endpoint || !endpoint.endsWith('/api/tutor')) throw new Error('Las voces naturales no están disponibles aquí.');
+  const response = await fetch(endpoint.replace(/\/api\/tutor$/, '/api/tts'), { method: 'POST', headers: await headers(), body: JSON.stringify({ text, voice, age }), signal: signal ?? AbortSignal.timeout(30_000) });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error || 'No se pudo generar la voz.');
+  }
+  return response.blob();
+}

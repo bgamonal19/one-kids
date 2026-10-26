@@ -12,6 +12,8 @@ import { TutorWhiteboard, type BoardPhase } from '@/components/TutorWhiteboard';
 import { useCompanionReaction } from '@/hooks/useCompanionReaction';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
 import { useTutorSpeech } from '@/hooks/useTutorSpeech';
+import { VoicePicker } from '@/components/VoicePicker';
+import { DEFAULT_VOICE, loadVoiceChoice, saveVoiceChoice, VOICE_SAMPLE, type VoiceChoice } from '@/lib/voices';
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
@@ -72,6 +74,8 @@ export default function TutorScreen() {
   const [fullscreen, setFullscreen] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [voice, setVoice] = useState<VoiceChoice>(DEFAULT_VOICE);
+  const [voicesOpen, setVoicesOpen] = useState(false);
   const [history, setHistory] = useState<TutorHistory>({});
   const [historyDay, setHistoryDay] = useState(dayKey());
   const childId = state.child?.id ?? 'demo';
@@ -93,7 +97,13 @@ export default function TutorScreen() {
   const photoGeneration = useRef(0);
   const alive = useRef(true);
   const { expression, react } = useCompanionReaction();
-  const { speakingId, speechError, speak, stop } = useTutorSpeech(age);
+  const { speakingId, speechError, speak, stop } = useTutorSpeech(age, voice);
+  useEffect(() => {
+    let active = true;
+    void loadVoiceChoice().then(choice => { if (active) setVoice(choice); });
+    return () => { active = false; };
+  }, []);
+  const chooseVoice = (choice: VoiceChoice) => { setVoice(choice); void saveVoiceChoice(choice); };
   const refreshConnection = useCallback(async () => {
     try {
       const next = await getTutorStatus();
@@ -286,6 +296,7 @@ export default function TutorScreen() {
           {error ? <Text accessibilityRole="alert" style={[styles.error, styles.fullHeaderPad]}>{error}</Text> : null}
         </View>
       </Modal>
+      <VoicePicker visible={voicesOpen} value={voice} onChange={chooseVoice} onPreview={choice => void speak(`sample-${Date.now()}`, VOICE_SAMPLE, undefined, choice)} onClose={() => setVoicesOpen(false)} />
       {cameraOpen ? <TaskCamera onClose={() => setCameraOpen(false)} onCapture={captured => void pickPhoto(false, captured)} /> : null}
       <Text style={styles.eyebrow}>APRENDEMOS A TU RITMO</Text>
       <Text style={styles.title}>La pizarra de tu tutor</Text>
@@ -301,6 +312,7 @@ export default function TutorScreen() {
       <View style={styles.modes} accessibilityRole="tablist">
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz del tutor" onPress={() => setVoicesOpen(true)} style={styles.mode}><Text style={styles.modeText}>🗣️ Cambiar voz</Text></Pressable>
       </View>
 
       {mode === 'keys' ? <View style={styles.composer}>
@@ -392,7 +404,7 @@ export default function TutorScreen() {
         {status?.configured ? <View style={styles.wrap}>
           {(['auto', 'openai', 'anthropic'] as const).map(id => <Pressable key={id} accessibilityRole="button" accessibilityLabel={`Usar ${id === 'auto' ? 'conexión automática' : labels[id]}`} accessibilityState={{ selected: provider === id, disabled: id !== 'auto' && !status.providers.includes(id) }} disabled={Boolean(loading) || (id !== 'auto' && !status.providers.includes(id))} onPress={() => setProvider(id)} style={[styles.provider, provider === id && styles.providerSelected]}><Text style={styles.providerText}>{id === 'auto' ? 'Automático' : labels[id]}</Text></Pressable>)}
         </View> : null}
-        <Text style={styles.footnote}>La voz del tutor usa la lectura del dispositivo y el dictado usa el reconocimiento de voz del navegador. Lo que el niño escribe en la pizarra se envía como imagen a la IA solo al pulsar «Enviar». El historial de pizarras de los últimos 14 días se guarda solo en este dispositivo. Las fotos no se guardan en el perfil.</Text>
+        <Text style={styles.footnote}>En la web, las voces naturales se generan con la IA (OpenAI) y cuentan en el límite mensual; las voces del dispositivo son gratis. El dictado usa el reconocimiento de voz del navegador. Lo que el niño escribe en la pizarra se envía como imagen a la IA solo al pulsar «Enviar». El historial de pizarras de los últimos 14 días se guarda solo en este dispositivo. Las fotos no se guardan en el perfil.</Text>
       </View>
       </View>
     </Screen>
