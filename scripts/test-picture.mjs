@@ -48,3 +48,12 @@ test('the picture endpoint is refused without a metered family account', async (
   const response = await POST(new Request('https://app.test/api/tutor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ picture: { prompt: 'A frog' } }) }));
   assert.equal(response.status, 403);
 });
+
+test('draws anyway when the tutor promises a picture but leaves it empty', async () => {
+  const { fallbackPicture } = await import('../server/tutor-core.mjs');
+  const lion = fallbackPicture({ message: 'no lo veo' }, 'Aquí tienes el dibujo realista de un león.', ['León: melena grande']);
+  assert.equal(lion.label, 'León: melena grande');
+  assert.match(lion.prompt, /león/);
+  assert.equal(fallbackPicture({ message: 'dibújame una rana a lápiz' }, 'Las ranas son anfibios.', ['Rana']).style, 'sketch');
+  assert.equal(fallbackPicture({ message: 'cuánto es 8 + 3' }, 'Vamos a sumar.', ['8 + 3']), null);
+});
