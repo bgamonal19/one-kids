@@ -20,7 +20,7 @@ export default function ChildTasks() {
 
   const submit = async () => {
     if (!title.trim()) return;
-    await addTask(title);
+    await addTask(title, { addedBy: 'child' });
     setTitle('');
     react('focused', 3000);
   };
@@ -64,6 +64,7 @@ export default function ChildTasks() {
         }}
         onRemove={removeTask}
         editable
+        courses={state.courses}
       />
 
       <PrimaryButton

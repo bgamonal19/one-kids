@@ -5,6 +5,12 @@ export type TaskItem = {
   title: string;
   done: boolean;
   createdAt: string;
+  /** Course the task belongs to, so study mode and the parent report can group it. */
+  courseId?: string;
+  dueDate?: string; // YYYY-MM-DD
+  doneAt?: string;
+  note?: string;
+  addedBy?: 'parent' | 'child';
 };
 
 export type ChildProfile = {
@@ -27,6 +33,19 @@ export type ParentAccount = {
 
 export type CourseLink = 'numbers' | 'letters' | 'explorer' | 'tutor' | 'custom';
 
+/** One topic of the school year, uploaded by a parent. Study mode follows them in order. */
+export type CourseTopic = {
+  id: string;
+  title: string;
+  /** Month it is taught in class (1–12), when the syllabus says so. */
+  month?: number;
+  done: boolean;
+  doneAt?: string;
+  /** Last study-mode quiz: right answers out of total. */
+  score?: { right: number; total: number };
+  studiedAt?: string;
+};
+
 /** One weekly class: ISO weekday (1 = lunes … 7 = domingo) and times as HH:mm. */
 export type CourseSlot = {
   day: number;
@@ -45,6 +64,8 @@ export type CourseItem = {
   schedule?: CourseSlot[];
   /** false for activities outside school (e.g. a sports club) that keep going during school holidays. */
   followsSchool?: boolean;
+  /** The year's syllabus for this course, in teaching order. */
+  topics?: CourseTopic[];
 };
 
 export type AgendaEvent = {
