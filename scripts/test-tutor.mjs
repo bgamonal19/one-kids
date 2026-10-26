@@ -200,29 +200,54 @@ test('provider failures log status and error code without the provider message',
   assert.deepEqual(logged, ['[tutor] openai responded 404 model_not_found invalid_request_error']);
 });
 
-test('boards fill a column, continue to the side and start a new part when full', () => {
+test('boards fill each column line by line, continue to the side and carry the rest to a new part', () => {
   const result = { exports: {} };
   const source = readFileSync(new URL('../lib/tutor-boards.ts', import.meta.url), 'utf8');
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: result.exports, require: () => ({ default: {} }) });
-  const { placeBlock, newBoard, keepBoard, dayKey, BLOCK_GAP } = result.exports;
+  const { placeBlock, newBoard, keepBoard, dayKey, latestOfChain, columnHeights, PIECE_GAP } = result.exports;
   assert.equal(dayKey(new Date(2026, 9, 5, 23, 30)), '2026-10-05');
-  const block = id => ({ id, at: '', lines: ['8 + 3'], reply: 'x' });
+  const block = (id, lines = 1, extra = {}) => ({ id, at: '', lines: Array.from({ length: lines }, (_, i) => `línea ${i}`), reply: 'x', ...extra });
+  const segs = b => JSON.stringify(b.segments.map(s => [s.col, s.from, s.to ?? null]));
   let board = newBoard('Suma');
-  const add = (id, height) => { board = { ...board, blocks: [...board.blocks, block(id)] }; const placed = placeBlock(board, id, height, 2, 500); board = placed.board; return placed.next; };
-  add('a', 300); add('b', 150);
-  assert.equal(board.blocks.map(b => b.col).join(), '0,0');
-  add('c', 200);
-  assert.equal(board.blocks.at(-1).col, 1);
-  add('d', 100);
-  assert.equal(board.blocks.at(-1).col, 1);
-  const next = add('e', 400);
-  assert.equal(board.blocks.length, 4);
-  assert.equal(next.part, 2); assert.equal(next.topic, 'Suma'); assert.equal(JSON.stringify(next.blocks.map(b => [b.id, b.col])), '[["e",0]]');
-  // A block taller than the board still fits in an empty column.
-  assert.equal(placeBlock({ ...newBoard('x'), blocks: [block('z')] }, 'z', 900, 2, 500).board.blocks[0].col, 0);
-  assert.ok(BLOCK_GAP > 0);
-  const saved = keepBoard(keepBoard([], board), { ...board, blocks: [...board.blocks, { ...block('f'), drawingLabel: 'x', photos: [{ url: 'data:', generated: true }, { url: 'https://upload.wikimedia.org/a.jpg' }] }] });
-  assert.equal(saved.length, 1); assert.equal(saved[0].blocks.at(-1).drawingLabel, undefined); assert.equal(saved[0].blocks.at(-1).photos.length, 1);
+  const add = (b, heights) => { board = { ...board, blocks: [...board.blocks, b] }; const placed = placeBlock(board, b.id, heights, 2, 500); board = placed.board; return placed.next; };
+  // Five lines of 100: four fill the first column, the fifth goes on to the second one.
+  add(block('a', 5), [100, 100, 100, 100, 100]);
+  assert.equal(segs(board.blocks[0]), '[[0,0,4],[1,4,null]]');
+  assert.equal(columnHeights(board, 2)[0], 400 + 3 * PIECE_GAP);
+  // Who asked stays with the first line of the answer.
+  add(block('b', 2, { childLine: '¿y 9 + 4?' }), [40, 100, 100]);
+  assert.equal(segs(board.blocks[1]), '[[1,0,null]]');
+  // A drawing shrinks a little to use the space left in the column.
+  board = newBoard('Rana');
+  add(block('c', 1, { visual: { type: 'sketch', shapes: [] } }), [100, 420]);
+  assert.equal(board.blocks[0].segments.length, 1);
+  assert.ok(board.blocks[0].segments[0].fit > 0.55 && board.blocks[0].segments[0].fit < 1);
+  // When both columns are full, the rest waits for the next board of the same chain.
+  board = newBoard('Suma', [], 'math');
+  const next = add(block('d', 12), Array(12).fill(100));
+  assert.equal(segs(board.blocks[0]), '[[0,0,4],[1,4,8]]');
+  assert.equal(next.part, 2); assert.equal(next.chain, board.chain); assert.equal(next.courseId, 'math');
+  assert.equal(next.blocks[0].start, 8); assert.equal(next.blocks[0].segments, undefined);
+  board = next;
+  board = placeBlock(board, 'd', Array(12).fill(100), 2, 500).board;
+  assert.equal(segs(board.blocks[0]), '[[0,8,null]]');
+  // An answer that doesn't fit at all leaves the full board untouched and moves entirely to the next.
+  const full = { ...newBoard('Suma'), blocks: [{ ...block('e', 1), segments: [{ col: 0, from: 0, height: 500 }, { col: 1, from: 1, height: 490 }] }, block('f', 1)] };
+  const moved = placeBlock(full, 'f', [100], 2, 500);
+  assert.equal(moved.board.blocks.length, 1); assert.equal(moved.next.blocks[0].id, 'f'); assert.equal(moved.next.blocks[0].start, 0);
+  // A drawing taller than the whole column shrinks to fit it.
+  const tall = placeBlock({ ...newBoard('x'), blocks: [block('z', 0, { visual: { type: 'sketch', shapes: [] } })] }, 'z', [900], 2, 500).board.blocks[0].segments[0];
+  assert.equal(tall.height, 500); assert.ok(Math.abs(tall.fit - 500 / 900) < 1e-9);
+  // Continuing an old board goes to the last part of its chain.
+  const first = newBoard('Suma'); const second = { ...newBoard('Suma', [], undefined, 2, first.chain) }; const other = newBoard('Rana');
+  assert.equal(latestOfChain([first, other, second], first).id, second.id);
+  assert.equal(latestOfChain([first, other], first).id, first.id);
+  // Old boards without segments still count.
+  assert.equal(columnHeights({ ...newBoard('v'), blocks: [{ ...block('g'), col: 1, height: 120 }] }, 2).join(), '0,120');
+  const kept = { ...board, blocks: [...board.blocks, { ...block('h'), segments: [{ col: 1, from: 0, height: 10 }], drawingLabel: 'x', photos: [{ url: 'data:', generated: true }, { url: 'https://upload.wikimedia.org/a.jpg' }] }, block('unplaced')] };
+  const saved = keepBoard(keepBoard([], board), kept);
+  assert.equal(saved.length, 1); assert.equal(saved[0].blocks.length, 2);
+  assert.equal(saved[0].blocks.at(-1).drawingLabel, undefined); assert.equal(saved[0].blocks.at(-1).photos.length, 1);
   assert.equal(keepBoard([], newBoard('vacía')).length, 0);
 });
 

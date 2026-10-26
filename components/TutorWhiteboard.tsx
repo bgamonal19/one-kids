@@ -1,11 +1,11 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { cancelAnimation, Easing, SlideInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { BoardSheet, blockTotals } from './BoardSheet';
+import Animated, { cancelAnimation, Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { BoardSheet, blockTotals, unitsBefore } from './BoardSheet';
 import { ZoomView, type Zoomed } from './BoardPhotos';
 import { KikoMascot } from './KikoMascot';
 import type { ExpressionId } from '@/lib/expressions';
-import type { Board } from '@/lib/tutor-boards';
+import { blockSegments, type Board } from '@/lib/tutor-boards';
 import { useFamily } from '@/lib/store';
 import { colors, fonts } from '@/constants/theme';
 
@@ -27,9 +27,14 @@ type Props = {
   columnHeight?: number;
   /** A board shown for review: nothing is written or placed. */
   readOnly?: boolean;
-  /** A new answer was measured: the parent decides its column, or starts the next board. */
-  onPlace?: (id: string, height: number, cols: number, maxHeight: number) => void;
+  /** A new answer was measured: the parent splits it between columns, or continues it on the next board. */
+  onPlace?: (id: string, heights: number[], cols: number, maxHeight: number) => void;
   onWritten: () => void;
+  /** The board is full and this part of the answer is written: time to wipe the board. */
+  onBoardFull?: () => void;
+  /** The eraser is wiping the board; onErased runs when it is clean. */
+  erasing?: boolean;
+  onErased?: () => void;
   banner?: ReactNode;
   children?: ReactNode;
 };
@@ -44,7 +49,10 @@ export function boardLayout(width: number, windowHeight: number, wide: boolean) 
   return { inner, inset, cols, maxHeight, lineSize };
 }
 
-export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, banner, children }: Props) {
+const ERASE_MS = 1600;
+const ERASER = { w: 96, h: 44 };
+
+export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, onBoardFull, erasing, onErased, banner, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const { height: windowHeight } = useWindowDimensions();
@@ -53,27 +61,57 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
   const reach = wide ? size * 0.5 : size * 0.42;
   const layout = boardLayout(width, windowHeight, wide);
   const maxHeight = columnHeight ?? layout.maxHeight;
-  const active = readOnly ? undefined : board.blocks.find(b => b.id === activeId && b.col !== undefined);
+  const active = readOnly ? undefined : board.blocks.find(b => b.id === activeId && blockSegments(b));
+  const segments = active ? blockSegments(active)! : [];
   const total = active ? blockTotals(active).total : 0;
+  // This board may hold only part of the answer: writing starts where the last board stopped and ends where this one is full.
+  const startAt = active ? unitsBefore(active, segments[0].from) : 0;
+  const lastTo = segments.at(-1)?.to;
+  const limit = active ? (lastTo === undefined ? total : unitsBefore(active, lastTo)) : 0;
+  const revealKey = `${board.id}:${activeId}`;
   const [revealed, setRevealed] = useState({ key: '', count: 0 });
   const [zoomed, setZoomed] = useState<Zoomed>(null);
-  const written = useEffectEvent(() => onWritten());
+  // Pieces that don't fit (even photos, which take no writing time) continue on the next board after the eraser.
+  const written = useEffectEvent(() => lastTo !== undefined ? onBoardFull?.() : onWritten());
   const writing = phase === 'writing' && !readOnly;
-  const shown = !writing || reduced ? total : revealed.key === activeId ? revealed.count : 0;
+  const shown = !writing || reduced ? limit : revealed.key === revealKey ? revealed.count : startAt;
   const waiting = writing && Boolean(activeId) && !active;
 
   // Reveal the answer letter by letter once it has its place on the board.
   useEffect(() => {
-    if (!writing || waiting) return;
-    if (reduced || !total) { written(); return; }
-    let count = 0;
+    if (!writing || waiting || erasing) return;
+    if (reduced || limit <= startAt) { written(); return; }
+    let count = startAt;
     const timer = setInterval(() => {
       count++;
-      setRevealed({ key: activeId ?? '', count });
-      if (count >= total) { clearInterval(timer); written(); }
+      setRevealed({ key: revealKey, count });
+      if (count >= limit) { clearInterval(timer); written(); }
     }, pace);
     return () => clearInterval(timer);
-  }, [writing, waiting, activeId, total, pace, reduced]);
+  }, [writing, waiting, erasing, revealKey, startAt, limit, pace, reduced]);
+
+  // A full board is wiped with the eraser in a zigzag, like in class; the board is kept in «Mis pizarras».
+  const [surface, setSurface] = useState({ w: 0, h: 0 });
+  const wipe = useSharedValue(0);
+  const erased = useEffectEvent(() => onErased?.());
+  useEffect(() => {
+    if (!erasing) { wipe.value = 0; return; }
+    if (reduced) { erased(); return; }
+    wipe.value = 0;
+    wipe.value = withTiming(1, { duration: ERASE_MS, easing: Easing.linear });
+    const timer = setTimeout(() => erased(), ERASE_MS + 120);
+    return () => clearTimeout(timer);
+  }, [erasing, reduced, wipe]);
+  const fading = useAnimatedStyle(() => ({ opacity: 1 - wipe.value }));
+  const eraser = useAnimatedStyle(() => {
+    const rows = 3;
+    const t = Math.min(0.999, wipe.value);
+    const row = Math.floor(t * rows);
+    const p = t * rows - row;
+    const x = (row % 2 ? 1 - p : p) * Math.max(0, surface.w - ERASER.w);
+    const y = ((row + 0.5) / rows) * surface.h - ERASER.h / 2;
+    return { opacity: wipe.value > 0 && wipe.value < 1 ? 1 : 0, transform: [{ translateX: x }, { translateY: y }, { rotate: `${-8 + Math.sin(t * 40) * 4}deg` }] };
+  });
 
   const progress = useSharedValue(0);
   const scribble = useSharedValue(0);
@@ -96,18 +134,23 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
   return (
     <View style={s.stage}>
       <View style={s.frame}>
-        {/* A full board slides up and a clean one comes in for the next part. */}
-        <Animated.View key={board.id} entering={reduced || readOnly ? undefined : SlideInDown.duration(650)} style={[s.surface, { paddingRight: 18 + layout.inset }]}>
+        <View style={[s.surface, { paddingRight: 18 + layout.inset }]}>
           {banner}
-          <View style={layout.cols > 1 ? { minHeight: maxHeight } : undefined}>
-            <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={wide ? 0 : size * 1.15}
-              active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
-              thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
-              onZoom={setZoomed}
-              onMeasured={readOnly ? undefined : (id, height) => onPlace?.(id, height, layout.cols, maxHeight)} />
+          <View style={layout.cols > 1 ? { minHeight: maxHeight } : undefined} onLayout={e => setSurface({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+            {/* A clean board fades in after the eraser. */}
+            <Animated.View key={board.id} entering={reduced || readOnly ? undefined : FadeIn.duration(400)} style={fading}>
+              <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={wide ? 0 : size * 1.15}
+                active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
+                thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
+                onZoom={setZoomed}
+                onMeasured={readOnly ? undefined : (id, heights) => onPlace?.(id, heights, layout.cols, maxHeight)} />
+            </Animated.View>
+            <Animated.View testID="mota" pointerEvents="none" style={[s.mota, eraser]} accessibilityElementsHidden>
+              <View style={s.motaWood} /><View style={s.motaFelt} />
+            </Animated.View>
           </View>
           {children}
-        </Animated.View>
+        </View>
         <ZoomView zoomed={zoomed} onClose={() => setZoomed(null)} />
         <View style={s.tray}><View style={[s.marker, { backgroundColor: '#2C60AE' }]} /><View style={[s.marker, { backgroundColor: colors.coral }]} /><View style={[s.marker, { backgroundColor: colors.leafDeep }]} /><View style={s.eraser} /></View>
       </View>
@@ -127,6 +170,9 @@ const s = StyleSheet.create({
   marker: { width: 34, height: 7, borderRadius: 4 },
   eraser: { width: 40, height: 10, borderRadius: 3, backgroundColor: '#6B7C8C', marginLeft: 'auto' },
   walker: { position: 'absolute', right: 0, alignItems: 'center' },
+  mota: { position: 'absolute', left: 0, top: 0, width: ERASER.w, height: ERASER.h, borderRadius: 7, overflow: 'hidden', shadowColor: '#16394D', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6 },
+  motaWood: { height: 16, backgroundColor: '#B07A45' },
+  motaFelt: { flex: 1, backgroundColor: '#4E5B68' },
   bubble: { backgroundColor: colors.white, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 2, borderWidth: 1, borderColor: '#D8E5EF' },
   bubbleText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink, textAlign: 'center' },
 });
