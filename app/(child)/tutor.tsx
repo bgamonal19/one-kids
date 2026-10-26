@@ -339,6 +339,7 @@ export default function TutorScreen() {
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
       // It is not kept in the day's history, so the device doesn't fill up with images.
       if (result.picture && account) void paint(next.key, result.picture);
+      if (result.visual?.type === 'sketch' && result.visual.illustration) void illustrate(next.key, result.visual.title, result.visual.illustration);
       if (action === 'hint') react('hint', 6000, 'explain');
       if (result.source === 'local') setStatus({ configured: false, providers: [], vision: false });
     } catch (e) {
@@ -373,6 +374,21 @@ export default function TutorScreen() {
       if (!alive.current) return;
       updateBlock(key, block => ({ ...block, drawingLabel: undefined }));
       setError(e instanceof Error ? e.message : 'No pude terminar la imagen.');
+    }
+  };
+  // Whiteboard animation: the AI line drawing arrives a few seconds after the reply and the pencil traces it.
+  const illustrate = async (key: string, title: string, prompt: string) => {
+    const done = (change: (visual: Extract<NonNullable<BoardBlock['visual']>, { type: 'sketch' }>) => NonNullable<BoardBlock['visual']>) =>
+      updateBlock(key, block => block.visual?.type === 'sketch' ? { ...block, visual: change(block.visual) } : block);
+    try {
+      const { trace, account: nextAccount } = await generatePicture({ prompt, label: title, style: 'line' });
+      if (!alive.current) return;
+      if (nextAccount) setAccount(nextAccount);
+      done(({ illustration: _i, ...visual }) => trace ? { ...visual, trace } : visual);
+    } catch (e) {
+      if (!alive.current) return;
+      done(({ illustration: _i, ...visual }) => visual);
+      setError(e instanceof Error ? e.message : 'No pude terminar el dibujo.');
     }
   };
   const sendDrawing = async () => {

@@ -87,3 +87,10 @@ En el tutor (tareas y modo libre), cuando el niño pide que le dibujen o muestre
 - **Profesor especialista**: según el curso elegido (o el tema de la pregunta) el tutor actúa como especialista de esa materia.
 - **Dibujos trazados**: «dibújame…» se dibuja en la pizarra trazo a trazo con el lápiz (caricaturas simples para los pequeños, estructuras detalladas desde los 13). Para ahorrar, el tutor puede poner una foto real de Wikipedia y escribir y trazar encima. Las fotos creadas por IA solo se hacen si el niño pide expresamente una foto.
 - **Modo libre**: lo activa solo el adulto en Padres; el niño ya no ve el selector.
+
+## Pizarras que se llenan, mota y dibujos tipo animación de pizarra
+
+- Cada respuesta se reparte línea a línea por las columnas de la pizarra y los dibujos se encogen un poco para ocupar el hueco que queda. Cuando la pizarra se llena, una mota la borra y la respuesta sigue en la pizarra siguiente del mismo tema; las pizarras quedan en la tira de arriba y «✏️ Seguir en esta pizarra» continúa cualquiera de ellas.
+- **Mapas reales**: cuando el tutor habla de países, la app traza los contornos reales (datos de Natural Earth incluidos en la app, sin gastar tokens) y colorea y rotula los países que nombra.
+- **Dibujos tipo animación de pizarra blanca**: para dibujar algo con detalle, el tutor pide una ilustración de línea negra con toques de color (`gpt-image-1-mini`, calidad baja). El servidor calcula los trazos y el lápiz la dibuja delante del niño en unos 11 segundos: primero las líneas y después el color. Cada dibujo cuesta lo mismo que una imagen realista (unos 0,005 USD) y se descuenta del límite mensual de la familia. Solo se usa con una cuenta familiar con el contador del tutor activado; sin ella, el tutor dibuja con sus propias formas.
+- El dispositivo guarda los 8 dibujos de IA más recientes junto con sus pizarras; los más antiguos quedan sin la imagen.

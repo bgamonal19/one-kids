@@ -4,6 +4,7 @@ import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs'
 import { addUsage, getUsage, saveSettings, validateSettings } from '../server/usage-core.mjs';
 import { attachBackground, findPhotos } from '../server/photos-core.mjs';
 import { PictureError, runPicture } from '../server/picture-core.mjs';
+import { attachMap } from '../server/geo-core.mjs';
 
 const requests = new Map();
 // TUTOR_REQUIRE_ACCOUNT=true limits the AI to signed-in families (the demo keeps practice mode).
@@ -65,15 +66,15 @@ export async function POST(request) {
     if (body && typeof body === 'object' && 'picture' in body) {
       if (!usage) throw new TutorError('Las imágenes con IA necesitan una cuenta familiar con el contador del tutor activado.', 403);
       if (usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes.', 429);
-      const { photo, tokens } = await runPicture(body.picture, process.env);
+      const { photo, trace, tokens } = await runPicture(body.picture, process.env);
       const used = (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens;
-      return json({ photo, account: { ...usage, used } }, 200, origin);
+      return json({ photo, ...(trace ? { trace } : {}), account: { ...usage, used } }, 200, origin);
     }
     if (body?.mode === 'open' && !usage?.openMode) throw new TutorError('El modo libre lo activa un adulto desde el panel de padres.', 403);
     if (usage && usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
     const { tokens, ...result } = await runTutor({ ...body, pictures: Boolean(usage) }, process.env);
     // Real photos for the board; a lookup failure only leaves the search labels.
-    const [photos, visual] = await Promise.all([result.images?.length ? findPhotos(result.images).catch(() => []) : [], attachBackground(result.visual)]);
+    const [photos, visual] = await Promise.all([result.images?.length ? findPhotos(result.images).catch(() => []) : [], attachBackground(attachMap(result.visual))]);
     let account = usage;
     if (user && usage) account = { ...usage, used: (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens };
     return json({ ...result, visual, photos, account }, 200, origin);

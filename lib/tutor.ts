@@ -19,12 +19,17 @@ export type SketchShape = ShapeStyle & (
   | { s: 'text'; x: number; y: number; text: string; size: number });
 export type BoardVisual =
   | { type: 'map'; title: string; branches: { label: string; details: string[] }[] }
-  | { type: 'sketch'; title: string; shapes: SketchShape[]; background?: { url: string; width?: number; height?: number; title?: string; page?: string } };
+  | { type: 'sketch'; title: string; shapes: SketchShape[]; background?: { url: string; width?: number; height?: number; title?: string; page?: string }; trace?: SketchTrace; illustration?: string; /** Height / width of the drawing; 1 (a square) when missing. */ aspect?: number };
+/**
+ * Lines traced with the pencil before the shapes, on the same 0–100 grid: a real map outline, or, with `image`,
+ * the strokes that reveal an AI line drawing like a whiteboard animation (`fills` colour it in afterwards).
+ */
+export type SketchTrace = { rings: [number, number][][]; fills?: [number, number][][]; image?: string };
 export type ImageSearch = { query: string; label: string };
 /** A real photo found for an image search (Wikipedia article lead image). */
 export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string; generated?: boolean };
 /** Free mode: what the tutor wants to draw as a realistic AI picture. */
-export type PictureRequest = { prompt: string; label: string; style: 'photo' | 'sketch' };
+export type PictureRequest = { prompt: string; label: string; style: 'photo' | 'sketch' | 'line' };
 export type TutorRequest = {
   ageBand: AgeBand;
   childName: string;
@@ -163,7 +168,7 @@ export async function fetchTutorVoice(text: string, voice: string, age: number, 
 }
 
 /** Free mode: makes the realistic picture the tutor asked for (counts against the monthly limit). */
-export async function generatePicture(picture: PictureRequest): Promise<{ photo: TutorPhoto; account?: TutorAccount | null }> {
+export async function generatePicture(picture: PictureRequest): Promise<{ photo: TutorPhoto; trace?: SketchTrace; account?: TutorAccount | null }> {
   const endpoint = tutorEndpoint();
   if (!endpoint) throw new Error('El tutor no está conectado.');
   let response;

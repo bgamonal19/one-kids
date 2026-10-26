@@ -1,5 +1,7 @@
 // Realistic pictures drawn by the AI for free mode: OpenAI image generation at the cheapest
 // useful setting (small model, low quality, compressed JPEG). The key stays on the server.
+import { traceDrawing } from './trace-core.mjs';
+
 export class PictureError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
 }
@@ -9,13 +11,15 @@ export const PICTURE_TOKENS = 5000;
 const styles = {
   photo: 'A realistic, natural-looking photograph',
   sketch: 'A detailed, realistic pencil-and-watercolor drawing like an illustrated encyclopedia',
+  // Whiteboard animation: black ink lines the pencil can trace, a few flat colours, nothing to hide the lines.
+  line: 'A whiteboard animation illustration like an explainer video: clean, confident black ink outlines on a pure white background, hand-drawn look, a few flat colour accents (blue, yellow, orange, green), no shading, no gradients, no background scenery beyond what is needed, all of it inside the frame,',
 };
 
 export function cleanPicture(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  const prompt = typeof raw.prompt === 'string' ? raw.prompt.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 400) : '';
+  const prompt = typeof raw.prompt === 'string' ? raw.prompt.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 520) : '';
   if (prompt.length < 3) return null;
-  return { prompt, label: typeof raw.label === 'string' ? raw.label.trim().slice(0, 60) : '', style: raw.style === 'sketch' ? 'sketch' : 'photo' };
+  return { prompt, label: typeof raw.label === 'string' ? raw.label.trim().slice(0, 60) : '', style: raw.style === 'sketch' || raw.style === 'line' ? raw.style : 'photo' };
 }
 
 export async function runPicture(raw, env, fetcher = fetch) {
@@ -39,5 +43,11 @@ export async function runPicture(raw, env, fetcher = fetch) {
   }
   const b64 = (await response.json())?.data?.[0]?.b64_json;
   if (typeof b64 !== 'string' || !b64) throw new PictureError('No pude hacer la imagen esta vez.', 502);
-  return { photo: { query: picture.prompt.slice(0, 60), label: picture.label, url: `data:image/jpeg;base64,${b64}`, width: 1024, height: 1024, generated: true }, tokens: PICTURE_TOKENS };
+  const url = `data:image/jpeg;base64,${b64}`;
+  const photo = { query: picture.prompt.slice(0, 60), label: picture.label, url, width: 1024, height: 1024, generated: true };
+  if (picture.style !== 'line') return { photo, tokens: PICTURE_TOKENS };
+  // The strokes the pencil follows to reveal the drawing on the board.
+  let trace = { rings: [], fills: [] };
+  try { trace = traceDrawing(b64); } catch (error) { console.error(`[picture] trace failed ${String(error?.message ?? error).slice(0, 120)}`); }
+  return { photo, trace: { ...trace, image: url }, tokens: PICTURE_TOKENS };
 }
