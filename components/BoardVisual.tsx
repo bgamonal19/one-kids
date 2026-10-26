@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Ellipse, G, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Ellipse, G, Line, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { WritingPencil } from './WritingPencil';
 import type { BoardVisual as Visual, SketchColor, SketchShape } from '@/lib/tutor';
 import { colors } from '@/constants/theme';
@@ -27,6 +27,7 @@ function mapLayout(visual: Extract<Visual, { type: 'map' }>) {
 function anchor(shape: SketchShape): [number, number] {
   switch (shape.s) {
     case 'circle': return [shape.x + shape.r * 0.7, shape.y - shape.r * 0.7];
+    case 'ellipse': return [shape.x + shape.rx * 0.7, shape.y - shape.ry * 0.7];
     case 'rect': return [shape.x + shape.w, shape.y];
     case 'line': return [shape.x2, shape.y2];
     case 'poly': return shape.points[shape.points.length - 1];
@@ -40,8 +41,11 @@ function SketchShapeView({ shape }: { shape: SketchShape }) {
   const common = { stroke, strokeWidth: 1.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (shape.s) {
     case 'circle': return <Circle cx={shape.x} cy={shape.y} r={shape.r} fill={fill} fillOpacity={0.35} {...common} />;
+    case 'ellipse': return <Ellipse cx={shape.x} cy={shape.y} rx={shape.rx} ry={shape.ry} fill={fill} fillOpacity={0.35} {...common} />;
     case 'rect': return <Rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={1} fill={fill} fillOpacity={0.35} {...common} />;
-    case 'poly': return <Polygon points={shape.points.map(p => p.join(',')).join(' ')} fill={fill} fillOpacity={0.35} {...common} />;
+    case 'poly': return shape.open
+      ? <Polyline points={shape.points.map(p => p.join(',')).join(' ')} fill="none" {...common} />
+      : <Polygon points={shape.points.map(p => p.join(',')).join(' ')} fill={fill} fillOpacity={0.35} {...common} />;
     case 'text': return <SvgText x={shape.x} y={shape.y} fontSize={shape.size} fontFamily={handwriting} fill={stroke} textAnchor="middle">{shape.text}</SvgText>;
     case 'line': {
       const angle = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
@@ -55,10 +59,11 @@ function SketchShapeView({ shape }: { shape: SketchShape }) {
 }
 
 /** A concept map or sketch drawn step by step, with the pencil at the newest mark. */
-export function BoardVisualView({ visual, drawn, width, drawing }: { visual: Visual; drawn: number; width: number; drawing: boolean }) {
+/** max caps the size on the board; the enlarged view passes a bigger one. */
+export function BoardVisualView({ visual, drawn, width, drawing, max }: { visual: Visual; drawn: number; width: number; drawing: boolean; max?: number }) {
   const pencil = Math.max(22, Math.min(34, width * 0.06));
   if (visual.type === 'map') {
-    const w = Math.min(width, 640), h = w * 0.7, scale = w / 200;
+    const w = Math.min(width, max ?? 640), h = w * 0.7, scale = w / 200;
     const nodes = mapLayout(visual);
     const last = drawn <= 1 ? [100, 64] : [nodes[drawn - 2].x + nodes[drawn - 2].w / 2, nodes[drawn - 2].y];
     return (
@@ -83,7 +88,7 @@ export function BoardVisualView({ visual, drawn, width, drawing }: { visual: Vis
       </View>
     );
   }
-  const w = Math.min(width, 380), scale = w / 100;
+  const w = Math.min(width, max ?? 520), scale = w / 100;
   const shown = visual.shapes.slice(0, drawn);
   const last = shown.length ? anchor(shown[shown.length - 1]) : [50, 50];
   return (

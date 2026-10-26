@@ -1,10 +1,11 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { BoardVisualView, visualSteps } from './BoardVisual';
+import { TapedPhotos, ZoomView, type Zoomed } from './BoardPhotos';
 import { KikoMascot } from './KikoMascot';
 import { WritingPencil } from './WritingPencil';
-import type { BoardVisual } from '@/lib/tutor';
+import type { BoardVisual, TutorPhoto } from '@/lib/tutor';
 import type { ExpressionId } from '@/lib/expressions';
 import { useFamily } from '@/lib/store';
 import { colors, fonts } from '@/constants/theme';
@@ -17,6 +18,8 @@ type Props = {
   lines: string[];
   childLine?: string;
   visual?: BoardVisual | null;
+  /** Real photos, taped on once the text is written. */
+  photos?: TutorPhoto[];
   /** Shown once the page is written: what the child and tutor did on this topic. */
   summary?: string[];
   /** Milliseconds per written character, so the writing roughly follows the voice. */
@@ -32,7 +35,7 @@ type Props = {
 
 export const handwritingFont = 'PatrickHand_400Regular';
 
-export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, summary, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
+export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, photos, summary, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const wide = width >= 700;
@@ -46,6 +49,7 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, summ
   const steps = visual ? visualSteps(visual) : 0;
   const total = textTotal + steps * stepCost;
   const [revealed, setRevealed] = useState({ key: '', count: 0 });
+  const [zoomed, setZoomed] = useState<Zoomed>(null);
   const written = useEffectEvent(() => onWritten());
   const shown = phase !== 'writing' || reduced ? total : revealed.key === pageKey ? revealed.count : 0;
 
@@ -100,13 +104,20 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, summ
               </View>
             ) : null)}
           </View>
-          {visual && drawn > 0 ? <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={phase === 'writing' && drawn < steps} /> : null}
+          {visual && drawn > 0 ? (drawn >= steps
+            ? <Pressable accessibilityRole="imagebutton" accessibilityLabel="Ver el dibujo en grande" onPress={() => setZoomed({ visual })}>
+              <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={false} />
+              <Text style={s.zoomHint}>🔍 Toca el dibujo para verlo en grande</Text>
+            </Pressable>
+            : <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={phase === 'writing'} />) : null}
+          {photos?.length && shown >= textTotal && phase !== 'thinking' ? <TapedPhotos key={pageKey} photos={photos} width={innerWidth} onOpen={photo => setZoomed({ photo })} /> : null}
           {summary?.length && shown >= total && phase !== 'thinking' ? <View style={s.summary} accessibilityLabel={`Resumen: ${summary.join('. ')}`}>
             <Text style={[s.summaryTitle, { fontSize: lineSize * 0.8 }]}>📝 Resumen</Text>
             {summary.map((line, i) => <Text key={i} style={[s.summaryLine, { fontSize: lineSize * 0.66 }]}>• {line}</Text>)}
           </View> : null}
           {children}
         </View>
+        <ZoomView zoomed={zoomed} onClose={() => setZoomed(null)} />
         <View style={s.tray}><View style={[s.marker, { backgroundColor: '#2C60AE' }]} /><View style={[s.marker, { backgroundColor: colors.coral }]} /><View style={[s.marker, { backgroundColor: colors.leafDeep }]} /><View style={s.eraser} /></View>
       </View>
       <Animated.View pointerEvents="none" style={[s.walker, { width: size, top: wide ? 18 : 6 }, walker]}>
@@ -127,6 +138,7 @@ const s = StyleSheet.create({
   child: { fontFamily: handwritingFont, color: '#2C60AE' },
   line: { fontFamily: handwritingFont, color: colors.ink },
   firstLine: { color: '#1F4F95' },
+  zoomHint: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.inkMuted, textAlign: 'center', marginTop: 4 },
   summary: { backgroundColor: '#E4F4EE', borderRadius: 12, padding: 14, gap: 4, borderWidth: 2, borderColor: colors.leaf },
   summaryTitle: { fontFamily: handwritingFont, color: colors.leafDeep },
   summaryLine: { fontFamily: handwritingFont, color: colors.ink },

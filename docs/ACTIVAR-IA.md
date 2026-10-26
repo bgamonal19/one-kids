@@ -65,3 +65,7 @@ Sin la tabla, el tutor sigue funcionando sin contador y el modo libre no se pued
 ## Voces naturales del tutor
 
 En la web, el botón **🗣️ Cambiar voz** del tutor ofrece voces naturales generadas por OpenAI (`gpt-4o-mini-tts`, ruta `/api/tts`) además de las voces del dispositivo (solo voces cálidas; por defecto "Marina", la más natural). Usan la misma `OPENAI_API_KEY`, no necesitan configuración extra y cuentan en el límite mensual de la familia (cada respuesta leída equivale aproximadamente a una consulta). Si la voz natural falla o no hay cuenta, el tutor lee con la mejor voz en español del dispositivo. Opcional: `OPENAI_TTS_MODEL` para cambiar el modelo. En la app nativa (EAS) por ahora se usan solo las voces del dispositivo.
+
+## Fotos reales y bocetos en la pizarra
+
+Cuando el tutor propone imágenes, el servidor busca la foto principal del artículo de Wikipedia (primero en español, luego en inglés, solo con licencia libre) y la app la pega en la pizarra; al tocarla se ve en grande con el enlace a Wikipedia. No necesita claves. En modo libre o con «Dibújamelo» el tutor puede hacer bocetos de hasta 80 formas, que también se amplían al tocarlos.

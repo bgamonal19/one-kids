@@ -2,6 +2,7 @@ import { runTutor, tutorStatus, TutorError } from '../server/tutor-core.mjs';
 import { AccountError, bearerToken, verifyUser } from '../server/account-core.mjs';
 import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
 import { addUsage, getUsage, saveSettings, validateSettings } from '../server/usage-core.mjs';
+import { findPhotos } from '../server/photos-core.mjs';
 
 const requests = new Map();
 // TUTOR_REQUIRE_ACCOUNT=true limits the AI to signed-in families (the demo keeps practice mode).
@@ -61,9 +62,11 @@ export async function POST(request) {
     if (body?.mode === 'open' && !usage?.openMode) throw new TutorError('El modo libre lo activa un adulto desde el panel de padres.', 403);
     if (usage && usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
     const { tokens, ...result } = await runTutor(body, process.env);
+    // Real photos for the board; a lookup failure only leaves the search labels.
+    const photos = result.images?.length ? await findPhotos(result.images).catch(() => []) : [];
     let account = usage;
     if (user && usage) account = { ...usage, used: (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens };
-    return json({ ...result, account }, 200, origin);
+    return json({ ...result, photos, account }, 200, origin);
   } catch (error) {
     if (error instanceof OriginError) return json({ error: error.message }, 403);
     const known = error instanceof TutorError || error instanceof AccountError;
