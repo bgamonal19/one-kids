@@ -47,7 +47,7 @@ test('sketches support ellipses, open curves and up to 80 shapes when asked', ()
 test('free mode asks for rich answers, Wikipedia photos and detailed sketches with more room', async () => {
   let body;
   const fetcher = async (url, init) => { body = JSON.parse(init.body); return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Hola', board: ['Hola'] }) }] }] }); };
-  await runTutor({ ageBand: '7-9', message: 'muéstrame un tigre', mode: 'open' }, { OPENAI_API_KEY: 'k' }, fetcher);
+  await runTutor({ ageBand: '7-9', message: 'muéstrame un tigre', mode: 'open', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher);
   assert.equal(body.max_output_tokens, 4000);
   assert.match(body.instructions, /Wikipedia/);
   assert.match(body.instructions, /"picture":null/);

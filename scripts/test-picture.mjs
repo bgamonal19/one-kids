@@ -31,15 +31,20 @@ test('runPicture reports missing key and provider errors', async () => {
   await assert.rejects(runPicture({ prompt: 'A frog' }, { OPENAI_API_KEY: 'k' }, async () => new Response('no', { status: 400 })), e => e.status === 502);
 });
 
-test('only free mode replies carry a picture request', async () => {
-  const fetcher = async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Aquí tienes una rana', board: ['Rana'], picture: { prompt: 'A frog', label: 'Rana' } }) }] }] });
-  const open = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', mode: 'open' }, { OPENAI_API_KEY: 'k' }, fetcher);
-  assert.deepEqual(open.picture, { prompt: 'A frog', label: 'Rana', style: 'photo' });
-  const tutor = await runTutor({ ageBand: '7-9', message: 'dibújame una rana' }, { OPENAI_API_KEY: 'k' }, fetcher);
-  assert.equal(tutor.picture, null);
+test('picture requests appear only when the server enables them, in both modes', async () => {
+  let instructions;
+  const fetcher = async (url, init) => { instructions = JSON.parse(init.body).instructions; return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Aquí tienes una rana', board: ['Rana'], picture: { prompt: 'A frog', label: 'Rana' } }) }] }] }); };
+  const tutor = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher);
+  assert.deepEqual(tutor.picture, { prompt: 'A frog', label: 'Rana', style: 'photo' });
+  assert.match(instructions, /No le pidas que lo dibuje él/);
+  const open = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', mode: 'open', pictures: true }, { OPENAI_API_KEY: 'k' }, fetcher);
+  assert.equal(open.picture.prompt, 'A frog');
+  const off = await runTutor({ ageBand: '7-9', message: 'dibújame una rana', mode: 'open' }, { OPENAI_API_KEY: 'k' }, fetcher);
+  assert.equal(off.picture, null);
+  assert.doesNotMatch(instructions, /"picture":null/);
 });
 
-test('the picture endpoint is refused without free mode', async () => {
+test('the picture endpoint is refused without a metered family account', async () => {
   const response = await POST(new Request('https://app.test/api/tutor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ picture: { prompt: 'A frog' } }) }));
   assert.equal(response.status, 403);
 });
