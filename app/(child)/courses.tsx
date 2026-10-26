@@ -7,6 +7,7 @@ import { Screen } from '@/components/Screen';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 import { slotLabel } from '@/lib/school-calendar';
+import { courseProgress } from '@/lib/study-plan';
 import type { CourseLink } from '@/lib/types';
 
 const LINK_OPTIONS: { id: CourseLink; label: string }[] = [
@@ -48,7 +49,7 @@ export default function CoursesScreen() {
   return (
     <Screen scroll>
       <Text style={styles.title}>📚 Cursos</Text>
-      <Text style={styles.sub}>Toca un curso para empezar. En «Perfil» pones profesor, número de referencia y horario.</Text>
+      <Text style={styles.sub}>Toca un curso para empezar. En «📖 Estudiar» avanzas con los temas del año y en «Perfil» pones profesor, número de referencia y horario.</Text>
       <PrimaryButton label="🗓️ Ver rol semanal" variant="secondary" onPress={() => router.push('/(child)/schedule')} style={{ marginBottom: spacing.sm }} />
 
       <PrimaryButton
@@ -114,6 +115,7 @@ export default function CoursesScreen() {
                   {c.desc ? <Text style={styles.cardDesc}>{c.desc}</Text> : null}
                   {c.teacher || c.reference ? <Text style={styles.cardMeta}>{[c.teacher && `👩‍🏫 ${c.teacher}`, c.reference && `N.º ${c.reference}`].filter(Boolean).join(' · ')}</Text> : null}
                   {c.schedule?.length ? <Text style={styles.cardMeta}>🗓️ {c.schedule.map(slotLabel).join(' · ')}</Text> : null}
+                  {c.topics?.length ? <Text style={styles.cardMeta}>📖 {courseProgress(c).done}/{c.topics.length} temas del año</Text> : null}
                   {href ? (
                     <View style={styles.play}><Text style={styles.playText}>▶ Jugar</Text></View>
                   ) : (
@@ -122,6 +124,9 @@ export default function CoursesScreen() {
                 </View>
               </Pressable>
               <View style={{ gap: 8 }}>
+              <Pressable onPress={() => router.push({ pathname: '/(child)/study/[id]', params: { id: c.id } })} accessibilityRole="button" accessibilityLabel={`Modo estudio de ${c.title}`} hitSlop={6} style={styles.profileBtn}>
+                <Text style={styles.profileText}>📖 Estudiar</Text>
+              </Pressable>
               <Pressable onPress={() => router.push({ pathname: '/(child)/course/[id]', params: { id: c.id } })} accessibilityRole="button" accessibilityLabel={`Perfil del curso ${c.title}`} hitSlop={6} style={styles.profileBtn}>
                 <Text style={styles.profileText}>Perfil</Text>
               </Pressable>

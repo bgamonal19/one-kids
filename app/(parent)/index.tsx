@@ -6,10 +6,12 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BrandMark } from '@/components/BrandMark';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
+import { ParentReport } from '@/components/ParentReport';
 import { TutorParentSettings } from '@/components/TutorParentSettings';
 import { AGE_OPTIONS, getAgeProfile } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
+import { courseProgress } from '@/lib/study-plan';
 
 export default function ParentHome() {
   const { state, allTasksDone, updateChildAge, accountMode, refreshFamily, logout, deleteAccount, addChild, switchChild } = useFamily();
@@ -55,8 +57,8 @@ export default function ParentHome() {
   return (
     <Screen scroll>
       <BrandMark size="nav" />
-      <Text style={styles.title}>Panel de padres</Text>
-      <Text style={styles.hint}>Hola {state.parent?.name}. Controlas edad, tareas y enfoque.</Text>
+      <Text style={styles.title}>Perfil de padres</Text>
+      <Text style={styles.hint}>Hola {state.parent?.name}. Aquí supervisas tareas y temario, pides resúmenes al tutor y controlas edad y enfoque.</Text>
 
       <View style={styles.stat}>
         <Text style={styles.statLabel}>{accountMode === 'demo' ? 'Cuenta de demostración' : 'Tu cuenta'}</Text>
@@ -112,6 +114,20 @@ export default function ParentHome() {
               </Pressable>
             ))}
           </View>
+        </View>
+      ) : null}
+
+      {child ? <ParentReport /> : null}
+
+      {child ? (
+        <View style={styles.stat}>
+          <Text style={styles.statLabel}>Avance del temario</Text>
+          {state.courses.filter((c) => c.topics?.length).map((c) => {
+            const p = courseProgress(c);
+            return <Text key={c.id} style={styles.statSub}>📚 {c.title}: {p.done}/{p.total} temas{p.current ? ` · ahora: ${p.current.title}` : ' · ¡terminado!'}</Text>;
+          })}
+          {!state.courses.some((c) => c.topics?.length) ? <Text style={styles.statSub}>Todavía no subiste temas. Hazlo en la pestaña Cursos.</Text> : null}
+          <PrimaryButton label="Subir temas del año" variant="secondary" onPress={() => router.push('/(parent)/courses')} />
         </View>
       ) : null}
 

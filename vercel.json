@@ -10,6 +10,9 @@
     },
     "api/tts.mjs": {
       "maxDuration": 30
+    },
+    "api/study.mjs": {
+      "maxDuration": 60
     }
   }
 }
