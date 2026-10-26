@@ -46,7 +46,7 @@ test('TUTOR_REQUIRE_ACCOUNT blocks anonymous AI requests before reading the body
   Object.assign(process.env, env, { TUTOR_REQUIRE_ACCOUNT: 'true', OPENAI_API_KEY: '' , ANTHROPIC_API_KEY: '' });
   globalThis.fetch = auth();
   try {
-    assert.equal((await tutorGET(new Request('https://one-kids.vercel.app/api/tutor')).json()).accountRequired, true);
+    assert.equal((await (await tutorGET(new Request('https://one-kids.vercel.app/api/tutor'))).json()).accountRequired, true);
     const body = JSON.stringify({ ageBand: '7-9', message: '8 + 3' });
     const anonymous = await tutorPOST(new Request('https://one-kids.vercel.app/api/tutor', { method: 'POST', body, headers: { 'content-type': 'application/json' } }));
     assert.equal(anonymous.status, 401);

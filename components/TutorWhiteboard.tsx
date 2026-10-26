@@ -17,6 +17,8 @@ type Props = {
   lines: string[];
   childLine?: string;
   visual?: BoardVisual | null;
+  /** Shown once the page is written: what the child and tutor did on this topic. */
+  summary?: string[];
   /** Milliseconds per written character, so the writing roughly follows the voice. */
   pace: number;
   expression: ExpressionId;
@@ -30,7 +32,7 @@ type Props = {
 
 export const handwritingFont = 'PatrickHand_400Regular';
 
-export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
+export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, summary, pace, expression, bubble, width, minHeight = 200, onWritten, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const wide = width >= 700;
@@ -99,6 +101,10 @@ export function TutorWhiteboard({ phase, pageKey, lines, childLine, visual, pace
             ) : null)}
           </View>
           {visual && drawn > 0 ? <BoardVisualView visual={visual} drawn={drawn} width={innerWidth} drawing={phase === 'writing' && drawn < steps} /> : null}
+          {summary?.length && shown >= total && phase !== 'thinking' ? <View style={s.summary} accessibilityLabel={`Resumen: ${summary.join('. ')}`}>
+            <Text style={[s.summaryTitle, { fontSize: lineSize * 0.8 }]}>📝 Resumen</Text>
+            {summary.map((line, i) => <Text key={i} style={[s.summaryLine, { fontSize: lineSize * 0.66 }]}>• {line}</Text>)}
+          </View> : null}
           {children}
         </View>
         <View style={s.tray}><View style={[s.marker, { backgroundColor: '#2C60AE' }]} /><View style={[s.marker, { backgroundColor: colors.coral }]} /><View style={[s.marker, { backgroundColor: colors.leafDeep }]} /><View style={s.eraser} /></View>
@@ -121,6 +127,9 @@ const s = StyleSheet.create({
   child: { fontFamily: handwritingFont, color: '#2C60AE' },
   line: { fontFamily: handwritingFont, color: colors.ink },
   firstLine: { color: '#1F4F95' },
+  summary: { backgroundColor: '#E4F4EE', borderRadius: 12, padding: 14, gap: 4, borderWidth: 2, borderColor: colors.leaf },
+  summaryTitle: { fontFamily: handwritingFont, color: colors.leafDeep },
+  summaryLine: { fontFamily: handwritingFont, color: colors.ink },
   lineRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
   walker: { position: 'absolute', right: 0, alignItems: 'center' },
   bubble: { backgroundColor: colors.white, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 2, borderWidth: 1, borderColor: '#D8E5EF' },

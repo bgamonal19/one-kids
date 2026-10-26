@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanImages, cleanVisual, deriveBoard, runTutor, tutorStatus, validateTutorRequest, TutorError } from '../server/tutor-core.mjs';
 import { GET, POST, OPTIONS } from '../api/tutor.mjs';
+import { addUsage, currentMonth, getUsage, validateSettings } from '../server/usage-core.mjs';
 const env = { OPENAI_API_KEY: 'test-openai', ANTHROPIC_API_KEY: 'test-anthropic' };
 const image = 'data:image/jpeg;base64,/9j/2Q==';
 const request = { ageBand: '7-9', action: 'help', message: '8 + 3', history: [] };
@@ -131,9 +132,9 @@ test('history is bounded and cannot supply system messages', () => {
   assert.equal(result.history[0].content.length, 2500);
 });
 test('HTTP health and CORS reject unrelated origins', async () => {
-  const response = GET(new Request('https://one-kids.vercel.app/api/tutor'));
+  const response = await GET(new Request('https://one-kids.vercel.app/api/tutor'));
   assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.equal(GET(new Request('https://one-kids.vercel.app/api/tutor', { headers: { origin: 'https://unrelated.example' } })).status, 403);
+  assert.equal((await GET(new Request('https://one-kids.vercel.app/api/tutor', { headers: { origin: 'https://unrelated.example' } }))).status, 403);
   assert.equal(OPTIONS(new Request('https://one-kids.vercel.app/api/tutor', { method: 'OPTIONS', headers: { origin: 'https://one-kids.vercel.app' } })).status, 204);
 });
 test('HTTP rejects malformed JSON and unsupported content before calling AI', async () => {
@@ -210,4 +211,33 @@ test('the daily board history keeps each day apart, caps its size and forgets ol
   assert.equal(history['2026-10-25'].length, 80); assert.equal(history['2026-10-25'].at(-1).id, 'e89');
   for (let d = 1; d <= 20; d++) history = addEntry(history, { id: `d${d}`, at: '', lines: [], reply: 'x' }, `2026-09-${String(d).padStart(2, '0')}`);
   assert.equal(Object.keys(history).length, 14); assert.ok(history['2026-10-25']); assert.ok(!history['2026-09-01']);
+});
+
+test('tutor mode explains first and closes topics with a summary; open mode is a different assistant', async () => {
+  let prompt;
+  const result = await runTutor({ ...request, provider: 'openai' }, env, async (_, options) => { prompt = JSON.parse(options.body).instructions; return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ ...answer, summary: [' Sumamos 8 + 3 ', '', 'Contamos hacia delante'] }) }] }], usage: { total_tokens: 812 } }); });
+  assert.match(prompt, /Primero EXPLICA/); assert.doesNotMatch(prompt, /MODO LIBRE/);
+  assert.deepEqual(result.summary, ['Sumamos 8 + 3', 'Contamos hacia delante']); assert.equal(result.tokens, 812);
+  await runTutor({ ...request, provider: 'anthropic', mode: 'open' }, env, async (_, options) => { prompt = JSON.parse(options.body).system; return Response.json({ content: [{ type: 'text', text: JSON.stringify(answer) }], usage: { input_tokens: 10, output_tokens: 5 } }); });
+  assert.match(prompt, /MODO LIBRE/);
+});
+test('monthly usage resets each month, only accepts known limits and adds tokens through the database function', async () => {
+  const supa = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_test' };
+  assert.equal(await getUsage('u1', {}), null);
+  const old = await getUsage('u1', supa, async () => Response.json([{ open_mode: true, monthly_limit: 1000000, usage_month: '2000-01', used_tokens: 999 }]));
+  assert.deepEqual(old, { openMode: true, limit: 1000000, used: 0, month: currentMonth() });
+  const now = await getUsage('u1', supa, async () => Response.json([{ open_mode: false, monthly_limit: 42, usage_month: currentMonth(), used_tokens: 500 }]));
+  assert.equal(now.used, 500); assert.equal(now.limit, 300000);
+  assert.equal(await getUsage('u1', supa, async () => new Response('', { status: 404 })), null);
+  let sent;
+  assert.equal(await addUsage('u1', 120.4, supa, async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return Response.json(620); }), 620);
+  assert.match(sent.url, /rpc\/tutor_add_usage$/); assert.deepEqual(sent.body, { p_user: 'u1', p_month: currentMonth(), p_tokens: 120 });
+  assert.deepEqual(validateSettings({ openMode: true, monthlyLimit: 1000000 }), { open_mode: true, monthly_limit: 1000000 });
+  assert.equal(validateSettings({ monthlyLimit: 5 }), null); assert.equal(validateSettings({}), null);
+});
+test('open mode and settings need a signed-in family account', async () => {
+  const post = body => POST(new Request('https://one-kids.vercel.app/api/tutor', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', 'x-real-ip': `test-${Math.random()}` } }));
+  const open = await post({ ...request, mode: 'open' });
+  assert.equal(open.status, 403); assert.match((await open.json()).error, /padres/);
+  assert.equal((await post({ settings: { openMode: true } })).status, 401);
 });
