@@ -7,6 +7,7 @@ import { HandwritingPad, type HandwritingPadHandle, type Stroke } from '@/compon
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { TaskCamera, type TaskPhoto } from '@/components/TaskCamera';
+import { TutorUsageBar } from '@/components/TutorUsageBar';
 import { TutorWhiteboard, type BoardPhase } from '@/components/TutorWhiteboard';
 import { useCompanionReaction } from '@/hooks/useCompanionReaction';
 import { useSpeechInput } from '@/hooks/useSpeechInput';
@@ -14,7 +15,7 @@ import { useTutorSpeech } from '@/hooks/useTutorSpeech';
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { askTutor, getTutorStatus, type BoardVisual, type ImageSearch, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
+import { askTutor, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
 import { addEntry, dayKey, dayLabel, loadHistory, saveHistory, type TutorHistory } from '@/lib/tutor-history';
 import type { TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
@@ -23,7 +24,7 @@ type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
 type Photo = { uri: string; data: string };
 type Answer = { handwriting?: string; childLine?: string };
 type Retry = { message: string; action: TutorAction; exercise: string; fresh: boolean; answer: Answer };
-type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; review?: string };
+type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[]; summary?: string[]; review?: string };
 type InputMode = 'pen' | 'keys' | 'voice';
 const uid = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const labels = { openai: 'OpenAI', anthropic: 'Claude · Anthropic', local: 'Práctica sin IA' };
@@ -36,9 +37,10 @@ const actionMessages = {
   map: 'Hazme un mapa conceptual de este tema.',
   draw: 'Dibújamelo en la pizarra.',
   images: '¿Qué imágenes puedo buscar para entenderlo mejor?',
+  summary: 'Hazme un resumen de lo que hicimos.',
 } as const;
-const actionLines = { continue: 'Ya entendí 👍', simpler: 'Más fácil, por favor', example: 'Otro ejemplo', hint: 'Una pista', more: 'Cuéntame más', map: 'Un mapa conceptual', draw: 'Dibújamelo', images: 'Quiero ver imágenes' } as const;
-const actionButtons = { continue: 'Ya entendí · Seguir →', simpler: 'Más fácil', example: 'Otro ejemplo', hint: 'Una pista', more: '📚 Cuéntame más', map: '🗺️ Mapa conceptual', draw: '✏️ Dibújamelo', images: '🖼️ Imágenes' } as const;
+const actionLines = { continue: 'Ya entendí 👍', simpler: 'Más fácil, por favor', example: 'Otro ejemplo', hint: 'Una pista', more: 'Cuéntame más', map: 'Un mapa conceptual', draw: 'Dibújamelo', images: 'Quiero ver imágenes', summary: 'Un resumen' } as const;
+const actionButtons = { continue: 'Ya entendí · Seguir →', simpler: 'Más fácil', example: 'Otro ejemplo', hint: 'Una pista', more: '📚 Cuéntame más', map: '🗺️ Mapa conceptual', draw: '✏️ Dibújamelo', images: '🖼️ Imágenes', summary: '📝 Resumen' } as const;
 // Wikimedia Commons: free, educational pictures; the link is built here from the AI's search words.
 const imageSearchUrl = (query: string) => `https://commons.wikimedia.org/w/index.php?search=${encodeURIComponent(query)}&title=Special:MediaSearch&type=image`;
 const penColors = ['#1F3A5F', '#2C60AE', '#E2553A', '#23935F'] as const;
@@ -48,6 +50,10 @@ export default function TutorScreen() {
   const age = state.child?.age ?? 8;
   const band = getAgeBand(age);
   const [status, setStatus] = useState<TutorStatus | null>(null);
+  // Parent settings and monthly usage; the open mode only shows when a parent enabled it.
+  const [account, setAccount] = useState<TutorAccount | null>(null);
+  const [tutorMode, setTutorMode] = useState<'tutor' | 'open'>('tutor');
+  const openMode = tutorMode === 'open' && Boolean(account?.openMode);
   const [connectionError, setConnectionError] = useState('');
   const [provider, setProvider] = useState<TutorProvider>('auto');
   const greeting = `¡Hola${state.child?.name ? `, ${state.child.name}` : ''}!`;
@@ -91,7 +97,7 @@ export default function TutorScreen() {
   const refreshConnection = useCallback(async () => {
     try {
       const next = await getTutorStatus();
-      if (alive.current) { setStatus(next); setConnectionError(''); }
+      if (alive.current) { setStatus(next); setAccount(next.account ?? null); setConnectionError(''); }
     } catch {
       if (alive.current) { setStatus(null); setConnectionError('No pudimos comprobar la conexión.'); }
     }
@@ -99,7 +105,7 @@ export default function TutorScreen() {
   useEffect(() => {
     alive.current = true;
     void getTutorStatus().then(next => {
-      if (alive.current) { setStatus(next); setConnectionError(''); }
+      if (alive.current) { setStatus(next); setAccount(next.account ?? null); setConnectionError(''); }
     }).catch(() => {
       if (alive.current) setConnectionError('No pudimos comprobar la conexión.');
     });
@@ -169,7 +175,7 @@ export default function TutorScreen() {
   const remember = (next: Page) => {
     if (!next.reply) return;
     setHistory(current => {
-      const updated = addEntry(current, { id: next.key, at: new Date().toISOString(), childLine: next.childLine, lines: next.lines, reply: next.reply ?? '', visual: next.visual, images: next.images });
+      const updated = addEntry(current, { id: next.key, at: new Date().toISOString(), childLine: next.childLine, lines: next.lines, reply: next.reply ?? '', visual: next.visual, images: next.images, summary: next.summary });
       void saveHistory(childId, updated);
       return updated;
     });
@@ -204,7 +210,7 @@ export default function TutorScreen() {
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     const previous = fresh ? messages.filter(m => m.id === 'welcome') : messages;
     try {
-      const result = await askTutor({ ageBand: band, childName: '', message: message.trim(), handwriting: answer.handwriting, action, provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })) });
+      const result = await askTutor({ ageBand: band, childName: '', message: message.trim(), handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })) });
       if (!alive.current) return;
       const heard = answer.handwriting ? result.heard?.trim() || '(no se pudo leer)' : '';
       const reply: Message = { id: uid(), role: 'tutor', text: result.reply, source: result.source };
@@ -212,7 +218,8 @@ export default function TutorScreen() {
       setInput(''); setExercise(confirmedExercise);
       if (answer.handwriting) pad.current?.clear();
       if (fresh) { setPhoto(null); setTranscript(null); setNeedsRetake(false); }
-      const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images };
+      const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images, summary: result.summary };
+      if (result.account) setAccount(result.account);
       present(next); remember(next);
       if (action === 'hint') react('hint', 6000, 'explain');
       if (result.source === 'local') setStatus({ configured: false, providers: [], vision: false });
@@ -258,11 +265,11 @@ export default function TutorScreen() {
   const review = (entry: TutorHistory[string][number]) => {
     turn.current.generation++;
     void stop().catch(() => {});
-    setPage({ key: `review-${entry.id}`, review: entry.id, lines: entry.lines, childLine: entry.childLine, reply: entry.reply, replyId: entry.id, visual: entry.visual, images: entry.images });
+    setPage({ key: `review-${entry.id}`, review: entry.id, lines: entry.lines, childLine: entry.childLine, reply: entry.reply, replyId: entry.id, visual: entry.visual, images: entry.images, summary: entry.summary });
     setPhase('turn'); react('listen');
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
   };
-  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
+  const board = (full: boolean) => <TutorWhiteboard phase={phase} pageKey={page.key} lines={page.lines} childLine={page.childLine} visual={page.visual} summary={page.summary} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onWritten={onWritten}>
     {mode === 'pen' || full ? answerPad(full) : null}
   </TutorWhiteboard>;
 
@@ -287,6 +294,10 @@ export default function TutorScreen() {
       </View>
       <View style={styles.column}>
 
+      {account?.openMode ? <View style={styles.modes} accessibilityRole="tablist">
+        {([['tutor', '🎓 Tutor de tareas'], ['open', '💬 Modo libre']] as const).map(([id, label]) => <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tutorMode === id }} onPress={() => setTutorMode(id)} style={[styles.mode, tutorMode === id && styles.modeOn]}><Text style={[styles.modeText, tutorMode === id && styles.modeTextOn]}>{label}</Text></Pressable>)}
+      </View> : null}
+      {account ? <TutorUsageBar account={account} compact /> : null}
       <View style={styles.modes} accessibilityRole="tablist">
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>
@@ -325,7 +336,7 @@ export default function TutorScreen() {
       {error ? <View style={styles.errorBox}><Text accessibilityRole="alert" style={styles.error}>{error}</Text>{retry ? <PrimaryButton label="Reintentar" variant="secondary" disabled={Boolean(loading)} onPress={() => void send(retry.message, retry.action, retry.exercise, retry.fresh, retry.answer)} /> : null}</View> : null}
 
       {hasExplanation && !photo ? <View style={styles.wrap}>
-        {(['continue', 'simpler', 'example', 'hint', 'more', 'map', 'draw', 'images'] as const).map(id => <Pressable key={id} accessibilityRole="button" disabled={Boolean(loading)} onPress={() => void send(actionMessages[id], id, exercise, false, { childLine: actionLines[id] })} style={[styles.chip, id === 'continue' && styles.chipMain, Boolean(loading) && styles.dim]}><Text style={[styles.chipText, id === 'continue' && styles.sendText]}>{actionButtons[id]}</Text></Pressable>)}
+        {(['continue', 'simpler', 'example', 'hint', 'more', 'map', 'draw', 'images', 'summary'] as const).map(id => <Pressable key={id} accessibilityRole="button" disabled={Boolean(loading)} onPress={() => void send(actionMessages[id], id, exercise, false, { childLine: actionLines[id] })} style={[styles.chip, id === 'continue' && styles.chipMain, Boolean(loading) && styles.dim]}><Text style={[styles.chipText, id === 'continue' && styles.sendText]}>{actionButtons[id]}</Text></Pressable>)}
       </View> : null}
 
       {photo ? <View style={styles.photoCard}>

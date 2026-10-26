@@ -3,7 +3,10 @@ import type { AgeBand } from './ages';
 import { getAccessToken, getTutorEndpoint as getSupabaseEndpoint } from './supabase';
 
 export type TutorProvider = 'auto' | 'openai' | 'anthropic';
-export type TutorAction = 'help' | 'read' | 'continue' | 'simpler' | 'example' | 'hint' | 'more' | 'map' | 'draw' | 'images';
+export type TutorAction = 'help' | 'read' | 'continue' | 'simpler' | 'example' | 'hint' | 'more' | 'map' | 'draw' | 'images' | 'summary';
+/** Parent settings and this month's AI usage for a signed-in family (tokens). */
+export type TutorAccount = { openMode: boolean; limit: number; used: number; month: string };
+export const TUTOR_LIMITS = [100_000, 300_000, 1_000_000, 3_000_000] as const;
 export type SketchColor = 'black' | 'blue' | 'red' | 'green' | 'orange' | 'yellow' | 'brown' | 'purple';
 type ShapeStyle = { color: SketchColor; fill: boolean };
 /** Shapes on a 0–100 grid, already sanitized by the server. */
@@ -26,6 +29,8 @@ export type TutorRequest = {
   /** The child's answer drawn on the whiteboard, as a small PNG/JPEG data URL. */
   handwriting?: string;
   action?: TutorAction;
+  /** 'open' is the free assistant a parent enabled; the server checks it. */
+  mode?: 'tutor' | 'open';
   provider?: TutorProvider;
   history?: { role: 'tutor' | 'child'; text: string }[];
 };
@@ -39,11 +44,14 @@ export type TutorResponse = {
   images?: ImageSearch[];
   /** What the AI read from a handwritten answer. */
   heard?: string;
+  /** What was done, sent when a topic or exercise is finished. */
+  summary?: string[];
+  account?: TutorAccount | null;
   source: 'openai' | 'anthropic' | 'local';
   transcription?: string;
   needsRetake?: boolean;
 };
-export type TutorStatus = { configured: boolean; providers: ('openai' | 'anthropic')[]; vision: boolean; accountRequired?: boolean };
+export type TutorStatus = { configured: boolean; providers: ('openai' | 'anthropic')[]; vision: boolean; accountRequired?: boolean; account?: TutorAccount | null };
 
 export function tutorEndpoint(): string | null {
   return process.env.EXPO_PUBLIC_TUTOR_API_URL || (Platform.OS === 'web' ? '/api/tutor' : getSupabaseEndpoint());
@@ -113,4 +121,15 @@ export async function askTutor(req: TutorRequest): Promise<TutorResponse> {
   if (!response.ok) throw new Error(data.error || 'El tutor no pudo responder. Inténtalo de nuevo.');
   if (typeof data.reply !== 'string' || !['openai', 'anthropic'].includes(data.source)) throw new Error('El servicio del tutor necesita actualizarse.');
   return data;
+}
+
+export async function saveTutorSettings(settings: { openMode?: boolean; monthlyLimit?: number }): Promise<TutorAccount | null> {
+  const endpoint = tutorEndpoint();
+  if (!endpoint) throw new Error('El tutor no está conectado.');
+  let response;
+  try { response = await fetch(endpoint, { method: 'POST', headers: await headers(), body: JSON.stringify({ settings }), signal: AbortSignal.timeout(15_000) }); }
+  catch { throw new Error('No se pudo conectar. Inténtalo de nuevo.'); }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'No se pudo guardar el ajuste.');
+  return data.account ?? null;
 }

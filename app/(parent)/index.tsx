@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BrandMark } from '@/components/BrandMark';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
+import { TutorParentSettings } from '@/components/TutorParentSettings';
 import { AGE_OPTIONS, getAgeProfile } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
@@ -113,6 +114,8 @@ export default function ParentHome() {
           </View>
         </View>
       ) : null}
+
+      <TutorParentSettings />
 
       <View style={styles.stat}>
         <Text style={styles.statLabel}>Modo enfoque</Text>

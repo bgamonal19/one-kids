@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BoardVisual, ImageSearch } from './tutor';
 
 /** One board the tutor wrote, kept on this device so the child can review the day. */
-export type HistoryEntry = { id: string; at: string; childLine?: string; lines: string[]; reply: string; visual?: BoardVisual | null; images?: ImageSearch[] };
+export type HistoryEntry = { id: string; at: string; childLine?: string; lines: string[]; reply: string; visual?: BoardVisual | null; images?: ImageSearch[]; summary?: string[] };
 export type TutorHistory = Record<string, HistoryEntry[]>;
 
 const KEEP_DAYS = 14;

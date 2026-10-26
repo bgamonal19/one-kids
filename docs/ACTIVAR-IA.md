@@ -50,3 +50,14 @@ Después, en la app: Tutor → foto de un ejercicio escrito a mano → revisar l
 ## Apagar la IA en una emergencia
 
 Pon `TUTOR_DISABLED=true` y vuelve a desplegar. El tutor pasa a «Modo práctica» sin borrar las claves.
+
+## Modo libre y límite de consumo
+
+El panel de padres (protegido con el PIN) tiene la tarjeta **Tutor IA**: barra de consumo del mes, interruptor **Modo libre** (el tutor responde a cualquier petición apta para niños, como un asistente tipo ChatGPT) y límite mensual. El servidor cuenta los tokens que devuelve OpenAI/Anthropic por cuenta familiar y bloquea el tutor al llegar al límite; el contador vuelve a cero cada mes.
+
+Para activarlo, una sola vez:
+
+1. Supabase → *SQL Editor* → pega `supabase/migrations/20261026_tutor_usage.sql` → **Run**.
+2. Comprueba que `SUPABASE_SECRET_KEY` sigue en las variables de Production de Vercel (ya se usa para borrar cuentas).
+
+Sin la tabla, el tutor sigue funcionando sin contador y el modo libre no se puede activar (el panel lo indica). Solo funciona con cuentas reales, no en el modo demo.
