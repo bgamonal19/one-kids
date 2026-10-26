@@ -19,8 +19,10 @@ import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type TutorPhoto, type PictureRequest, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
 import { addEntry, dayKey, dayLabel, loadHistory, saveHistory, type TutorHistory } from '@/lib/tutor-history';
-import type { TutorMessage } from '@/lib/types';
+import type { CourseItem, TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
+import { useLocalSearchParams } from 'expo-router';
+import { addMemory, courseEntries, readCourseMemory, saveCourseMemory, type CourseMemory } from '@/lib/course-memory';
 
 type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
 type Photo = { uri: string; data: string };
@@ -46,11 +48,25 @@ const actionButtons = { continue: 'Ya entendí · Seguir →', simpler: 'Más f�
 // Wikimedia Commons: free, educational pictures; the link is built here from the AI's search words.
 const imageSearchUrl = (query: string) => `https://commons.wikimedia.org/w/index.php?search=${encodeURIComponent(query)}&title=Special:MediaSearch&type=image`;
 const penColors = ['#1F3A5F', '#2C60AE', '#E2553A', '#23935F'] as const;
+// The year's syllabus a parent uploads in study mode, if the course has one.
+type Topic = { title: string; done?: boolean };
+function syllabusOf(course?: CourseItem) {
+  const topics = (course as (CourseItem & { topics?: Topic[] }) | undefined)?.topics;
+  if (!Array.isArray(topics) || !topics.length) return null;
+  const current = topics.find(t => !t.done);
+  return { current: current?.title ?? '', done: topics.filter(t => t.done).map(t => t.title), next: topics.filter(t => !t.done && t !== current).map(t => t.title) };
+}
 
 export default function TutorScreen() {
   const { state } = useFamily();
   const age = state.child?.age ?? 8;
   const band = getAgeBand(age);
+  // Study mode links here with ?course=<id>&topic=<title>.
+  const params = useLocalSearchParams<{ course?: string; topic?: string }>();
+  const [courseId, setCourseId] = useState(typeof params.course === 'string' ? params.course : '');
+  const course = state.courses.find(c => c.id === courseId);
+  const [courseMemory, setCourseMemory] = useState<CourseMemory>([]);
+  const topic = useRef('');
   const [status, setStatus] = useState<TutorStatus | null>(null);
   // Parent settings and monthly usage; the open mode only shows when a parent enabled it.
   const [account, setAccount] = useState<TutorAccount | null>(null);
@@ -180,6 +196,7 @@ export default function TutorScreen() {
   useEffect(() => {
     let active = true;
     void loadHistory(childId).then(saved => { if (active) setHistory(saved); });
+    void readCourseMemory(childId).then(saved => { if (active) setCourseMemory(saved); });
     return () => { active = false; };
   }, [childId]);
   const remember = (next: Page) => {
@@ -220,7 +237,8 @@ export default function TutorScreen() {
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     const previous = fresh ? messages.filter(m => m.id === 'welcome') : messages;
     try {
-      const result = await askTutor({ ageBand: band, childName: '', message: message.trim(), handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })) });
+      const result = await askTutor({ ageBand: band, age, childName: '', message: message.trim(), handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })),
+        ...(course ? { courseTitle: course.title, memory: courseEntries(courseMemory, course.id).map(({ at, topic: t, summary }) => ({ at, topic: t, summary })), syllabus: syllabusOf(course) } : {}) });
       if (!alive.current) return;
       const heard = answer.handwriting ? result.heard?.trim() || '(no se pudo leer)' : '';
       const reply: Message = { id: uid(), role: 'tutor', text: result.reply, source: result.source };
@@ -231,6 +249,7 @@ export default function TutorScreen() {
       const next: Page = { key: reply.id, lines: result.board?.length ? result.board : [result.reply], childLine: answer.handwriting ? `✏️ ${heard}` : childLine, reply: result.reply, replyId: reply.id, source: result.source, visual: result.visual, images: result.images, photos: result.photos, summary: result.summary };
       if (result.account) setAccount(result.account);
       present(next); remember(next);
+      if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
       // It is not kept in the day's history, so the device doesn't fill up with images.
       if (result.picture && account) void paint(next.key, result.picture);
@@ -239,6 +258,22 @@ export default function TutorScreen() {
     } catch (e) {
       if (alive.current) { setError(e instanceof Error ? e.message : 'No se pudo recibir la respuesta.'); setRetry({ message, action, exercise: confirmedExercise, fresh, answer }); setPage(previousPage); setPhase('turn'); react('retry'); }
     } finally { busy.current = false; if (alive.current) setLoading(null); }
+  };
+  // The course remembers each topic the child worked on and the tutor's summary of it.
+  const rememberCourse = (id: string, opening: string, summary: string[], reply: string) => {
+    if (opening) topic.current = opening.split('\n')[0].replace(/^Quiero estudiar el tema:\s*/i, '').trim().slice(0, 120);
+    if (!topic.current) return;
+    setCourseMemory(current => {
+      const known = current.find(m => m.courseId === id && m.topic.toLowerCase() === topic.current.toLowerCase());
+      const updated = addMemory(current, { at: new Date().toISOString(), courseId: id, topic: topic.current, summary: summary.join(' ') || known?.summary || reply.slice(0, 160) });
+      void saveCourseMemory(childId, updated);
+      return updated;
+    });
+  };
+  const chooseCourse = (id: string) => {
+    if (id === courseId || busy.current) return;
+    setCourseId(id); topic.current = '';
+    setMessages(current => current.filter(m => m.id === 'welcome')); setExercise('');
   };
   const paint = async (key: string, picture: PictureRequest) => {
     const drawingLabel = picture.label || 'tu imagen';
@@ -259,6 +294,14 @@ export default function TutorScreen() {
     if (!image) { setError('Escribe tu respuesta en la pizarra antes de enviarla.'); return; }
     await send('', 'help', exercise, false, { handwriting: image, childLine: '✏️ …' });
   };
+  // A topic opened from study mode starts the lesson by itself, once the course is loaded.
+  const opened = useRef(false);
+  useEffect(() => {
+    const wanted = typeof params.topic === 'string' ? params.topic.trim() : '';
+    if (opened.current || !wanted || (courseId && !course)) return;
+    opened.current = true;
+    void send(`Quiero estudiar el tema: ${wanted.slice(0, 200)}`);
+  }, [course]); // eslint-disable-line react-hooks/exhaustive-deps
   const listening = useSpeechInput(text => { setInput(text); void send(text); });
   const startListening = () => { void stop().catch(() => {}); listening.start(); react('listen'); };
   const hasExplanation = messages.some(m => m.source);
@@ -328,6 +371,16 @@ export default function TutorScreen() {
         {([['tutor', '🎓 Tutor de tareas'], ['open', '💬 Modo libre']] as const).map(([id, label]) => <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tutorMode === id }} onPress={() => setTutorMode(id)} style={[styles.mode, tutorMode === id && styles.modeOn]}><Text style={[styles.modeText, tutorMode === id && styles.modeTextOn]}>{label}</Text></Pressable>)}
       </View> : null}
       {account ? <TutorUsageBar account={account} compact /> : null}
+      {state.courses.length ? <View style={styles.courses}>
+        <Text style={styles.courseLabel}>📚 ¿De qué curso es?</Text>
+        <View style={styles.toolRow} accessibilityRole="tablist">
+          {[{ id: '', title: 'General', color: colors.inkMuted }, ...state.courses].map(c => <Pressable key={c.id || 'general'} accessibilityRole="tab" accessibilityState={{ selected: courseId === c.id }} disabled={Boolean(loading)} onPress={() => chooseCourse(c.id)} style={[styles.mode, styles.courseChip, courseId === c.id && styles.modeOn]}>
+            <View style={[styles.courseDot, { backgroundColor: c.color }]} />
+            <Text style={[styles.modeText, courseId === c.id && styles.modeTextOn]}>{c.title}</Text>
+          </Pressable>)}
+        </View>
+        {course ? <Text style={styles.hint}>{courseEntries(courseMemory, course.id).length ? `El tutor recuerda ${courseEntries(courseMemory, course.id, 30).length} ${courseEntries(courseMemory, course.id, 30).length === 1 ? 'tema' : 'temas'} de ${course.title} y explica a partir de ahí.` : `Lo que trabajes aquí se recordará para las próximas clases de ${course.title}.`}</Text> : null}
+      </View> : null}
       <View style={styles.modes} accessibilityRole="tablist">
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>
@@ -457,6 +510,10 @@ const styles = StyleSheet.create({
   fullHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   exitTool: { marginLeft: 'auto', backgroundColor: colors.white, borderWidth: 1, borderColor: '#CDDCE9' },
   modes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
+  courses: { gap: 8 },
+  courseLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  courseChip: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  courseDot: { width: 12, height: 12, borderRadius: 6 },
   mode: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, borderRadius: radii.pill, backgroundColor: colors.white, borderWidth: 1, borderColor: '#CDDCE9' },
   modeOn: { backgroundColor: '#2C60AE', borderColor: '#2C60AE' },
   modeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 15 },

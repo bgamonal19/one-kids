@@ -38,6 +38,12 @@ export type TutorRequest = {
   mode?: 'tutor' | 'open';
   provider?: TutorProvider;
   history?: { role: 'tutor' | 'child'; text: string }[];
+  /** Exact age: the level of detail grows every two years. */
+  age?: number;
+  /** The course this lesson belongs to, and what was already done in it. */
+  courseTitle?: string;
+  memory?: { at: string; topic: string; summary: string }[];
+  syllabus?: { current: string; done: string[]; next: string[] } | null;
 };
 export type TutorResponse = {
   reply: string;

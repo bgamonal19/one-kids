@@ -1,8 +1,10 @@
 import { openBrowserAsync } from 'expo-web-browser';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { ZoomIn } from 'react-native-reanimated';
+import { useState } from 'react';
 import { BoardVisualView, visualSteps } from './BoardVisual';
 import { WritingPencil } from './WritingPencil';
+import { printPicture } from '@/lib/print';
 import type { BoardVisual, TutorPhoto } from '@/lib/tutor';
 import { colors, fonts } from '@/constants/theme';
 
@@ -30,7 +32,7 @@ export function TapedPhotos({ photos, drawingLabel, width, onOpen }: { photos: T
           <Pressable accessibilityRole="imagebutton" accessibilityLabel={`${photo.label || photo.title || photo.query}. Toca para verla en grande`} onPress={() => onOpen(photo)}>
             <Image source={{ uri: photo.url }} resizeMode="cover" style={{ width: cardWidth - 16, height: (cardWidth - 16) * ratio, backgroundColor: '#EEF2F6' }} />
             <Text style={s.caption} numberOfLines={2}>{photo.generated ? '🎨 ' : ''}{photo.label || photo.title}</Text>
-            <Text style={s.zoomHint}>🔍 Toca para ampliar</Text>
+            <Text style={s.zoomHint}>🔍 Toca para ampliar o imprimir</Text>
           </Pressable>
           <View pointerEvents="none" style={[s.tape, s.tapeLeft]} />
           <View pointerEvents="none" style={[s.tape, s.tapeRight]} />
@@ -39,6 +41,8 @@ export function TapedPhotos({ photos, drawingLabel, width, onOpen }: { photos: T
     </View>
   );
 }
+
+const drawingId = 'onekids-zoomed-drawing';
 
 export type Zoomed = { photo: TutorPhoto } | { visual: BoardVisual } | null;
 
@@ -50,10 +54,28 @@ export function ZoomView({ zoomed, onClose }: { zoomed: Zoomed; onClose: () => v
   const visual = zoomed && 'visual' in zoomed ? zoomed.visual : null;
   const ratio = photo?.width && photo.height ? photo.height / photo.width : 0.75;
   const photoWidth = Math.min(max, (height - 190) / ratio);
+  const [printError, setPrintError] = useState('');
+  // On the web a drawing is printed from its rendered markup. Phones print photos only for now.
+  const canPrint = Boolean(photo) || (Boolean(visual) && Platform.OS === 'web');
+  const print = async () => {
+    setPrintError('');
+    try {
+      if (photo) await printPicture(photo.label || photo.title || 'Imagen del tutor', { imageUrl: photo.url });
+      else if (visual) {
+        const markup = document.getElementById(drawingId)?.innerHTML;
+        if (!markup) throw new Error('missing drawing');
+        await printPicture(visual.title || 'Dibujo del tutor', { markup });
+      }
+    } catch { setPrintError('No se pudo imprimir. Revisa que haya una impresora conectada.'); }
+  };
   return (
     <Modal visible={Boolean(zoomed)} transparent animationType="fade" onRequestClose={onClose} supportedOrientations={['portrait', 'landscape']}>
       <View style={s.backdrop}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={s.close}><Text style={s.closeText}>✕ Cerrar</Text></Pressable>
+        <View style={s.bar}>
+          {canPrint ? <Pressable accessibilityRole="button" accessibilityLabel="Imprimir esta imagen" onPress={() => void print()} style={s.close}><Text style={s.closeText}>🖨️ Imprimir</Text></Pressable> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={s.close}><Text style={s.closeText}>✕ Cerrar</Text></Pressable>
+        </View>
+        {printError ? <Text accessibilityRole="alert" style={s.printError}>{printError}</Text> : null}
         <ScrollView contentContainerStyle={s.zoomBody} maximumZoomScale={4} minimumZoomScale={1} centerContent>
           {photo ? <>
             <Image source={{ uri: photo.url }} resizeMode="contain" accessibilityLabel={photo.label || photo.title} style={{ width: photoWidth, height: photoWidth * ratio, borderRadius: 8 }} />
@@ -61,7 +83,7 @@ export function ZoomView({ zoomed, onClose }: { zoomed: Zoomed; onClose: () => v
             {photo.generated ? <Text style={s.credit}>Imagen creada por la IA del tutor</Text> : null}
             {photo.page ? <Pressable accessibilityRole="link" onPress={() => void openBrowserAsync(photo.page!)}><Text style={s.credit}>Foto: Wikipedia · {photo.title} ↗</Text></Pressable> : null}
           </> : null}
-          {visual ? <View style={s.paper}>
+          {visual ? <View style={s.paper} nativeID={drawingId}>
             <BoardVisualView visual={visual} drawn={visualSteps(visual)} width={Math.min(max - 32, (height - 200) * (visual.type === 'map' ? 1.43 : 1))} drawing={false} max={1000} />
           </View> : null}
         </ScrollView>
@@ -81,7 +103,9 @@ const s = StyleSheet.create({
   tapeLeft: { left: -16, transform: [{ rotate: '-35deg' }] },
   tapeRight: { right: -16, transform: [{ rotate: '35deg' }] },
   backdrop: { flex: 1, backgroundColor: 'rgba(10, 24, 36, 0.92)' },
-  close: { alignSelf: 'flex-end', margin: 14, marginTop: 24, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.white, justifyContent: 'center', zIndex: 2 },
+  bar: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, margin: 14, marginTop: 24, zIndex: 2 },
+  printError: { fontFamily: fonts.bodySemi, fontSize: 14, color: '#FFD3C7', textAlign: 'center' },
+  close: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.white, justifyContent: 'center', zIndex: 2 },
   closeText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
   zoomBody: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16, gap: 10 },
   zoomTitle: { fontFamily: handwriting, fontSize: 28, color: colors.white, textAlign: 'center' },
