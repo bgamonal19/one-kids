@@ -1,28 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findPhotos } from '../server/photos-core.mjs';
+import { findPhotos, titleMatches } from '../server/photos-core.mjs';
 import { cleanVisual, runTutor } from '../server/tutor-core.mjs';
 
 const wiki = pages => Response.json({ query: { pages } });
 
-test('photos come from the lead image of the best Wikipedia result', async () => {
+test('photos come from the lead image of the article with that exact name', async () => {
   const urls = [];
   const photos = await findPhotos([{ query: 'Tigre de Bengala', label: 'Un tigre' }], async url => {
     urls.push(String(url));
-    return wiki([
-      { index: 2, title: 'Tigre', fullurl: 'https://es.wikipedia.org/wiki/Tigre', thumbnail: { source: 'https://upload.wikimedia.org/b.jpg', width: 1000, height: 700 } },
-      { index: 1, title: 'Tigre de Bengala', fullurl: 'https://es.wikipedia.org/wiki/Tigre_de_Bengala', thumbnail: { source: 'https://upload.wikimedia.org/a.jpg', width: 1000, height: 666 } },
-    ]);
+    return wiki([{ title: 'Tigre de Bengala', fullurl: 'https://es.wikipedia.org/wiki/Tigre_de_Bengala', thumbnail: { source: 'https://upload.wikimedia.org/a.jpg', width: 1000, height: 666 } }]);
   });
   assert.match(urls[0], /^https:\/\/es\.wikipedia\.org\/w\/api\.php\?/);
-  assert.match(urls[0], /pilicense=free/);
+  assert.match(urls[0], /pilicense=free/); assert.match(urls[0], /titles=Tigre/);
   assert.deepEqual(photos, [{ query: 'Tigre de Bengala', label: 'Un tigre', url: 'https://upload.wikimedia.org/a.jpg', width: 1000, height: 666, title: 'Tigre de Bengala', page: 'https://es.wikipedia.org/wiki/Tigre_de_Bengala' }]);
+});
+
+test('a search result is only used when its title is what was asked (never a person who shares a word)', async () => {
+  const search = pages => async url => String(url).includes('titles=') ? wiki([{ title: 'x', missing: true }]) : wiki(pages);
+  const whack = { index: 1, title: 'Tierra Whack', fullurl: 'https://es.wikipedia.org/wiki/Tierra_Whack', thumbnail: { source: 'https://upload.wikimedia.org/person.jpg', width: 800, height: 1000 } };
+  const earth = { index: 2, title: 'Tierra', fullurl: 'https://es.wikipedia.org/wiki/Tierra', thumbnail: { source: 'https://upload.wikimedia.org/earth.jpg', width: 1000, height: 1000 } };
+  const found = await findPhotos([{ query: 'La Tierra vista desde el espacio', label: 'La Tierra' }], search([whack, earth]));
+  assert.equal(found[0].url, 'https://upload.wikimedia.org/earth.jpg');
+  assert.deepEqual(await findPhotos([{ query: 'La Tierra vista desde el espacio', label: 'La Tierra' }], search([whack])), []);
+  // A disambiguation page is never a picture.
+  assert.deepEqual(await findPhotos([{ query: 'Mercurio', label: '' }], async () => wiki([{ title: 'Mercurio', pageprops: { disambiguation: '' }, thumbnail: { source: 'https://upload.wikimedia.org/m.jpg' } }])), []);
+  assert.ok(titleMatches('Tigres', 'los tigre')); assert.ok(!titleMatches('Planeta Tierra', 'Tierra'));
 });
 
 test('falls back to English Wikipedia and drops searches without a free picture', async () => {
   const photos = await findPhotos([{ query: 'Saturn', label: '' }, { query: 'nada', label: '' }], async url => {
     const u = String(url);
-    if (u.includes('gsrsearch=Saturn') && u.startsWith('https://en.')) return wiki([{ index: 1, title: 'Saturn', fullurl: 'https://en.wikipedia.org/wiki/Saturn', thumbnail: { source: 'https://upload.wikimedia.org/s.png', width: 800, height: 800 } }]);
+    if ((u.includes('gsrsearch=Saturn') || u.includes('titles=Saturn')) && u.startsWith('https://en.')) return wiki([{ index: 1, title: 'Saturn', fullurl: 'https://en.wikipedia.org/wiki/Saturn', thumbnail: { source: 'https://upload.wikimedia.org/s.png', width: 800, height: 800 } }]);
     if (u.includes('gsrsearch=nada')) throw new Error('offline');
     return wiki([{ index: 1, title: 'Sin foto', fullurl: 'https://es.wikipedia.org/wiki/x' }]);
   });
