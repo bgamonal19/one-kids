@@ -75,3 +75,14 @@ test('generated illustrations replace primitive drafts instead of layering both 
   const annotated = cleanVisual({ type: 'sketch', title: 'León', photo: 'León', shapes: [shape] }, 40, { pictures: true });
   assert.equal(annotated.shapes.length, 1);
 });
+
+test('the exact world-map request works even when the model omits the spoken reply', async () => {
+  const { runTutor } = await import('../server/tutor-core.mjs');
+  for (const answer of [{ type: 'sketch', geo: { region: 'world' }, shapes: [] }, { visual: null }]) {
+    const result = await runTutor({ ageBand: '13-16', message: 'dame el dibujo del mapa mundi' }, { OPENAI_API_KEY: 'test' }, async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(answer) }] }] }));
+    assert.ok(result.reply);
+    assert.equal(result.visual.geo.region, 'world');
+    assert.ok(attachMap(result.visual).trace.rings.length > 100);
+    assert.equal(result.picture, null);
+  }
+});

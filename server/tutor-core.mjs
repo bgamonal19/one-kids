@@ -123,7 +123,7 @@ export function subjectRules(req) {
 
 // Free mode and explicit drawing requests get room for complete, detailed sketches.
 // Teenagers get the same room: their answers and sketches are more detailed.
-const asksDrawing = req => req.action === 'draw' || /\bdib[uú]j(?:a|e)|(?:haz|crea|quiero|necesito|muestra).{0,25}(?:dibujo|boceto|caricatura|esquema|ilustraci[oó]n)/i.test(req.message);
+const asksDrawing = req => req.action === 'draw' || /\bdib[uú]j(?:a|e)|(?:dame|haz|crea|quiero|necesito|muestra).{0,25}(?:dibujo|boceto|caricatura|esquema|ilustraci[oó]n)/i.test(req.message);
 const roomy = req => req.mode === 'open' || asksDrawing(req) || req.age >= 13;
 const maxShapes = req => asksDrawing(req) && req.age >= 13 ? 120 : roomy(req) ? 80 : 40;
 const maxTokens = req => maxShapes(req) > 80 ? 5000 : roomy(req) ? 4000 : 2400;
@@ -221,9 +221,13 @@ export function fallbackPicture(req, reply, board) {
 }
 
 function parseResult(text, req) {
+  const worldMap = req.action !== 'read' && asksDrawing(req) && /mapa\s*mundi|mapa (?:del )?mundo/i.test(req.message);
   let result;
   try { result = JSON.parse(text.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')); }
   catch { throw new TutorError('El tutor no pudo preparar una respuesta clara. Inténtalo de nuevo.', 502); }
+  if (worldMap && result && typeof result === 'object' && !Array.isArray(result)) {
+    result = { ...result, reply: typeof result.reply === 'string' && result.reply.trim() ? result.reply : 'Este es el mapamundi con los contornos de los países. Puedes ampliarlo para observarlos mejor.', topic: 'Mapamundi', visual: { type: 'sketch', title: 'Mapamundi', shapes: [], geo: { region: 'world', countries: [] } }, picture: null };
+  }
   if (req.action !== 'read' && asksDrawing(req) && result && typeof result === 'object' && !result.reply) {
     if (result.type === 'sketch') result = { visual: result, topic: result.title };
     if (result.visual || Array.isArray(result.board)) result.reply = (Array.isArray(result.board) ? result.board.filter(line => typeof line === 'string').join('. ') : '').slice(0, 6000) || 'Voy a dibujarlo en la pizarra.';
