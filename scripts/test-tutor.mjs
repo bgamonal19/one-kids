@@ -85,9 +85,9 @@ test('confirmed exercise and contextual history reach both providers', async () 
 test('whiteboard lines come from the model and fall back to the math in the reply', async () => {
   const result = await runTutor({ ...request, provider: 'openai' }, env, async (_, options) => {
     assert.match(JSON.parse(options.body).instructions, /pizarra/);
-    return providerResponse('openai', { ...answer, board: ['  8 + 3 = ?  ', 42, '', 'x'.repeat(90)] });
+    return providerResponse('openai', { ...answer, board: ['  8 + 3 = ?  ', 42, '', 'x'.repeat(500)] });
   });
-  assert.deepEqual(result.board, ['8 + 3 = ?', 'x'.repeat(60)]); assert.equal(result.heard, '');
+  assert.deepEqual(result.board, ['8 + 3 = ?', 'x'.repeat(400)]); assert.equal(result.heard, '');
   assert.deepEqual((await runTutor({ ...request, provider: 'openai' }, env, async () => providerResponse('openai', { reply: 'Restamos 14 a 35. ¿Cuánto es 35 - 14?' }))).board, ['35 - 14']);
   assert.deepEqual(deriveBoard('Muy bien. ¿Qué número viene después?'), ['¿Qué número viene después?']);
 });
@@ -282,4 +282,10 @@ test('open mode and settings need a signed-in family account', async () => {
   const open = await post({ ...request, mode: 'open' });
   assert.equal(open.status, 403); assert.match((await open.json()).error, /padres/);
   assert.equal((await post({ settings: { openMode: true } })).status, 401);
+});
+
+test('board explanations preserve complete sentences beyond sixty characters', async () => {
+  const line = 'El vapor de agua se enfría, forma pequeñas gotas en las nubes y vuelve a la tierra mediante la precipitación.';
+  const result = await runTutor({ ...request, provider: 'openai' }, env, async () => providerResponse('openai', { ...answer, board: [line] }));
+  assert.equal(result.board[0], line);
 });

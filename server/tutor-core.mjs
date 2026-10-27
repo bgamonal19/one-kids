@@ -226,7 +226,7 @@ function parseResult(text, req) {
   catch { throw new TutorError('El tutor no pudo preparar una respuesta clara. Inténtalo de nuevo.', 502); }
   if (!result || typeof result.reply !== 'string' || !result.reply.trim() || result.reply.length > 6000) throw new TutorError('La respuesta del tutor llegó incompleta.', 502);
   if (req.action === 'read' && (typeof result.transcription !== 'string' || result.transcription.length > 4000 || typeof result.needsRetake !== 'boolean')) throw new TutorError('No pudimos leer la foto. Prueba otra imagen.', 502);
-  const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 60)).filter(Boolean).slice(0, 10);
+  const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 400)).filter(Boolean).slice(0, 10);
   const summary = (Array.isArray(result.summary) ? result.summary : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 140)).filter(Boolean).slice(0, 6);
   const visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req), { pictures: req.pictures, age: req.age });
   let picture = req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null;

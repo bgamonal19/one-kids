@@ -39,14 +39,11 @@ type Props = {
   children?: ReactNode;
 };
 
-/** How many columns and how tall: a teacher's board on big screens, one column on phones. */
+/** One continuous surface, with readable handwriting on phones and large screens. */
 export function boardLayout(width: number, windowHeight: number, wide: boolean) {
-  const inset = wide ? 168 * 0.62 : 0;
-  const inner = Math.max(200, width - 12 - 36 - inset);
-  const cols = inner >= 940 ? 3 : inner >= 560 ? 2 : 1;
-  const maxHeight = cols > 1 ? Math.round(Math.min(680, Math.max(360, windowHeight * 0.62))) : Math.round(Math.min(900, Math.max(440, windowHeight * 0.8)));
-  const lineSize = cols === 1 ? (wide ? 32 : 25) : cols === 2 ? 27 : 25;
-  return { inner, inset, cols, maxHeight, lineSize };
+  const inset = 0;
+  const inner = Math.max(200, width - 12 - 36);
+  return { inner, inset, cols: 1, maxHeight: Math.round(windowHeight * 0.65), lineSize: wide ? 28 : 25 };
 }
 
 const ERASE_MS = 1600;
@@ -139,7 +136,7 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
           <View style={layout.cols > 1 ? { minHeight: maxHeight } : undefined} onLayout={e => setSurface({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
             {/* A clean board fades in after the eraser. */}
             <Animated.View key={board.id} entering={reduced || readOnly ? undefined : FadeIn.duration(400)} style={fading}>
-              <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={wide ? 0 : size * 1.15}
+              <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={size * 1.05}
                 active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
                 thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
                 onZoom={setZoomed}

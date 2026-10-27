@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { packBoard } from '@/lib/board-flow';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BoardVisualView, visualSteps } from './BoardVisual';
 import { TapedPhotos, type Zoomed } from './BoardPhotos';
@@ -47,7 +48,7 @@ function BlockPart({ block, from, to, shown, writing, lineSize, width, fit, onZo
             if (!part && piece.index > cursorLine) return null;
             return <View key={i} {...measure(i)} style={s.lineRow}>
               <Text style={[s.line, { fontSize: lineSize, lineHeight: lineSize * 1.3 }, piece.index === 0 && s.firstLine]}>{part}</Text>
-              {piece.index === cursorLine ? <WritingPencil size={lineSize * 1.15} /> : null}
+              <View style={{ width: lineSize * 1.15, height: lineSize * 1.15 }}>{piece.index === cursorLine ? <WritingPencil size={lineSize * 1.15} /> : null}</View>
             </View>;
           }
           case 'visual': {
@@ -72,22 +73,23 @@ function BlockPart({ block, from, to, shown, writing, lineSize, width, fit, onZo
   );
 }
 
-/** Measures every piece of an answer off-screen, so the board can split it between columns. */
-function Measure({ block, width, lineSize, onMeasured }: { block: BoardBlock; width: number; lineSize: number; onMeasured: (id: string, heights: number[]) => void }) {
-  const count = blockPieces(block).length;
-  const from = block.start ?? 0;
-  const heights = useRef<number[]>([]);
-  const sent = useRef(false);
-  const onPieceLayout = (i: number, height: number) => {
-    heights.current[i] = height;
-    if (!sent.current && Array.from({ length: count - from }, (_, k) => heights.current[from + k]).every(h => h !== undefined)) {
-      sent.current = true;
-      onMeasured(block.id, Array.from({ length: count }, (_, k) => heights.current[k] ?? 0));
-    }
-  };
-  return <View pointerEvents="none" style={[s.measure, { width }]}>
-    <BlockPart block={block} from={from} lineSize={lineSize} width={width} onPieceLayout={onPieceLayout} />
+/** Measure the complete answer at its actual width before arranging it on the surface. */
+function Measure({ block, width, lineSize, onMeasured }: { block: BoardBlock; width: number; lineSize: number; onMeasured: (id: string, height: number) => void }) {
+  const last = useRef(0);
+  const range = blockRange(block);
+  return <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden style={[s.measure, { width }]} onLayout={event => {
+    const height = Math.ceil(event.nativeEvent.layout.height);
+    if (height > 0 && height !== last.current) { last.current = height; onMeasured(block.id, height); }
+  }}>
+    <Text style={s.step}>Paso</Text>
+    <BlockPart block={block} from={range.from} to={range.to} shown={Infinity} lineSize={lineSize} width={width} />
   </View>;
+}
+
+function blockRange(block: BoardBlock) {
+  const segments = blockSegments(block);
+  return { from: segments?.length ? Math.min(...segments.map(s => s.from)) : block.start ?? 0,
+    to: segments?.length ? segments.at(-1)?.to : undefined };
 }
 
 type Props = {
@@ -107,48 +109,60 @@ type Props = {
   onMeasured?: (id: string, heights: number[]) => void;
 };
 
-/** The writing on a board: the topic's title, then answers down each column and on to the next, like a teacher. */
-export function BoardSheet({ board, width, cols, lineSize, active, thinking, headerInset = 0, onZoom, onMeasured }: Props) {
-  const colWidth = Math.max(160, (width - (cols - 1) * COLUMN_GAP) / cols);
-  // Old boards without measurements go in the last column.
-  const parts = board.blocks.flatMap(block => (blockSegments(block) ?? (onMeasured ? [] : [{ col: cols - 1, from: block.start ?? 0, height: 0 }])).map(seg => ({ block, seg: { ...seg, col: Math.min(cols - 1, seg.col) } })));
-  const current = Math.max(0, ...parts.map(p => p.seg.col));
-  const pending = onMeasured ? board.blocks.filter(b => !blockSegments(b)) : [];
-  return (
-    <View>
-      <View style={[s.header, { paddingRight: headerInset, minHeight: headerInset ? headerInset * 0.8 : undefined }]}>
-        {board.topic ? <Text style={[s.topic, { fontSize: lineSize * 1.05 }]} numberOfLines={2}>
-          Tema: {board.topic}{board.part > 1 ? <Text style={s.part}>  (pizarra {board.part})</Text> : null}
-        </Text> : null}
-      </View>
-      <View style={s.columns}>
-        {Array.from({ length: cols }, (_, i) => <View key={i} style={[s.column, { width: i > 0 ? colWidth + COLUMN_GAP / 2 : colWidth }, i > 0 && s.divider]}>
-          {parts.filter(p => p.seg.col === i).map(({ block, seg }) => <BlockPart key={`${block.id}-${seg.from}`} block={block} from={seg.from} to={seg.to} fit={seg.fit} lineSize={lineSize} width={colWidth} onZoom={onZoom}
-            shown={active?.id === block.id ? active.shown : undefined} writing={active?.id === block.id && active.writing} />)}
-          {thinking && i === current ? <View style={s.block}>
-            {thinking.childLine ? <Text style={[s.child, { fontSize: lineSize * 0.7 }]} numberOfLines={3}>Tú: {thinking.childLine}</Text> : null}
-            <View style={s.lineRow}><Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>…</Text><WritingPencil size={lineSize * 1.15} /></View>
-          </View> : null}
-        </View>)}
-      </View>
-      {pending.map(block => <Measure key={`${block.id}-${block.start ?? 0}`} block={block} width={colWidth} lineSize={lineSize} onMeasured={onMeasured!} />)}
+/** Free placement reuses gaps beside earlier answers; numbering preserves the lesson sequence. */
+export function BoardSheet({ board, width, lineSize, active, thinking, headerInset = 0, onZoom, onMeasured }: Props) {
+  const [measurements, setMeasurements] = useState<Record<string, number>>({});
+  const widths = board.blocks.map(block => {
+    if (width < 620) return width;
+    const illustrated = Boolean(block.visual || block.photos?.length || block.drawingLabel);
+    return Math.floor(illustrated ? (width - 18) * 0.5 : (width - 18) * 0.45);
+  });
+  const measurementKey = (block: BoardBlock, w: number) => `${block.id}:${w}:${lineSize}:${blockRange(block).from}:${blockRange(block).to ?? 'end'}:${block.lines.join('|')}:${Boolean(block.visual)}:${block.photos?.length ?? 0}:${block.summary?.join('|') ?? ''}:${block.drawingLabel ?? ''}`;
+  const items = board.blocks.flatMap((block, i) => {
+    const height = measurements[measurementKey(block, widths[i])];
+    return height ? [{ id: block.id, width: widths[i], height }] : [];
+  });
+  const rectangles = packBoard(items, width);
+  const bottom = Math.max(0, ...rectangles.map(rect => rect.y + rect.height));
+  const pending = board.blocks.filter(block => !blockSegments(block));
+  return <View>
+    <View style={[s.header, { paddingRight: headerInset, minHeight: headerInset ? headerInset * 0.8 : undefined }]}>
+      {board.topic ? <Text style={[s.topic, { fontSize: lineSize * 1.05 }]} numberOfLines={2}>Tema: {board.topic}{board.part > 1 ? <Text style={s.part}>  (continuación {board.part})</Text> : null}</Text> : null}
     </View>
-  );
+    <View style={{ position: 'relative', minHeight: bottom }}>
+      {board.blocks.map((block, index) => {
+        const rect = rectangles.find(p => p.id === block.id);
+        if (!rect) return null;
+        const range = blockRange(block);
+        return <View key={block.id} style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.width }}>
+          <Text style={s.step}>Paso {index + 1}</Text>
+          <BlockPart block={block} from={range.from} to={range.to} width={rect.width} lineSize={lineSize} onZoom={onZoom} shown={active?.id === block.id ? active.shown : undefined} writing={active?.id === block.id && active.writing} />
+        </View>;
+      })}
+    </View>
+    {thinking ? <View style={[s.block, { marginTop: BLOCK_GAP }]}>
+      {thinking.childLine ? <Text style={[s.child, { fontSize: lineSize * 0.7 }]} numberOfLines={3}>Tú: {thinking.childLine}</Text> : null}
+      <View style={s.lineRow}><Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>…</Text><WritingPencil size={lineSize * 1.15} /></View>
+    </View> : null}
+    {board.blocks.map((block, i) => <Measure key={measurementKey(block, widths[i])} block={block} width={widths[i]} lineSize={lineSize} onMeasured={(id, height) => {
+      const key = measurementKey(block, widths[i]);
+      setMeasurements(current => current[key] === height ? current : { ...current, [key]: height });
+      if (pending.some(b => b.id === id)) onMeasured?.(id, [height]);
+    }} />)}
+  </View>;
 }
 
 const s = StyleSheet.create({
   header: { justifyContent: 'flex-start', marginBottom: 6 },
   topic: { fontFamily: handwriting, color: '#C0392B', textDecorationLine: 'underline' },
   part: { color: colors.inkMuted, textDecorationLine: 'none', fontSize: 16 },
-  columns: { flexDirection: 'row', gap: COLUMN_GAP / 2 },
-  column: { gap: BLOCK_GAP },
-  divider: { borderLeftWidth: 2, borderLeftColor: '#E1E8EF', paddingLeft: COLUMN_GAP / 2 - 2 },
+  step: { fontFamily: fonts.bodyBold, fontSize: 12, lineHeight: 20, marginBottom: 4, color: '#496C98' },
   block: { gap: PIECE_GAP },
   measure: { position: 'absolute', left: 0, top: 0, opacity: 0 },
   child: { fontFamily: handwriting, color: '#2C60AE' },
-  line: { fontFamily: handwriting, color: colors.ink },
+  line: { fontFamily: handwriting, color: colors.ink, flex: 1 },
   firstLine: { color: '#1F4F95' },
-  lineRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
+  lineRow: { flexDirection: 'row', alignItems: 'flex-end' },
   zoomHint: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.inkMuted, textAlign: 'center', marginTop: 4 },
   summary: { backgroundColor: '#E4F4EE', borderRadius: 12, padding: 14, gap: 4, borderWidth: 2, borderColor: colors.leaf },
   summaryTitle: { fontFamily: handwriting, color: colors.leafDeep },

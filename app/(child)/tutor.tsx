@@ -1,7 +1,8 @@
+import { explicitNewTopic } from '@/lib/board-flow';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, ScrollView, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HandwritingPad, type HandwritingPadHandle, type Stroke } from '@/components/HandwritingPad';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -20,7 +21,7 @@ import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type PictureRequest, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
-import { dayKey, keepBoard, latestOfChain, loadBoards, newBoard, placeBlock, saveBoards, type Board, type BoardBlock } from '@/lib/tutor-boards';
+import { dayKey, keepBoard, latestOfChain, loadBoards, newBoard, saveBoards, type Board, type BoardBlock } from '@/lib/tutor-boards';
 import { BoardStrip } from '@/components/BoardStrip';
 import type { CourseItem, TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
@@ -233,15 +234,12 @@ export default function TutorScreen() {
       return updated;
     });
   }, [board, childId]);
-  // The measured answer goes down the column line by line, then into the next one. What doesn't fit waits for a clean board.
-  const place = (id: string, heights: number[], cols: number, maxHeight: number) => {
-    const placed = placeBlock(boardRef.current, id, heights, cols, maxHeight);
-    boardRef.current = placed.board;
-    setBoard(placed.board);
-    if (!placed.next) return;
-    nextRef.current = placed.next; setNextBoard(placed.next);
-    // Nothing of the answer fits here: wipe the board now. Otherwise the tutor first fills this board.
-    if (!placed.board.blocks.some(b => b.id === id)) setErasing(true);
+  // The shared surface grows with the conversation; only an intentional new topic wipes it.
+  const place = (id: string, heights: number[]) => {
+    const current = boardRef.current;
+    const blocks = current.blocks.map(block => block.id === id && !block.segments ? { ...block, segments: [{ col: 0, from: block.start ?? 0, height: heights[0] ?? 0 }] } : block);
+    const next = { ...current, blocks };
+    boardRef.current = next; setBoard(next);
   };
   // After the eraser the full board is kept in «Mis pizarras» and the clean one takes its place.
   const erased = () => {
@@ -332,7 +330,7 @@ export default function TutorScreen() {
       // The board is full and waiting for the eraser: the new answer goes after the rest on the clean board.
       if (nextRef.current && !fresh && !result.newTopic) { const pending = { ...nextRef.current, blocks: [...nextRef.current.blocks, block] }; nextRef.current = pending; setNextBoard(pending); setErasing(true); }
       else if (!current.blocks.some(b => b.reply)) setBoard(newBoard(title, [block], course?.id));
-      else if (fresh || result.newTopic) changeBoard(newBoard(title, [block], course?.id));
+      else if (fresh || explicitNewTopic(action, message)) changeBoard(newBoard(title, [block], course?.id));
       else setBoard({ ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
       present(next);
       if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
@@ -468,7 +466,7 @@ export default function TutorScreen() {
             <Pressable accessibilityRole="button" onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.tool}><Text style={styles.toolText}>{voiceOn ? '🔊' : '🔇'}</Text></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Salir de pantalla completa" onPress={closeFullscreen} style={[styles.tool, styles.exitTool]}><Text style={styles.toolText}>✕ Salir</Text></Pressable>
           </View>
-          {renderBoard(true)}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} scrollEnabled={!drawing} keyboardShouldPersistTaps="handled">{renderBoard(true)}</ScrollView>
           {error ? <Text accessibilityRole="alert" style={[styles.error, styles.fullHeaderPad]}>{error}</Text> : null}
         </View>
       </Modal>
