@@ -19,7 +19,7 @@
   "rewrites": [
     {
       "source": "/practice/:id",
-      "destination": "/practice/[id].html"
+      "destination": "/practice/[id]"
     }
   ]
 }
