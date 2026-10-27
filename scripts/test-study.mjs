@@ -107,7 +107,7 @@ test('HTTP: JSON only, rejects other origins, reports provider missing honestly'
 });
 
 const assessmentRequest = { kind: 'assessment', ageBand: '7-9', course: 'Matemáticas', topic: 'Sumas', grade: '3.º primaria', count: 5, mode: 'exam', difficulty: 'grado' };
-const assessmentAnswer = { title: 'Sumamos', instructions: 'Elige una opción.', questions: Array.from({ length: 5 }, (_, i) => ({ q: `¿Cuánto es ${i} + 1?`, options: [String(i + 1), String(i + 2), String(i + 3), String(i + 4)], answer: 0, why: 'Añadimos una unidad.' })) };
+const assessmentAnswer = { title: 'Sumamos', instructions: 'Elige una opción.', questions: Array.from({ length: 5 }, (_, i) => ({ q: `¿Cuánto es ${i} + 1?`, options: [String(i + 1), String(i + 2), String(i + 3), String(i + 4)], answer: 0, correctOption: String(i + 1), why: 'Añadimos una unidad.' })) };
 test('assessments require grade, topic and a supported question count', () => {
   for (const patch of [{ count: 6 }, { grade: '' }, { topic: '' }]) assert.throws(() => validateStudyRequest({ ...assessmentRequest, ...patch }), StudyError);
   assert.equal(validateStudyRequest({ ...assessmentRequest, count: 15 }).count, 15);
@@ -128,7 +128,7 @@ test('assessments reject incomplete, duplicate or invalid questions', () => {
 });
 test('assessment generation includes grade and difficulty and returns assignment metadata', async () => {
   let sent;
-  const result = await runStudy(assessmentRequest, env, async (_, o) => { sent = JSON.parse(o.body); return openai(assessmentAnswer); });
+  const result = await runStudy(assessmentRequest, env, async (_, o) => { sent ||= JSON.parse(o.body); return openai(assessmentAnswer); });
   assert.match(sent.instructions, /nunca por «el primer paso»/); assert.match(sent.instructions, /exactamente 5/); assert.match(sent.instructions, /3.º primaria/);
   assert.equal(result.mode, 'exam'); assert.equal(result.course, 'Matemáticas');
   assert.equal(sent.store, false);
@@ -145,7 +145,7 @@ test('printable assessments escape content and keep the answer key separate', ()
 
 test('assessment audit solves independently without seeing the draft key and meters both calls', async () => {
   let calls = 0;
-  const repaired = structuredClone(assessmentAnswer); repaired.questions[0].options = ['8', '3', '4', '5']; repaired.questions[0].answer = 1;
+  const repaired = structuredClone(assessmentAnswer); repaired.questions[0].options = ['8', '3', '4', '5']; repaired.questions[0].answer = 1; repaired.questions[0].correctOption = '3';
   const result = await runStudy(assessmentRequest, env, async (_, o) => {
     calls++;
     if (calls === 2) {
@@ -159,4 +159,15 @@ test('assessment audit solves independently without seeing the draft key and met
   });
   assert.equal(calls, 2); assert.equal(result.tokens, 1800);
   assert.equal(result.questions[0].answer, 1);
+});
+
+test('assessment review binds the answer to its text even when the model sends a wrong index', async () => {
+  let calls = 0;
+  const audited = structuredClone(assessmentAnswer);
+  audited.questions.forEach(q => { q.answer = 3; });
+  const result = await runStudy(assessmentRequest, env, async () => openai(++calls === 1 ? assessmentAnswer : audited));
+  result.questions.forEach((q, i) => assert.equal(q.options[q.answer], String(i + 1)));
+  const bad = structuredClone(assessmentAnswer); bad.questions[0].correctOption = 'No existe';
+  calls = 0;
+  await assert.rejects(runStudy(assessmentRequest, env, async () => openai(++calls === 1 ? assessmentAnswer : bad)), StudyError);
 });
