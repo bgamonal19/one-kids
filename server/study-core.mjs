@@ -1,3 +1,4 @@
+import { verifyLinearQuestion } from './assessment-math.mjs';
 import { tutorStatus } from './tutor-core.mjs';
 
 // Study mode lessons, the parent report and reading a syllabus photo. Same providers and keys as the tutor.
@@ -83,7 +84,7 @@ export function parseStudy(output, req) {
   if (req.kind === 'assessment') {
     const questions = (Array.isArray(result.questions) ? result.questions : []).map(item => ({ q: text(item?.q, 400), options: lines(item?.options, 4, 180), answer: item?.answer, why: text(item?.why, 400) })).filter(item => item.q && item.options.length === 4 && new Set(item.options).size === 4 && Number.isInteger(item.answer) && item.answer >= 0 && item.answer < 4 && item.why).slice(0, req.count);
     if (questions.length !== req.count || new Set(questions.map(q => q.q.toLowerCase())).size !== req.count) throw new StudyError('La práctica llegó incompleta o con preguntas repetidas. Vuelve a generarla.', 502);
-    return { title: text(result.title, 160) || req.topic, instructions: text(result.instructions, 600) || 'Lee con calma y selecciona una respuesta por pregunta.', questions, mode: req.mode, course: req.course, topic: req.topic, grade: req.grade, difficulty: req.difficulty };
+    return { title: text(result.title, 160) || req.topic, instructions: text(result.instructions, 600) || 'Lee con calma y selecciona una respuesta por pregunta.', questions: questions.map(verifyLinearQuestion), mode: req.mode, course: req.course, topic: req.topic, grade: req.grade, difficulty: req.difficulty };
   }
   if (req.kind === 'lesson') {
     const quiz = (Array.isArray(result.quiz) ? result.quiz : []).map(item => {
