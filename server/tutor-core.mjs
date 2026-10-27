@@ -123,7 +123,7 @@ export function subjectRules(req) {
 
 // Free mode and explicit drawing requests get room for complete, detailed sketches.
 // Teenagers get the same room: their answers and sketches are more detailed.
-const asksDrawing = req => req.action === 'draw' || /dib[uú]j|boceto|caricatura|esquema|ilustr/i.test(req.message);
+const asksDrawing = req => req.action === 'draw' || /\bdib[uú]j(?:a|e)|(?:haz|crea|quiero|necesito|muestra).{0,25}(?:dibujo|boceto|caricatura|esquema|ilustraci[oó]n)/i.test(req.message);
 const roomy = req => req.mode === 'open' || asksDrawing(req) || req.age >= 13;
 const maxShapes = req => asksDrawing(req) && req.age >= 13 ? 120 : roomy(req) ? 80 : 40;
 const maxTokens = req => maxShapes(req) > 80 ? 5000 : roomy(req) ? 4000 : 2400;

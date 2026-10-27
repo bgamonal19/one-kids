@@ -108,3 +108,9 @@ test('standalone sketch responses remain renderable and missing world maps use r
   assert.equal(world.visual.geo.region, 'world');
   assert.equal(world.visual.illustration, undefined);
 });
+
+test('explaining an existing drawing does not generate or charge another illustration', async () => {
+  const result = await runTutor({ ageBand: '10-12', pictures: true, message: 'Explica las etapas junto al dibujo en esta misma pizarra.' }, { OPENAI_API_KEY: 'k' }, async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'El agua se evapora.', board: ['Evaporación', 'Condensación', 'Precipitación'], visual: null }) }] }] }));
+  assert.equal(result.visual, null);
+  assert.equal(result.picture, null);
+});
