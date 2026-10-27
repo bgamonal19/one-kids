@@ -280,6 +280,8 @@ export default function TutorScreen() {
     void stop().catch(() => {});
     changeBoard(welcomeBoard()); setActiveId('welcome'); setViewing(null); setPage({ key: 'welcome', lines: [] });
     setMessages(current => current.filter(m => m.id === 'welcome')); setExercise(''); topic.current = '';
+    setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false); pad.current?.clear();
+    scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     setPhase('turn'); react('listen');
   };
   const present = (next: Page) => {
@@ -382,7 +384,7 @@ export default function TutorScreen() {
       const { trace, account: nextAccount } = await generatePicture({ prompt, label: title, style: 'line' });
       if (!alive.current) return;
       if (nextAccount) setAccount(nextAccount);
-      done(({ illustration: _i, ...visual }) => trace ? { ...visual, trace } : visual);
+      done(({ illustration: _i, ...visual }) => trace ? { ...visual, shapes: [], trace } : visual);
     } catch (e) {
       if (!alive.current) return;
       done(({ illustration: _i, ...visual }) => visual);
@@ -457,12 +459,14 @@ export default function TutorScreen() {
       {mode === 'pen' || full ? answerPad(full) : null}
     </TutorWhiteboard>;
 
+  const newBoardButton = <Pressable accessibilityRole="button" accessibilityLabel="Crear una nueva pizarra" disabled={Boolean(loading) || erasing} onPress={freshBoard} style={[styles.newBoardButton, (Boolean(loading) || erasing) && styles.dim]}><Text style={styles.newBoardText}>＋ Nueva pizarra</Text></Pressable>;
   return (
-    <Screen scroll fill scrollEnabled={!drawing} scrollRef={scroller}>
+    <Screen scroll fill scrollEnabled={!drawing} scrollRef={scroller} toolbar={newBoardButton}>
       <Modal visible={fullscreen} animationType="slide" onRequestClose={closeFullscreen} supportedOrientations={['portrait', 'landscape']}>
         <View style={[styles.fullRoot, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.fullHeader, styles.fullHeaderPad]}>
             <Text style={styles.sectionTitle}>Pizarra</Text>
+            {newBoardButton}
             <Pressable accessibilityRole="button" onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.tool}><Text style={styles.toolText}>{voiceOn ? '🔊' : '🔇'}</Text></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Salir de pantalla completa" onPress={closeFullscreen} style={[styles.tool, styles.exitTool]}><Text style={styles.toolText}>✕ Salir</Text></Pressable>
           </View>
@@ -496,7 +500,6 @@ export default function TutorScreen() {
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz del tutor" onPress={() => setVoicesOpen(true)} style={styles.mode}><Text style={styles.modeText}>🗣️ Cambiar voz</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Empezar una pizarra nueva para otro tema" disabled={Boolean(loading)} onPress={freshBoard} style={[styles.mode, Boolean(loading) && styles.dim]}><Text style={styles.modeText}>🧽 Pizarra nueva</Text></Pressable>
       </View>
 
       {mode === 'keys' ? <View style={styles.composer}>
@@ -606,7 +609,9 @@ const styles = StyleSheet.create({
   fullHeaderPad: { paddingHorizontal: 12 },
   edge: { marginHorizontal: -spacing.lg },
   column: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
-  fullHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fullHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  newBoardButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.coral },
+  newBoardText: { fontFamily: fonts.bodyBold, color: colors.white, fontSize: 16 },
   exitTool: { marginLeft: 'auto', backgroundColor: colors.white, borderWidth: 1, borderColor: '#CDDCE9' },
   modes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
   courses: { gap: 8 },

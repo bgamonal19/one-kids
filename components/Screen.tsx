@@ -8,6 +8,7 @@ import { colors, spacing } from '@/constants/theme';
 
 type Props = {
   children: ReactNode;
+  toolbar?: ReactNode;
   scroll?: boolean;
   style?: ViewStyle;
   wide?: boolean;
@@ -18,7 +19,7 @@ type Props = {
   fill?: boolean;
 };
 
-export function Screen({ children, scroll, style, wide, scrollEnabled = true, scrollRef, fill }: Props) {
+export function Screen({ children, toolbar, scroll, style, wide, scrollEnabled = true, scrollRef, fill }: Props) {
   const { width } = useWindowDimensions();
   // Edge to edge on every device: only the side gutter grows with the screen.
   const maxW = wide ? 1100 : undefined;
@@ -45,6 +46,7 @@ export function Screen({ children, scroll, style, wide, scrollEnabled = true, sc
   return (
     <LinearGradient colors={[colors.paper, colors.mist, '#D7F0F8']} style={styles.flex}>
       <SafeAreaView style={styles.flex} edges={['top', 'left', 'right']}>
+        {toolbar ? <View style={{ paddingHorizontal: gutter, paddingTop: 8, alignItems: 'flex-start' }}>{toolbar}</View> : null}
         {body}
       </SafeAreaView>
     </LinearGradient>

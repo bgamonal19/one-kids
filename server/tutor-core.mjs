@@ -191,7 +191,7 @@ export function cleanVisual(raw, limit = 40, { pictures = false, age = 9 } = {})
     const asked = pictures && !photo && !geo ? label(raw.illustration, 400).replace(/https?:\/\/\S+/g, '').trim() : '';
     const illustration = asked.length >= 3 ? `${illustrationStyle(age)}: ${asked}` : '';
     const extra = { ...(photo ? { photo } : {}), ...(geo ? { geo } : {}), ...(illustration ? { illustration } : {}) };
-    return shapes.length || geo || illustration ? { type: 'sketch', title: label(raw.title, 30), shapes, ...extra } : null;
+    return shapes.length || geo || illustration ? { type: 'sketch', title: label(raw.title, 30), shapes: illustration ? [] : shapes, ...extra } : null;
   }
   return null;
 }

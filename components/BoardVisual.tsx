@@ -17,7 +17,7 @@ const lineTrace = (visual: Visual) => visual.type === 'sketch' && visual.trace &
 
 /** Each map branch or sketch shape is one drawing step; a map outline counts as several. */
 export function visualSteps(visual: Visual) {
-  return visual.type === 'map' ? visual.branches.length + 1 : Math.max(1, visual.shapes.length + (lineTrace(visual) ? TRACE_STEPS : 0));
+  return visual.type === 'map' ? visual.branches.length + 1 : visual.illustration || visual.trace?.image ? 1 : Math.max(1, visual.shapes.length + (lineTrace(visual) ? TRACE_STEPS : 0));
 }
 
 function mapLayout(visual: Extract<Visual, { type: 'map' }>) {
@@ -167,6 +167,8 @@ export function BoardVisualView({ visual, drawn: progress, width, drawing, max }
 }
 
 function SketchView({ visual, progress: total, width, drawing, max, pencil }: { visual: Extract<Visual, { type: 'sketch' }>; progress: number; width: number; drawing: boolean; max?: number; pencil: number }) {
+  // Generated artwork replaces primitive drafts, including boards saved by older versions.
+  const shapes = visual.illustration || visual.trace?.image ? [] : visual.shapes;
   const mask = useId().replace(/[^a-zA-Z0-9]/g, '');
   const clock = useDrawingClock(visual.trace);
   const w = Math.min(width, max ?? 520), scale = w / 100;
@@ -175,14 +177,14 @@ function SketchView({ visual, progress: total, width, drawing, max, pencil }: { 
   const outline = lineTrace(visual);
   const traced = outline ? traceUpTo(outline.rings, total / TRACE_STEPS) : null;
   const progress = outline ? Math.max(0, total - TRACE_STEPS) : total;
-  const done = Math.min(visual.shapes.length, Math.floor(progress));
-  const current = done < visual.shapes.length && progress > done ? visual.shapes[done] : null;
+  const done = Math.min(shapes.length, Math.floor(progress));
+  const current = done < shapes.length && progress > done ? shapes[done] : null;
   const part = progress - done;
   // The AI drawing is revealed under the pencil: its lines first, then its colours.
   const image = visual.trace?.image;
   const pen = image && clock !== null ? traceUpTo(visual.trace!.rings, clock / 0.75) : null;
   const paint = image && clock !== null && clock > 0.75 ? traceUpTo(visual.trace!.fills ?? [], (clock - 0.75) / 0.25) : null;
-  const tip = current ? partOf(strokePath(current), part).at(-1)! : done ? strokePath(visual.shapes[done - 1]).at(-1)! : traced?.tip ?? [50, 50];
+  const tip = current ? partOf(strokePath(current), part).at(-1)! : done ? strokePath(shapes[done - 1]).at(-1)! : traced?.tip ?? [50, 50];
   const last = paint ? paint.tip : pen ? pen.tip : current?.s === 'text' ? [current.x + (current.text.length * part - current.text.length / 2) * current.size * 0.5, current.y] : tip;
   const onPhoto = Boolean(visual.background || image);
   const waiting = Boolean(visual.illustration && !visual.trace);
@@ -209,7 +211,7 @@ function SketchView({ visual, progress: total, width, drawing, max, pencil }: { 
             <Path d={pathOf(outline!.rings.slice(0, traced.done))} stroke="#4A5868" strokeWidth={0.45} strokeLinejoin="round" fill="none" />
             {traced.current ? <Polyline points={traced.current.map(p => p.join(',')).join(' ')} stroke="#4A5868" strokeWidth={0.45} strokeLinejoin="round" fill="none" /> : null}
           </G> : null}
-          {visual.shapes.slice(0, done).map((shape, i) => <SketchShapeView key={i} shape={shape} onPhoto={onPhoto} />)}
+          {shapes.slice(0, done).map((shape, i) => <SketchShapeView key={i} shape={shape} onPhoto={onPhoto} />)}
           {current ? <PartialShape shape={current} part={part} onPhoto={onPhoto} /> : null}
         </Svg>
         {drawing || clock !== null ? <View style={[s.pencil, { left: last[0] * scale, top: last[1] * scale - pencil }]}><WritingPencil size={pencil} /></View> : null}

@@ -64,3 +64,14 @@ test('the tutor can ask for a real map or a whiteboard drawing; drawings only wh
   await runTutor({ ageBand: '9-10', age: 10, message: 'dibújame un león', provider: 'openai' }, { OPENAI_API_KEY: 'k' }, async (_, init) => { instructions = JSON.parse(init.body).instructions; return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Mira', board: ['León'], visual: null }) }] }] }); });
   assert.match(instructions, /"geo"/); assert.doesNotMatch(instructions, /"illustration"/);
 });
+
+test('generated illustrations replace primitive drafts instead of layering both drawings', () => {
+  const shape = { s: 'circle', x: 50, y: 50, r: 20 };
+  const generated = cleanVisual({ type: 'sketch', title: 'León', illustration: 'A detailed lion', shapes: [shape] }, 40, { pictures: true });
+  assert.deepEqual(generated.shapes, []);
+  assert.ok(generated.illustration);
+  const diagram = cleanVisual({ type: 'sketch', title: 'Círculo', shapes: [shape] });
+  assert.equal(diagram.shapes.length, 1);
+  const annotated = cleanVisual({ type: 'sketch', title: 'León', photo: 'León', shapes: [shape] }, 40, { pictures: true });
+  assert.equal(annotated.shapes.length, 1);
+});
