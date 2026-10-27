@@ -7,10 +7,7 @@
   "functions": {
     "api/tutor.mjs": {
       "maxDuration": 60,
-      "includeFiles": [
-        "node_modules/world-atlas/countries-110m.json",
-        "node_modules/world-atlas/countries-50m.json"
-      ]
+      "includeFiles": "node_modules/world-atlas/countries-*.json"
     },
     "api/tts.mjs": {
       "maxDuration": 30
