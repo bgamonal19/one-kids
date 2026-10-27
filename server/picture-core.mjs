@@ -12,7 +12,7 @@ const styles = {
   photo: 'A realistic, natural-looking photograph',
   sketch: 'A detailed, realistic pencil-and-watercolor drawing like an illustrated encyclopedia',
   // Whiteboard animation: black ink lines the pencil can trace, a few flat colours, nothing to hide the lines.
-  line: 'A whiteboard animation illustration like an explainer video: clean, confident black ink outlines on a pure white background, hand-drawn look, a few flat colour accents (blue, yellow, orange, green), no shading, no gradients, no background scenery beyond what is needed, all of it inside the frame,',
+  line: 'A whiteboard animation illustration like an explainer video: clean, confident black ink outlines on a pure white background, hand-drawn look, a few flat colour accents (blue, yellow, orange, green), crisp expressive educational cartoon artwork, clear silhouettes and carefully drawn recognizable anatomy, uncluttered composition, no shading, no gradients, no panels or borders, no background scenery beyond what is needed, all of it inside the frame,',
 };
 
 export function cleanPicture(raw) {
@@ -31,11 +31,11 @@ export async function runPicture(raw, env, fetcher = fetch) {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini', n: 1, size: '1024x1024', quality: 'low',
+      model: env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini', n: 1, size: '1024x1024', quality: picture.style === 'line' ? 'medium' : 'low',
       output_format: 'jpeg', output_compression: 70, moderation: 'auto',
       prompt: `${styles[picture.style]} for a children's learning app, friendly and safe for kids, accurate details, no text or letters: ${picture.prompt}`,
     }),
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.timeout(52_000),
   });
   if (!response.ok) {
     console.error(`[picture] openai ${response.status} ${(await response.text().catch(() => '')).slice(0, 200)}`);

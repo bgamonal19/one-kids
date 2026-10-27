@@ -55,7 +55,7 @@ test('a photo is made anyway when the tutor promises one but leaves it empty', a
   const { fallbackPicture } = await import('../server/tutor-core.mjs');
   const lion = fallbackPicture({ message: 'no lo veo' }, 'Aquí tienes una foto realista de un león.', ['León: melena grande']);
   assert.equal(lion.label, 'León: melena grande');
-  assert.match(lion.prompt, /león/);
+  assert.match(lion.prompt, /león/i);
   assert.match(fallbackPicture({ message: 'quiero una foto de un tigre' }, 'Mira.', ['Tigre']).prompt, /^un tigre/);
   assert.equal(fallbackPicture({ message: 'dibújame una rana' }, 'Las ranas son anfibios.', ['Rana']), null);
   assert.equal(fallbackPicture({ message: 'cuánto es 8 + 3' }, 'Vamos a sumar.', ['8 + 3']), null);
@@ -72,4 +72,28 @@ test('drawings grow from simple cartoons to detailed structures with age', async
   assert.match(body.instructions, /hasta 120 formas/);
   assert.equal(body.max_output_tokens, 5000);
   assert.match(body.instructions, /especialista en ciencias/);
+});
+
+test('a drawing request always gets a sketch payload when the model sends only text', async () => {
+  const fetcher = async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: 'Aquí tienes el león dibujado.', board: ['León con melena, cuatro patas y cola'], topic: 'El león' }) }] }] });
+  for (const raw of [{ action: 'draw', message: 'Dibújamelo', history: [{ role: 'child', text: 'Quiero conocer al león' }] }, { message: 'Dibuja un león con su melena' }]) {
+    const result = await runTutor({ ageBand: '13-16', pictures: true, ...raw }, { OPENAI_API_KEY: 'k' }, fetcher);
+    assert.equal(result.visual.type, 'sketch');
+    assert.match(result.visual.illustration, /león/i);
+    assert.deepEqual(result.visual.shapes, []);
+    assert.equal(result.picture, null);
+  }
+  const unmetered = await runTutor({ ageBand: '7-9', action: 'draw', message: 'Dibújamelo' }, { OPENAI_API_KEY: 'k' }, fetcher);
+  assert.equal(unmetered.visual, null);
+});
+
+test('whiteboard artwork requests more detail without changing ordinary photo cost settings', async () => {
+  let sent;
+  await runPicture({ prompt: 'A lion with four legs and a mane', label: 'León', style: 'line' }, { OPENAI_API_KEY: 'k' }, async (_, init) => {
+    sent = JSON.parse(init.body);
+    return Response.json({ data: [{ b64_json: 'QUJD' }] });
+  });
+  assert.equal(sent.quality, 'medium');
+  assert.match(sent.prompt, /black ink outlines/);
+  assert.match(sent.prompt, /no panels or borders/);
 });
