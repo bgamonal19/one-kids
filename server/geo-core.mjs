@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const cache = {};
 function countries(detail) {
   if (!cache[detail]) {
-    const topo = require(`world-atlas/countries-${detail}.json`);
+    const topo = detail === '50m' ? require('world-atlas/countries-50m.json') : require('world-atlas/countries-110m.json');
     cache[detail] = feature(topo, topo.objects.countries).features;
   }
   return cache[detail];
