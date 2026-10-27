@@ -42,6 +42,7 @@ export default function ParentLayout() {
           tabBarLabel: ({ focused }) => <TabLabel label="Cursos" focused={focused} />,
         }}
       />
+      <Tabs.Screen name="assessments" options={{ title: 'Prácticas', tabBarLabel: ({ focused }) => <TabLabel label="Prácticas" focused={focused} /> }} />
       <Tabs.Screen
         name="focus"
         options={{

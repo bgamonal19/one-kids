@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { GET, POST, OPTIONS } from '../api/tutor.mjs';
 import { POST as ttsPOST } from '../api/tts.mjs';
+import { POST as studyPOST } from '../api/study.mjs';
 import { runTutor } from '../server/tutor-core.mjs';
 import { attachMap } from '../server/geo-core.mjs';
 import { traceDrawing } from '../server/trace-core.mjs';
@@ -15,6 +16,16 @@ const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 't
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${port}`);
+    if (url.pathname === '/api/study') {
+      const chunks = []; for await (const chunk of req) chunks.push(chunk);
+      const request = new Request(url, { method: req.method, headers: req.headers, body: Buffer.concat(chunks) });
+      let response;
+      if (fixtures) {
+        const body = await request.json();
+        response = Response.json({ ...body, title: 'Practicamos sumas', instructions: 'Lee y elige una respuesta por pregunta.', questions: Array.from({ length: body.count || 5 }, (_, i) => ({ q: `¿Cuánto es ${i + 2} + 1?`, options: [String(i + 3), String(i + 4), String(i + 5), String(i + 6)], answer: 0, why: 'Sumar uno significa avanzar un número.' })) });
+      } else response = await studyPOST(request);
+      res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer())); return;
+    }
     if (url.pathname === '/api/tts') {
       const chunks = []; for await (const chunk of req) chunks.push(chunk);
       let response;
@@ -65,7 +76,7 @@ createServer(async (req, res) => {
     const file = path.resolve(root, '.' + decodeURIComponent(url.pathname));
     if (!file.startsWith(root + path.sep) && file !== root) throw Error('forbidden');
     let data, selected;
-    for (const candidate of [file, file + '.html', path.join(file, 'index.html')]) {
+    for (const candidate of [file, file + '.html', path.join(file, 'index.html'), ...(/^\/practice\/[^/]+$/.test(url.pathname) ? [path.join(root, 'practice', '[id].html')] : [])]) {
       try { data = await readFile(candidate); selected = candidate; break; } catch { /* try next export shape */ }
     }
     if (!data) { res.writeHead(404); res.end('Not found'); return; }

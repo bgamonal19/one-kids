@@ -15,5 +15,11 @@
     "api/study.mjs": {
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/practice/:id",
+      "destination": "/practice/[id].html"
+    }
+  ]
 }

@@ -153,6 +153,7 @@ export default function ParentHome() {
         onPress={() => router.replace('/(child)')}
         style={{ marginTop: spacing.lg }}
       />
+      <PrimaryButton label="📝 Generar examen o práctica" variant="secondary" onPress={() => router.push('/(parent)/assessments')} />
       <PrimaryButton
         label="Gestionar tareas"
         variant="secondary"

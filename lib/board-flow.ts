@@ -25,3 +25,11 @@ export function packBoard(items: { id: string; width: number; height: number }[]
 export function explicitNewTopic(action: string, message: string): boolean {
   return action === 'help' && /(?:cambi(?:emos|ar|a)\s+(?:de\s+)?tema|(?:otro|nuevo|nueva)\s+tema|pasemos\s+a\s+otro|empecemos\s+(?:con\s+)?otro)/i.test(message);
 }
+
+export const BOARD_READING_MS = 5000;
+export const BOARD_DRAWING_MS = 11000;
+/** Additions refer to an existing scene; another topic or drawing starts a separate answer. */
+export function editsExistingDrawing(message: string): boolean {
+  if (/(?:otro|nuevo|nueva)\s+(?:tema|dibujo|pizarra)|\btemas?\b|explicaci[oó]n|resumen/i.test(message)) return false;
+  return /^(?:por favor[, ]*)?(?:agr[eé]ga(?:le)?|a[ñn][aá]de(?:le)?|pon(?:le)?|coloca|incluye|quita(?:le)?|cambia|marca|se[ñn]ala)\b/i.test(message.trim()) || /(?:dibuja|agrega|añade|pon).*(?:encima|sobre el|en el dibujo|en ese dibujo|al dibujo)/i.test(message);
+}

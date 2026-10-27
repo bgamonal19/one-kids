@@ -35,3 +35,11 @@ test('follow-up questions, hints and drawings do not start a new topic', () => {
   assert.equal(explicitNewTopic('help', '¿Por qué ocurre?'), false);
   assert.equal(explicitNewTopic('help', 'Cambiemos de tema: los volcanes'), true);
 });
+
+test('additions modify an existing scene while new themes remain separate', () => {
+  const edits = exports.editsExistingDrawing;
+  for (const message of ['Agrégale un árbol a la derecha', 'Añade un sol encima', 'Ponle una corona', 'Dibuja una nube sobre el lago']) assert.equal(edits(message), true, message);
+  for (const message of ['Agrega más temas', 'Quiero otro dibujo', 'Añade una explicación', 'Cambiemos de tema']) assert.equal(edits(message), false, message);
+  assert.equal(exports.BOARD_READING_MS, 5000);
+  assert.equal(exports.BOARD_DRAWING_MS, 11000);
+});

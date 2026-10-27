@@ -63,9 +63,10 @@ type StoreApi = {
   setChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
   updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => Promise<void>;
-  addTask: (title: string, extra?: Pick<TaskItem, 'courseId' | 'dueDate' | 'note' | 'addedBy'>) => Promise<void>;
+  addTask: (title: string, extra?: Pick<TaskItem, 'courseId' | 'dueDate' | 'note' | 'addedBy' | 'assessment'>) => Promise<void>;
   updateTask: (id: string, patch: Partial<Pick<TaskItem, 'title' | 'courseId' | 'dueDate' | 'note'>>) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
+  submitAssessment: (id: string, answers: number[]) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
   setFocus: (active: boolean) => Promise<void>;
   addStars: (n: number) => Promise<void>;
@@ -331,7 +332,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   }, [persist, state]);
 
   const addTask = useCallback(
-    async (title: string, extra: Pick<TaskItem, 'courseId' | 'dueDate' | 'note' | 'addedBy'> = {}) => {
+    async (title: string, extra: Pick<TaskItem, 'courseId' | 'dueDate' | 'note' | 'addedBy' | 'assessment'> = {}) => {
       const task: TaskItem = {
         id: uid('task'),
         title: title.trim().slice(0, 160),
@@ -340,6 +341,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         ...(extra.courseId ? { courseId: extra.courseId } : {}),
         ...(extra.dueDate ? { dueDate: extra.dueDate } : {}),
         ...(extra.note?.trim() ? { note: extra.note.trim().slice(0, 300) } : {}),
+        ...(extra.assessment ? { assessment: extra.assessment } : {}),
         ...(extra.addedBy ? { addedBy: extra.addedBy } : {}),
       };
       await persist({ ...state, tasks: [task, ...state.tasks] });
@@ -371,6 +373,15 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     },
     [persist, state]
   );
+
+  const submitAssessment = useCallback(async (id: string, answers: number[]) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (!task?.assessment || answers.length !== task.assessment.questions.length || task.assessment.questions.some((q, i) => !Number.isInteger(answers[i]) || answers[i] < 0 || answers[i] >= q.options.length)) throw new Error('Responde todas las preguntas antes de terminar.');
+    const submittedAt = new Date().toISOString();
+    const result = { answers, right: task.assessment.questions.filter((q, i) => q.answer === answers[i]).length, total: answers.length, submittedAt };
+    const tasks = state.tasks.map(t => t.id === id ? { ...t, assessmentResult: result, done: true, doneAt: submittedAt } : t);
+    await persist({ ...state, tasks, focusActive: tasks.every(t => t.done) ? false : state.focusActive });
+  }, [persist, state]);
 
   const removeTask = useCallback(
     async (id: string) => {
@@ -552,7 +563,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       updateChildAge,
       updateLearningProfile,
       addTask, updateTask,
-      toggleTask,
+      toggleTask, submitAssessment,
       removeTask,
       setFocus,
       addStars,
@@ -578,7 +589,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       updateChildAge,
       updateLearningProfile,
       addTask, updateTask,
-      toggleTask,
+      toggleTask, submitAssessment,
       removeTask,
       setFocus,
       addStars,

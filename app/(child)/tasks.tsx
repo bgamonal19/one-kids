@@ -54,8 +54,9 @@ export default function ChildTasks() {
         </Pressable>
       </View>
 
+      {state.tasks.filter(task => task.assessment).map(task => <View key={task.id} style={styles.assessment}><Text style={styles.assessmentTitle}>{task.assessment?.mode === 'exam' ? '📝' : '🌱'} {task.title}</Text><Text style={styles.hint}>{task.assessmentResult ? `${task.assessmentResult.right}/${task.assessmentResult.total} respuestas correctas` : 'Asignado por tus padres · listo para estudiar'}</Text><PrimaryButton label={task.assessmentResult ? 'Ver resultado o repasar' : 'Empezar'} onPress={() => router.push({ pathname: '/(child)/practice/[id]', params: { id: task.id } })} /></View>)}
       <TaskChecklist
-        tasks={state.tasks}
+        tasks={state.tasks.filter(task => !task.assessment)}
         onToggle={async id => {
           const task = state.tasks.find(item => item.id === id);
           await toggleTask(id);
@@ -78,6 +79,8 @@ export default function ChildTasks() {
 }
 
 const styles = StyleSheet.create({
+  assessment: { backgroundColor: colors.white, borderRadius: 22, padding: 20, gap: 10, marginBottom: 16 },
+  assessmentTitle: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 20 },
   title: {
     fontFamily: fonts.displayBold,
     fontSize: 28,

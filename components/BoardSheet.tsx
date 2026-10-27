@@ -1,6 +1,7 @@
-import { packBoard } from '@/lib/board-flow';
-import { useRef, useState } from 'react';
+import { BOARD_READING_MS, BOARD_DRAWING_MS, packBoard } from '@/lib/board-flow';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 import { BoardVisualView, visualSteps } from './BoardVisual';
 import { TapedPhotos, type Zoomed } from './BoardPhotos';
 import { WritingPencil } from './WritingPencil';
@@ -54,13 +55,11 @@ function BlockPart({ block, from, to, shown, writing, lineSize, width, fit, onZo
           case 'visual': {
             const size = width * (fit ?? 1);
             if (!visual || (!onPieceLayout && drawn <= 0)) return null;
-            if (onPieceLayout) return <View key={i} {...measure(i)}><BoardVisualView visual={visual} drawn={steps} width={size} drawing={false} /><Text style={s.zoomHint}>🔍 Toca el dibujo para verlo en grande</Text></View>;
-            return drawn >= steps && onZoom
-              ? <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel="Ver el dibujo en grande" onPress={() => onZoom({ visual })}>
-                <BoardVisualView visual={visual} drawn={drawn} width={size} drawing={false} />
-                <Text style={s.zoomHint}>🔍 Toca el dibujo para verlo en grande</Text>
-              </Pressable>
-              : <View key={i}><BoardVisualView visual={visual} drawn={drawn} width={size} drawing={Boolean(writing)} /><Text style={s.zoomHint}> </Text></View>;
+            if (onPieceLayout) return <View key={i} {...measure(i)}><BoardVisualView visual={visual} drawn={steps} width={size} max={size} drawing={false} /><Text style={s.zoomHint}>🔍 Toca el dibujo para verlo en grande</Text></View>;
+            return <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel="Ver el dibujo en grande" disabled={drawn < steps || !onZoom} onPress={() => onZoom?.({ visual })}>
+              <BoardVisualView visual={visual} drawn={drawn} width={size} max={size} drawing={Boolean(writing)} />
+              <Text style={s.zoomHint}>{drawn >= steps ? '🔍 Toca el dibujo para verlo en grande' : '✏️ Dibujando…'}</Text>
+            </Pressable>;
           }
           case 'summary': return onPieceLayout || count >= total ? <View key={i} {...measure(i)} style={s.summary} accessibilityLabel={`Resumen: ${block.summary!.join('. ')}`}>
             <Text style={[s.summaryTitle, { fontSize: lineSize * 0.8 }]}>📝 Resumen</Text>
@@ -81,8 +80,9 @@ function Measure({ block, width, lineSize, onMeasured }: { block: BoardBlock; wi
     const height = Math.ceil(event.nativeEvent.layout.height);
     if (height > 0 && height !== last.current) { last.current = height; onMeasured(block.id, height); }
   }}>
-    <Text style={s.step}>Paso</Text>
+    <View style={s.actions}><Text style={s.step}>Paso</Text></View>
     <BlockPart block={block} from={range.from} to={range.to} shown={Infinity} lineSize={lineSize} width={width} />
+    {block.visual ? <View style={{ height: 32 }} /> : null}
   </View>;
 }
 
@@ -105,24 +105,44 @@ type Props = {
   /** Space kept free at the top right, where the tutor stands. */
   headerInset?: number;
   onZoom?: (zoomed: Zoomed) => void;
+  onEdit?: (id: string) => void;
   /** Blocks without segments are measured off-screen first; the parent then places them. */
   onMeasured?: (id: string, heights: number[]) => void;
 };
 
 /** Free placement reuses gaps beside earlier answers; numbering preserves the lesson sequence. */
-export function BoardSheet({ board, width, lineSize, active, thinking, headerInset = 0, onZoom, onMeasured }: Props) {
+export function BoardSheet({ board, width, lineSize, active, thinking, headerInset = 0, onZoom, onEdit, onMeasured }: Props) {
   const [measurements, setMeasurements] = useState<Record<string, number>>({});
-  const widths = board.blocks.map(block => {
-    if (width < 620) return width;
-    const illustrated = Boolean(block.visual || block.photos?.length || block.drawingLabel);
-    return Math.floor(illustrated ? (width - 18) * 0.5 : (width - 18) * 0.45);
-  });
-  const measurementKey = (block: BoardBlock, w: number) => `${block.id}:${w}:${lineSize}:${blockRange(block).from}:${blockRange(block).to ?? 'end'}:${block.lines.join('|')}:${Boolean(block.visual)}:${block.photos?.length ?? 0}:${block.summary?.join('|') ?? ''}:${block.drawingLabel ?? ''}`;
+  const [settled, setSettled] = useState<string[]>([]);
+  const [chosen, setChosen] = useState<{ id: string; turn?: string }>();
+  const imageVersions = useRef(new Map(board.blocks.map(b => [b.id, b.visual?.type === 'sketch' ? b.visual.trace?.image : undefined])));
+  useEffect(() => {
+    for (const block of board.blocks) {
+      const image = block.visual?.type === 'sketch' ? block.visual.trace?.image : undefined;
+      if (image && imageVersions.current.has(block.id) && imageVersions.current.get(block.id) !== image) {
+        setChosen({ id: block.id, turn: active?.id }); setSettled(current => current.filter(id => id !== block.id));
+      }
+      imageVersions.current.set(block.id, image);
+    }
+  }, [board.blocks, active?.id]);
+  const focusId = (chosen?.turn === active?.id ? chosen?.id : undefined) ?? (active && !settled.includes(active.id) ? active.id : undefined);
+  const focused = board.blocks.find(b => b.id === focusId);
+  const preparing = focused?.visual?.type === 'sketch' && Boolean(focused.visual.illustration);
+  const image = focused?.visual?.type === 'sketch' ? focused.visual.trace?.image : undefined;
+  useEffect(() => {
+    if (!focusId || preparing || (active?.id === focusId && active.writing)) return;
+    const timer = setTimeout(() => { setSettled(current => [...current, focusId]); setChosen(undefined); }, BOARD_READING_MS + (image ? BOARD_DRAWING_MS : 0));
+    return () => clearTimeout(timer);
+  }, [focusId, preparing, image, active?.id, active?.writing]);
+  const sizes = board.blocks.map(block => block.id === focusId
+    ? { width: Math.min(width, 760), font: Math.round(lineSize * 1.2) }
+    : { width: width < 340 ? width : Math.floor((width - 18) / (width >= 900 ? 3 : 2)), font: Math.max(16, Math.round(lineSize * .72)) });
+  const measurementKey = (block: BoardBlock, i: number) => `${block.id}:${sizes[i].width}:${sizes[i].font}:${blockRange(block).from}:${blockRange(block).to ?? 'end'}:${block.lines.join('|')}:${Boolean(block.visual)}:${block.photos?.length ?? 0}:${block.summary?.join('|') ?? ''}:${block.drawingLabel ?? ''}`;
   const items = board.blocks.flatMap((block, i) => {
-    const height = measurements[measurementKey(block, widths[i])];
-    return height ? [{ id: block.id, width: widths[i], height }] : [];
+    const height = measurements[measurementKey(block, i)];
+    return height ? [{ id: block.id, width: sizes[i].width, height }] : [];
   });
-  const rectangles = packBoard(items, width);
+  const rectangles = packBoard([...items.filter(item => item.id === focusId), ...items.filter(item => item.id !== focusId)], width);
   const bottom = Math.max(0, ...rectangles.map(rect => rect.y + rect.height));
   const pending = board.blocks.filter(block => !blockSegments(block));
   return <View>
@@ -134,18 +154,19 @@ export function BoardSheet({ board, width, lineSize, active, thinking, headerIns
         const rect = rectangles.find(p => p.id === block.id);
         if (!rect) return null;
         const range = blockRange(block);
-        return <View key={block.id} style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.width }}>
-          <Text style={s.step}>Paso {index + 1}</Text>
-          <BlockPart block={block} from={range.from} to={range.to} width={rect.width} lineSize={lineSize} onZoom={onZoom} shown={active?.id === block.id ? active.shown : undefined} writing={active?.id === block.id && active.writing} />
-        </View>;
+        return <Animated.View key={block.id} layout={LinearTransition.duration(550)} style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.width }}>
+          <View style={s.actions}><Text style={s.step}>Paso {index + 1}{block.id === focusId ? ' · En grande' : ''}</Text>{onZoom && block.id !== focusId ? <Pressable accessibilityRole="button" accessibilityLabel={`Ver paso ${index + 1} en grande`} onPress={() => { setChosen({ id: block.id, turn: active?.id }); setSettled(current => current.filter(id => id !== block.id)); }}><Text style={s.actionText}>↗ Ampliar</Text></Pressable> : null}</View>
+          <BlockPart block={block} from={range.from} to={range.to} width={rect.width} lineSize={sizes[index].font} onZoom={onZoom} shown={active?.id === block.id ? active.shown : undefined} writing={active?.id === block.id && active.writing} />
+          {onEdit && block.visual ? <Pressable accessibilityRole="button" accessibilityLabel={`Añadir detalles al dibujo del paso ${index + 1}`} onPress={() => onEdit(block.id)} style={s.edit}><Text style={s.actionText}>✏️ Añadir a este dibujo</Text></Pressable> : null}
+        </Animated.View>;
       })}
     </View>
     {thinking ? <View style={[s.block, { marginTop: BLOCK_GAP }]}>
       {thinking.childLine ? <Text style={[s.child, { fontSize: lineSize * 0.7 }]} numberOfLines={3}>Tú: {thinking.childLine}</Text> : null}
       <View style={s.lineRow}><Text style={[s.line, { fontSize: lineSize, color: colors.inkMuted }]}>…</Text><WritingPencil size={lineSize * 1.15} /></View>
     </View> : null}
-    {board.blocks.map((block, i) => <Measure key={measurementKey(block, widths[i])} block={block} width={widths[i]} lineSize={lineSize} onMeasured={(id, height) => {
-      const key = measurementKey(block, widths[i]);
+    {board.blocks.map((block, i) => <Measure key={measurementKey(block, i)} block={block} width={sizes[i].width} lineSize={sizes[i].font} onMeasured={(id, height) => {
+      const key = measurementKey(block, i);
       setMeasurements(current => current[key] === height ? current : { ...current, [key]: height });
       if (pending.some(b => b.id === id)) onMeasured?.(id, [height]);
     }} />)}
@@ -153,6 +174,9 @@ export function BoardSheet({ board, width, lineSize, active, thinking, headerIns
 }
 
 const s = StyleSheet.create({
+  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 30 },
+  actionText: { fontFamily: fonts.bodyBold, fontSize: 12, color: '#2C60AE', paddingVertical: 6 },
+  edit: { alignSelf: 'flex-start', marginTop: 4 },
   header: { justifyContent: 'flex-start', marginBottom: 6 },
   topic: { fontFamily: handwriting, color: '#C0392B', textDecorationLine: 'underline' },
   part: { color: colors.inkMuted, textDecorationLine: 'none', fontSize: 16 },

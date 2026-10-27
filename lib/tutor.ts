@@ -24,12 +24,12 @@ export type BoardVisual =
  * Lines traced with the pencil before the shapes, on the same 0–100 grid: a real map outline, or, with `image`,
  * the strokes that reveal an AI line drawing like a whiteboard animation (`fills` colour it in afterwards).
  */
-export type SketchTrace = { rings: [number, number][][]; fills?: [number, number][][]; image?: string };
+export type SketchTrace = { beforeImage?: string; rings: [number, number][][]; fills?: [number, number][][]; image?: string };
 export type ImageSearch = { query: string; label: string };
 /** A real photo found for an image search (Wikipedia article lead image). */
 export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string; generated?: boolean };
 /** Free mode: what the tutor wants to draw as a realistic AI picture. */
-export type PictureRequest = { prompt: string; label: string; style: 'photo' | 'sketch' | 'line' };
+export type PictureRequest = { prompt: string; label: string; style: 'photo' | 'sketch' | 'line'; baseImage?: string };
 export type TutorRequest = {
   ageBand: AgeBand;
   childName: string;

@@ -45,3 +45,9 @@ export async function readSyllabusPhoto(imageBase64: string, course: string): Pr
 }
 
 export const PERIOD_LABEL: Record<ReportPeriod, string> = { today: 'Hoy', week: 'Esta semana', all: 'Todo el año' };
+
+export async function requestAssessment(input: { ageBand: AgeBand; course: string; topic: string; grade: string; count: number; mode: 'practice' | 'exam'; difficulty: string }): Promise<import('./types').Assessment> {
+  const data = await post<import('./types').Assessment>({ kind: 'assessment', ...input });
+  if (!Array.isArray(data.questions) || data.questions.length !== input.count) throw new Error('La práctica llegó incompleta. Vuelve a generarla.');
+  return data;
+}

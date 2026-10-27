@@ -12,7 +12,7 @@ const branchColors = ['#2C60AE', '#E2553A', '#23935F', '#7B4FC2', '#F08A24', '#1
 /** A traced map outline takes as long to draw as this many shapes. */
 const TRACE_STEPS = 24;
 /** How long the pencil takes to draw an AI line drawing, which arrives after the reply. */
-const DRAWING_MS = 11000;
+export const DRAWING_MS = 11000;
 const lineTrace = (visual: Visual) => visual.type === 'sketch' && visual.trace && !visual.trace.image ? visual.trace : null;
 
 /** Each map branch or sketch shape is one drawing step; a map outline counts as several. */
@@ -76,7 +76,8 @@ const pathOf = (strokes: Point[][]) => strokes.map(stroke => `M${stroke.map(p =>
 function useDrawingClock(trace: SketchTrace | undefined) {
   const image = trace?.image;
   // Only a drawing that arrives while the board is open is animated; saved boards show it finished.
-  const [arrives] = useState(() => !image);
+  const [initialImage] = useState(image);
+  const arrives = Boolean(image && image !== initialImage);
   const [clock, setClock] = useState<{ image?: string; part: number } | null>(null);
   useEffect(() => {
     if (!arrives || !image) return;
@@ -194,6 +195,7 @@ function SketchView({ visual, progress: total, width, drawing, max, pencil }: { 
       <View style={[s.box, { width: w, height: h }]}>
         {/* An annotated photo: the real picture fills the square and the tutor writes on top of it. */}
         {visual.background ? <Image source={{ uri: visual.background.url }} resizeMode="cover" accessibilityLabel={visual.background.title} style={[StyleSheet.absoluteFill, s.photo]} /> : null}
+        {image && clock !== null && visual.trace?.beforeImage ? <Image source={{ uri: visual.trace.beforeImage }} resizeMode="contain" accessibilityLabel="Dibujo anterior" style={StyleSheet.absoluteFill} /> : null}
         {image && clock === null ? <Image source={{ uri: image }} resizeMode="contain" accessibilityLabel={visual.title} style={StyleSheet.absoluteFill} /> : null}
         {waiting ? <View style={[StyleSheet.absoluteFill, s.waiting]}><Text style={s.waitingText}>✏️ Preparando el dibujo…</Text></View> : null}
         <Svg width={w} height={h} viewBox={`0 0 100 ${100 * aspect}`} style={s.over}>

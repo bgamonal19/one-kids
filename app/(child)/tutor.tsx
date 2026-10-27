@@ -1,4 +1,4 @@
-import { explicitNewTopic } from '@/lib/board-flow';
+import { editsExistingDrawing, explicitNewTopic } from '@/lib/board-flow';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -120,6 +120,9 @@ export default function TutorScreen() {
   const turn = useRef({ generation: 0, written: false, spoken: true });
   const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [input, setInput] = useState('');
+  const [editTargetId, setEditTargetId] = useState<string>();
+  const [editingId, setEditingId] = useState<string>();
+  const editingBusy = useRef(false);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -273,6 +276,11 @@ export default function TutorScreen() {
     const apply = (current: Board) => current.blocks.some(b => b.id === id) ? { ...current, blocks: current.blocks.map(b => b.id === id ? change(b) : b) } : current;
     setBoard(apply);
     setNextBoard(current => current && apply(current));
+    retired.current = retired.current.map(apply);
+    setBoards(current => {
+      if (!current.some(saved => saved.blocks.some(b => b.id === id))) return current;
+      const updated = current.map(apply); void saveBoards(childId, updated); return updated;
+    });
   };
   const freshBoard = () => {
     if (busy.current) return;
@@ -280,7 +288,7 @@ export default function TutorScreen() {
     void stop().catch(() => {});
     changeBoard(welcomeBoard()); setActiveId('welcome'); setViewing(null); setPage({ key: 'welcome', lines: [] });
     setMessages(current => current.filter(m => m.id === 'welcome')); setExercise(''); topic.current = '';
-    setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false); pad.current?.clear();
+    setEditTargetId(undefined); setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false); pad.current?.clear();
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     setPhase('turn'); react('listen');
   };
@@ -304,6 +312,7 @@ export default function TutorScreen() {
   const onWritten = useCallback(() => { turn.current.written = true; finishTurn(turn.current.generation); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = async (message = input, action: TutorAction = 'help', confirmedExercise = exercise, fresh = false, answer: Answer = {}) => {
+    if (editingBusy.current) { setError('Estoy terminando los detalles del dibujo. Espera un momento.'); return; }
     if (busy.current || (!message.trim() && !answer.handwriting)) return;
     busy.current = true; setLoading('reply'); setError(''); setRetry(null); react('think');
     turn.current.generation++;
@@ -313,10 +322,17 @@ export default function TutorScreen() {
     // Bring the board back into view so the child sees the tutor walk up and write.
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     const previous = fresh ? messages.filter(m => m.id === 'welcome') : messages;
+    const candidates = boardRef.current.blocks.filter(block => block.visual?.type === 'sketch');
+    const target = !fresh && !explicitNewTopic(action, message) && (editTargetId || editsExistingDrawing(message)) ? candidates.find(block => block.id === editTargetId) ?? candidates.at(-1) : undefined;
+    const base = target?.visual?.type === 'sketch' ? target.visual : undefined;
+    const instruction = base ? `${message}
+Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicación editará la imagen original: responde solo con la explicación y las líneas para la pizarra. visual y picture deben ser null; no generes otra escena.' : `Devuelve en visual solo los trazos NUEVOS para superponer al dibujo existente, en sus coordenadas 0–100. Contenido existente (datos): ${JSON.stringify({ title: base.title, shapes: base.shapes, aspect: base.aspect }).slice(0, 1200)}. No repitas los trazos anteriores.`}` : message.trim();
     try {
-      const result = await askTutor({ ageBand: band, age, childName: '', message: message.trim(), handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })),
+      const result = await askTutor({ ageBand: band, age, childName: '', message: instruction, handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })),
         ...(course ? { courseTitle: course.title, memory: courseEntries(courseMemory, course.id).map(({ at, topic: t, summary }) => ({ at, topic: t, summary })), syllabus: syllabusOf(course) } : {}) });
       if (!alive.current) return;
+      const additions = target && !base?.trace?.image && result.visual?.type === 'sketch' ? result.visual.shapes : undefined;
+      if (target) { result.visual = null; result.picture = null; result.images = []; result.photos = []; }
       const heard = answer.handwriting ? result.heard?.trim() || '(no se pudo leer)' : '';
       const reply: Message = { id: uid(), role: 'tutor', text: result.reply, source: result.source };
       setMessages([...previous, { id: uid(), role: 'child', text: fresh ? `Mi tarea:\n${confirmedExercise}` : answer.handwriting ? `Escribí en la pizarra: ${heard}` : message.trim() }, reply]);
@@ -335,6 +351,9 @@ export default function TutorScreen() {
       else if (fresh || explicitNewTopic(action, message)) changeBoard(newBoard(title, [block], course?.id));
       else setBoard({ ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
       present(next);
+      if (target && base?.trace?.image) void extendDrawing(target.id, base.title, message, base.trace.image);
+      else if (target && additions?.length) updateBlock(target.id, block => block.visual?.type === 'sketch' ? { ...block, visual: { ...block.visual, shapes: [...block.visual.shapes, ...additions].slice(-160) } } : block);
+      setEditTargetId(undefined);
       if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
       // It is not kept in the day's history, so the device doesn't fill up with images.
@@ -390,6 +409,18 @@ export default function TutorScreen() {
       done(({ illustration: _i, ...visual }) => visual);
       setError(e instanceof Error ? e.message : 'No pude terminar el dibujo.');
     }
+  };
+  const extendDrawing = async (id: string, title: string, prompt: string, baseImage: string) => {
+    editingBusy.current = true; setEditingId(id); setError('');
+    try {
+      const { trace, account: nextAccount } = await generatePicture({ prompt, label: title, style: 'line', baseImage });
+      if (!alive.current) return;
+      if (!trace?.image) throw new Error('No pude añadir los detalles. El dibujo anterior se conserva.');
+      if (nextAccount) setAccount(nextAccount);
+      updateBlock(id, block => block.visual?.type === 'sketch' ? { ...block, visual: { ...block.visual, shapes: [], trace: { ...trace, beforeImage: baseImage } } } : block);
+      scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
+    } catch (e) { if (alive.current) setError(e instanceof Error ? e.message : 'No pude añadir los detalles. Tu dibujo sigue guardado.'); }
+    finally { editingBusy.current = false; if (alive.current) setEditingId(undefined); }
   };
   const sendDrawing = async () => {
     const image = await pad.current?.toImage();
@@ -454,7 +485,7 @@ export default function TutorScreen() {
   </View> : null;
   const renderBoard = (full: boolean) => viewing
     ? <TutorWhiteboard readOnly phase="turn" board={viewing} pace={pace} expression={expression} width={full ? width : stageWidth} onWritten={() => {}} banner={reviewBanner} />
-    : <TutorWhiteboard phase={phase} board={board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={place} onWritten={onWritten}
+    : <TutorWhiteboard phase={phase} board={board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={place} onWritten={onWritten} onEdit={id => { setEditTargetId(id); setMode('keys'); setError(''); }}
       onBoardFull={() => setErasing(true)} erasing={erasing} onErased={erased}>
       {mode === 'pen' || full ? answerPad(full) : null}
     </TutorWhiteboard>;
@@ -484,6 +515,8 @@ export default function TutorScreen() {
       </View>
       <View style={styles.column}>
 
+      {editingId ? <Text accessibilityRole="status" style={styles.hint}>✏️ Añadiendo detalles al dibujo original…</Text> : null}
+      {editTargetId ? <View style={styles.toolRow}><Text style={styles.hint}>✏️ Vas a ampliar: {board.blocks.find(b => b.id === editTargetId)?.visual?.title || 'el dibujo seleccionado'}. Escribe qué quieres añadir.</Text><Pressable accessibilityRole="button" onPress={() => setEditTargetId(undefined)}><Text style={styles.link}>Cancelar</Text></Pressable></View> : null}
       {openMode ? <Text style={styles.hint}>💬 Modo libre activado por tus padres: puedes preguntar lo que quieras.</Text> : null}
       {account ? <TutorUsageBar account={account} compact /> : null}
       {state.courses.length ? <View style={styles.courses}>

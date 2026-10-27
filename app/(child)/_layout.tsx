@@ -49,6 +49,7 @@ export default function ChildLayout() {
         <Stack.Screen name="courses" options={{ title: 'Cursos' }} />
         <Stack.Screen name="course/[id]" options={{ title: 'Perfil del curso' }} />
         <Stack.Screen name="study/[id]" options={{ title: 'Modo estudio' }} />
+        <Stack.Screen name="practice/[id]" options={{ title: 'Prácticas y exámenes' }} />
         <Stack.Screen name="schedule" options={{ title: 'Rol semanal' }} />
       </Stack>
 

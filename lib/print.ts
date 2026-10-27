@@ -21,6 +21,10 @@ function pageHtml(title: string, body: string) {
 export async function printPicture(title: string, picture: { imageUrl: string } | { markup: string }) {
   const body = 'imageUrl' in picture ? `<img src="${escape(picture.imageUrl)}" alt="${escape(title)}">` : `<div class="drawing">${picture.markup}</div>`;
   const html = pageHtml(title || 'Dibujo del tutor', body);
+  await printDocument(html, 'markup' in picture);
+}
+
+export async function printDocument(html: string, copyStyles = false) {
   if (Platform.OS !== 'web') { await Print.printAsync({ html }); return; }
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
@@ -29,7 +33,7 @@ export async function printPicture(title: string, picture: { imageUrl: string } 
   const doc = frame.contentDocument!;
   doc.open(); doc.write(html); doc.close();
   // The app's styles (react-native-web classes and fonts) so a drawing looks like on the board.
-  if ('markup' in picture) document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => doc.head.appendChild(doc.importNode(node, true)));
+  if (copyStyles) document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => doc.head.appendChild(doc.importNode(node, true)));
   const images = Array.from(doc.images);
   await Promise.all(images.map(img => img.complete ? null : new Promise(done => { img.onload = img.onerror = done; })));
   frame.contentWindow!.focus();

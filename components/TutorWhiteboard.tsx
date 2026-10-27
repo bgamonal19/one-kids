@@ -30,6 +30,7 @@ type Props = {
   /** A new answer was measured: the parent splits it between columns, or continues it on the next board. */
   onPlace?: (id: string, heights: number[], cols: number, maxHeight: number) => void;
   onWritten: () => void;
+  onEdit?: (id: string) => void;
   /** The board is full and this part of the answer is written: time to wipe the board. */
   onBoardFull?: () => void;
   /** The eraser is wiping the board; onErased runs when it is clean. */
@@ -49,7 +50,7 @@ export function boardLayout(width: number, windowHeight: number, wide: boolean) 
 const ERASE_MS = 1600;
 const ERASER = { w: 96, h: 44 };
 
-export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, onBoardFull, erasing, onErased, banner, children }: Props) {
+export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, onEdit, onBoardFull, erasing, onErased, banner, children }: Props) {
   const { state } = useFamily();
   const reduced = useReducedMotion();
   const { height: windowHeight } = useWindowDimensions();
@@ -139,7 +140,7 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
               <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={size * 1.05}
                 active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
                 thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
-                onZoom={setZoomed}
+                onZoom={setZoomed} onEdit={readOnly ? undefined : onEdit}
                 onMeasured={readOnly ? undefined : (id, heights) => onPlace?.(id, heights, layout.cols, maxHeight)} />
             </Animated.View>
             <Animated.View testID="mota" pointerEvents="none" style={[s.mota, eraser]} accessibilityElementsHidden>

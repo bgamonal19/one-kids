@@ -1,6 +1,14 @@
 import type { CompanionId } from './companions';
 
+export type Assessment = {
+  title: string; instructions: string; course: string; topic: string; grade: string;
+  mode: 'practice' | 'exam'; difficulty: string;
+  questions: { q: string; options: string[]; answer: number; why: string }[];
+};
+export type AssessmentResult = { answers: number[]; right: number; total: number; submittedAt: string };
 export type TaskItem = {
+  assessment?: Assessment;
+  assessmentResult?: AssessmentResult;
   id: string;
   title: string;
   done: boolean;

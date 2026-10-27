@@ -114,3 +114,19 @@ test('explaining an existing drawing does not generate or charge another illustr
   assert.equal(result.visual, null);
   assert.equal(result.picture, null);
 });
+
+test('editing sends the original drawing to image edits and preserves the requested placement', async () => {
+  let url, body;
+  const baseImage = 'data:image/jpeg;base64,QUJD';
+  const result = await runPicture({ prompt: 'Add a yellow sun in the top right corner', label: 'Paisaje', style: 'line', baseImage }, { OPENAI_API_KEY: 'k' }, async (endpoint, init) => {
+    url = endpoint; body = JSON.parse(init.body);
+    return Response.json({ data: [{ b64_json: 'QUJD' }] });
+  });
+  assert.equal(url, 'https://api.openai.com/v1/images/edits');
+  assert.deepEqual(body.images, [{ image_url: baseImage }]);
+  assert.match(body.prompt, /Preserve its existing subjects/);
+  assert.match(body.prompt, /top right corner/);
+  assert.ok(result.trace.image);
+  assert.throws(() => cleanPicture({ prompt: 'edit it', baseImage: 'https://private.test/image' }), e => e.status === 400);
+  assert.throws(() => cleanPicture({ prompt: 'edit it', baseImage: 'data:image/svg+xml;base64,QUJD' }), e => e.status === 400);
+});

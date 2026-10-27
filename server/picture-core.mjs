@@ -19,7 +19,12 @@ export function cleanPicture(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const prompt = typeof raw.prompt === 'string' ? raw.prompt.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 520) : '';
   if (prompt.length < 3) return null;
-  return { prompt, label: typeof raw.label === 'string' ? raw.label.trim().slice(0, 60) : '', style: raw.style === 'sketch' || raw.style === 'line' ? raw.style : 'photo' };
+  let baseImage;
+  if (raw.baseImage !== undefined) {
+    if (typeof raw.baseImage !== 'string' || raw.baseImage.length > 2_400_000 || !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(raw.baseImage)) throw new PictureError('La imagen de referencia no es válida.');
+    baseImage = raw.baseImage;
+  }
+  return { ...(baseImage ? { baseImage } : {}), prompt, label: typeof raw.label === 'string' ? raw.label.trim().slice(0, 60) : '', style: raw.style === 'sketch' || raw.style === 'line' ? raw.style : 'photo' };
 }
 
 export async function runPicture(raw, env, fetcher = fetch) {
@@ -27,13 +32,15 @@ export async function runPicture(raw, env, fetcher = fetch) {
   if (!picture) throw new PictureError('No sé qué dibujar.');
   const key = (env.OPENAI_API_KEY || '').trim();
   if (!key) throw new PictureError('Las imágenes necesitan la clave de OpenAI en el servidor.', 503);
-  const response = await fetcher('https://api.openai.com/v1/images/generations', {
+  const model = picture.baseImage ? env.OPENAI_IMAGE_EDIT_MODEL || 'gpt-image-1.5' : env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
+  const response = await fetcher(`https://api.openai.com/v1/images/${picture.baseImage ? 'edits' : 'generations'}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini', n: 1, size: '1024x1024', quality: picture.style === 'line' ? 'medium' : 'low',
+      model, n: 1, size: '1024x1024', quality: picture.style === 'line' ? 'medium' : 'low',
       output_format: 'jpeg', output_compression: 70, moderation: 'auto',
-      prompt: `${styles[picture.style]} for a children's learning app, friendly and safe for kids, accurate details, no text or letters: ${picture.prompt}`,
+      ...(picture.baseImage ? { images: [{ image_url: picture.baseImage }], ...(model === 'gpt-image-1.5' ? { input_fidelity: 'high' } : {}) } : {}),
+      prompt: `${picture.baseImage ? 'Edit the supplied drawing. Preserve its existing subjects, positions, proportions and composition. Apply ONLY the requested additions or changes in the requested positions; fit additions in the free space. Do not replace the scene. ' : ''}${styles[picture.style]} for a children's learning app, friendly and safe for kids, accurate details, no text or letters: ${picture.prompt}`,
     }),
     signal: AbortSignal.timeout(52_000),
   });
