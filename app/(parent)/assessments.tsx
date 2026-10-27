@@ -68,7 +68,7 @@ export default function ParentAssessments() {
       {choices([5, 10, 15].map(value => ({ value, label: `${value} preguntas` })), count, setCount)}
       <Text style={s.label}>Dificultad</Text>
       {choices([{ value: 'refuerzo', label: 'Refuerzo' }, { value: 'grado', label: 'Según su grado' }, { value: 'reto', label: 'Un reto mayor' }], difficulty, setDifficulty)}
-      <PrimaryButton label={busy ? 'Preparando…' : `Generar ${mode === 'exam' ? 'examen' : 'práctica'} con IA`} disabled={busy || !courseName || !topic.trim() || !grade} onPress={() => void generate()} />
+      <PrimaryButton label={busy ? 'Preparando y revisando…' : `Generar ${mode === 'exam' ? 'examen' : 'práctica'} con IA`} disabled={busy || !courseName || !topic.trim() || !grade} onPress={() => void generate()} />
       {busy ? <ActivityIndicator accessibilityLabel="Preparando material" color={colors.coral} /> : null}
     </View>
     {error ? <Text accessibilityRole="alert" style={s.error}>{error}</Text> : null}

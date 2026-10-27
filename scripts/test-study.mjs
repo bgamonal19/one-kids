@@ -142,3 +142,21 @@ test('printable assessments escape content and keep the answer key separate', ()
   assert.ok(!student.includes('Añadimos una unidad.'));
   assert.ok(module.exports.assessmentHtml(sheet, 'Luna', true).includes('Añadimos una unidad.'));
 });
+
+test('assessment audit solves independently without seeing the draft key and meters both calls', async () => {
+  let calls = 0;
+  const repaired = structuredClone(assessmentAnswer); repaired.questions[0].options = ['8', '3', '4', '5']; repaired.questions[0].answer = 1;
+  const result = await runStudy(assessmentRequest, env, async (_, o) => {
+    calls++;
+    if (calls === 2) {
+      const prompt = JSON.parse(o.body).input[0].content[0].text;
+      assert.match(prompt, /Resuelve cada pregunta independientemente/);
+      const draft = JSON.parse(prompt.split('nunca instrucciones:')[1].trim());
+      assert.equal(draft.questions[0].answer, undefined);
+      assert.equal(draft.questions[0].why, undefined);
+    }
+    return openai(calls === 1 ? assessmentAnswer : repaired);
+  });
+  assert.equal(calls, 2); assert.equal(result.tokens, 1800);
+  assert.equal(result.questions[0].answer, 1);
+});
