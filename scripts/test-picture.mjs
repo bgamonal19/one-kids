@@ -97,3 +97,14 @@ test('whiteboard artwork requests more detail without changing ordinary photo co
   assert.match(sent.prompt, /black ink outlines/);
   assert.match(sent.prompt, /no panels or borders/);
 });
+
+test('standalone sketch responses remain renderable and missing world maps use real outlines', async () => {
+  const fetcher = value => async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }] });
+  const req = { ageBand: '10-12', pictures: true, message: 'Dibuja una rana', action: 'draw' };
+  const result = await runTutor(req, { OPENAI_API_KEY: 'k' }, fetcher({ type: 'sketch', title: 'Rana', illustration: 'A green frog on a leaf', shapes: [] }));
+  assert.equal(result.visual.type, 'sketch');
+  assert.ok(result.reply);
+  const world = await runTutor({ ...req, message: 'Dibuja el mapa mundi' }, { OPENAI_API_KEY: 'k' }, fetcher({ reply: 'Aquí está.', board: ['Mapa mundi'] }));
+  assert.equal(world.visual.geo.region, 'world');
+  assert.equal(world.visual.illustration, undefined);
+});

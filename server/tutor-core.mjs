@@ -102,7 +102,7 @@ export function drawLevel(age) {
 const drawRules = req => `Dibujos: cuando el niño pida que le dibujes algo, un boceto, un esquema o una caricatura, dibújalo TÚ en la pizarra con visual type sketch: la app lo traza trazo a trazo con el lápiz, como si dibujaras delante de él. Nunca respondas un dibujo con fotos ni con picture. ${drawLevel(req.age)} Traza en el orden en que lo haría una persona: primero el contorno grande, luego las partes, los detalles, los rellenos de color y al final las etiquetas. Para curvas y contornos naturales (orejas, colas, hojas, ramas, cabello) usa poly con "open":true y muchos puntos.
 Foto anotada (ahorra trazos): si algo se entiende mejor sobre una imagen real (el mapa de un país, una comida, un animal, una planta, un monumento, una obra de arte…) y el niño no pidió que lo dibujes, añade al sketch "photo":"nombre exacto del artículo de Wikipedia en español" y traza encima solo de 5 a 20 formas: flechas, círculos, subrayados y textos cortos que describan lo que se ve. La foto ocupa todo el cuadro de 0 a 100 (en un mapa, el norte arriba). Decide según la conversación: dibujo trazado si pide que dibujes, foto anotada si quiere ver o conocer algo real.
 Mapas reales: si hay que mostrar países, continentes, fronteras o dónde está algo en el mundo, NO dibujes el mapa con formas ni uses foto: añade al sketch "geo":{"region":"world, europe, asia, africa, north-america, central-america, south-america, latin-america, oceania, middle-east o el nombre en inglés de un país para acercarte a él","countries":[{"name":"nombre del país en inglés","label":"nombre en español","color":"red"}]} (hasta 12 países, cada uno con un color que puedes explicar). La app traza el contorno real de los países y colorea y rotula los que nombras; shapes puede ir vacío o llevar solo flechas o notas extra.${req.pictures ? `
-Ilustraciones tipo animación de pizarra blanca: cuando haya que dibujar algo con detalle (un animal, una persona, un objeto, una máquina, un lugar, una escena, un proceso o una historia), añade al sketch "illustration":"descripción visual detallada EN INGLÉS de la escena, con las partes que deben verse" y deja shapes vacío. Formato obligatorio: {"type":"sketch","title":"título en español","illustration":"detailed English description","shapes":[]}. No basta con anunciar el dibujo en reply o board: visual nunca puede ser null cuando se solicita dibujar. La app hace un dibujo profesional de línea negra con toques de color y el lápiz lo traza delante del niño. Explica las partes en board y en reply, porque tú no ves dónde quedan. Usa shapes solo para esquemas sencillos (fracciones, ángulos, gráficos, rectas numéricas, diagramas con flechas).` : ''}`;
+Ilustraciones tipo animación de pizarra blanca: cuando haya que dibujar algo con detalle (un animal, una persona, un objeto, una máquina, un lugar, una escena, un proceso o una historia), añade al sketch "illustration":"descripción visual detallada EN INGLÉS de la escena, con las partes que deben verse" y deja shapes vacío. Dentro de la clave visual de la respuesta completa usa este objeto: {"type":"sketch","title":"título en español","illustration":"detailed English description","shapes":[]}. No basta con anunciar el dibujo en reply o board: visual nunca puede ser null cuando se solicita dibujar. La app hace un dibujo profesional de línea negra con toques de color y el lápiz lo traza delante del niño. Explica las partes en board y en reply, porque tú no ves dónde quedan. Usa shapes solo para esquemas sencillos (fracciones, ángulos, gráficos, rectas numéricas, diagramas con flechas).` : ''}`;
 
 // Each subject gets its own specialist teacher.
 const subjects = [
@@ -224,6 +224,10 @@ function parseResult(text, req) {
   let result;
   try { result = JSON.parse(text.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')); }
   catch { throw new TutorError('El tutor no pudo preparar una respuesta clara. Inténtalo de nuevo.', 502); }
+  if (req.action !== 'read' && asksDrawing(req) && result && typeof result === 'object' && !result.reply) {
+    if (result.type === 'sketch') result = { visual: result, topic: result.title };
+    if (result.visual || Array.isArray(result.board)) result.reply = (Array.isArray(result.board) ? result.board.filter(line => typeof line === 'string').join('. ') : '').slice(0, 6000) || 'Voy a dibujarlo en la pizarra.';
+  }
   if (!result || typeof result.reply !== 'string' || !result.reply.trim() || result.reply.length > 6000) throw new TutorError('La respuesta del tutor llegó incompleta.', 502);
   if (req.action === 'read' && (typeof result.transcription !== 'string' || result.transcription.length > 4000 || typeof result.needsRetake !== 'boolean')) throw new TutorError('No pudimos leer la foto. Prueba otra imagen.', 502);
   const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 400)).filter(Boolean).slice(0, 10);
@@ -232,8 +236,9 @@ function parseResult(text, req) {
   // A promised drawing must have a renderable payload, even if the text model omits visual.
   // Include the conversation so the generic Draw button still knows what to illustrate.
   if (!visual && req.pictures && req.action !== 'read' && asksDrawing(req)) {
+    const world = /mapa\s*mundi|mapa (?:del )?mundo/i.test(`${req.message} ${board.join(' ')}`);
     const context = req.history.slice(-4).map(turn => turn.content).join(' ').slice(-700);
-    visual = cleanVisual({ type: 'sketch', title: result.topic || board[0] || 'Dibujo del tema', shapes: [],
+    visual = cleanVisual({ type: 'sketch', title: result.topic || board[0] || 'Dibujo del tema', shapes: [], ...(world ? { geo: { region: 'world', countries: [] } } : {}),
       illustration: `Subject: ${result.topic || board[0] || ""}. Request: ${req.message.slice(0, 160)}. Conversation: ${context.slice(-180)}. Depict accurately: ${board.slice(0, 3).join("; ")}`
     }, maxShapes(req), { pictures: true, age: req.age });
   }
