@@ -129,7 +129,7 @@ test('assessments reject incomplete, duplicate or invalid questions', () => {
 test('assessment generation includes grade and difficulty and returns assignment metadata', async () => {
   let sent;
   const result = await runStudy(assessmentRequest, env, async (_, o) => { sent = JSON.parse(o.body); return openai(assessmentAnswer); });
-  assert.match(sent.instructions, /exactamente 5/); assert.match(sent.instructions, /3.º primaria/);
+  assert.match(sent.instructions, /nunca por «el primer paso»/); assert.match(sent.instructions, /exactamente 5/); assert.match(sent.instructions, /3.º primaria/);
   assert.equal(result.mode, 'exam'); assert.equal(result.course, 'Matemáticas');
   assert.equal(sent.store, false);
 });

@@ -352,7 +352,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       else setBoard({ ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
       present(next);
       if (target && base?.trace?.image) void extendDrawing(target.id, base.title, message, base.trace.image);
-      else if (target && additions?.length) updateBlock(target.id, block => block.visual?.type === 'sketch' ? { ...block, visual: { ...block.visual, shapes: [...block.visual.shapes, ...additions].slice(-160) } } : block);
+      else if (target && additions?.length) updateBlock(target.id, block => block.visual?.type === 'sketch' ? { ...block, visual: { ...block.visual, shapes: [...block.visual.shapes, ...additions].slice(0, 160) } } : block);
       setEditTargetId(undefined);
       if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
