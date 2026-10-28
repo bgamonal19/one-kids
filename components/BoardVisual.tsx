@@ -17,7 +17,7 @@ const lineTrace = (visual: Visual) => visual.type === 'sketch' && visual.trace &
 
 /** Each map branch or sketch shape is one drawing step; a map outline counts as several. */
 export function visualSteps(visual: Visual) {
-  return visual.type === 'map' ? visual.branches.length + 1 : visual.illustration || visual.trace?.image ? 1 : Math.max(1, visual.shapes.length + (lineTrace(visual) ? TRACE_STEPS : 0));
+  return visual.type === 'map' ? visual.branches.length + 1 : visual.reference === 'periodic-table' ? 24 : visual.illustration || visual.trace?.image ? 1 : Math.max(1, visual.shapes.length + (lineTrace(visual) ? TRACE_STEPS : 0));
 }
 
 function mapLayout(visual: Extract<Visual, { type: 'map' }>) {
@@ -96,7 +96,7 @@ function useDrawingClock(trace: SketchTrace | undefined) {
 function PartialShape({ shape, part, onPhoto }: { shape: SketchShape; part: number; onPhoto?: boolean }) {
   const stroke = ink[shape.color];
   if (shape.s === 'text') return <Label x={shape.x} y={shape.y} size={shape.size} color={stroke} text={shape.text.slice(0, Math.max(1, Math.ceil(shape.text.length * part)))} halo={onPhoto} />;
-  return <Polyline points={partOf(strokePath(shape), part).map(p => p.join(',')).join(' ')} fill="none" stroke={stroke} strokeWidth={onPhoto ? 1.8 : 1.2} strokeLinecap="round" strokeLinejoin="round" />;
+  return <Polyline points={partOf(strokePath(shape), part).map(p => p.join(',')).join(' ')} fill="none" stroke={stroke} strokeWidth={shape.strokeWidth ?? (onPhoto ? 1.8 : 1.2)} strokeLinecap="round" strokeLinejoin="round" />;
 }
 
 // On a photo, lines are thicker and words get a white halo so they read over any colour.
@@ -110,7 +110,7 @@ function Label({ x, y, size, color, text, halo }: { x: number; y: number; size: 
 function SketchShapeView({ shape, onPhoto }: { shape: SketchShape; onPhoto?: boolean }) {
   const stroke = ink[shape.color];
   const fill = shape.fill ? stroke : 'none';
-  const common = { stroke, strokeWidth: onPhoto ? 1.8 : 1.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const common = { stroke, strokeWidth: shape.strokeWidth ?? (onPhoto ? 1.8 : 1.2), strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (shape.s) {
     case 'circle': return <Circle cx={shape.x} cy={shape.y} r={shape.r} fill={fill} fillOpacity={0.35} {...common} />;
     case 'ellipse': return <Ellipse cx={shape.x} cy={shape.y} rx={shape.rx} ry={shape.ry} fill={fill} fillOpacity={0.35} {...common} />;
@@ -177,7 +177,7 @@ function SketchView({ visual, progress: total, width, drawing, max, pencil }: { 
   // A map outline is traced first, then the shapes on top of it.
   const outline = lineTrace(visual);
   const traced = outline ? traceUpTo(outline.rings, total / TRACE_STEPS) : null;
-  const progress = outline ? Math.max(0, total - TRACE_STEPS) : total;
+  const progress = visual.reference === 'periodic-table' ? total / 24 * shapes.length : outline ? Math.max(0, total - TRACE_STEPS) : total;
   const done = Math.min(shapes.length, Math.floor(progress));
   const current = done < shapes.length && progress > done ? shapes[done] : null;
   const part = progress - done;

@@ -1,3 +1,4 @@
+import { periodicVisual, wantsPeriodicTable } from './periodic-core.mjs';
 import { cleanPicture } from './picture-core.mjs';
 
 // Shared by Vercel and the optional Supabase deployment. Never bundled by the app.
@@ -248,6 +249,15 @@ function parseResult(text, req) {
   }
   let picture = req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null;
   if (req.pictures && req.action !== 'read' && !picture && !visual) picture = fallbackPicture(req, result.reply.trim(), board);
+  // Exact scientific reference data must never be painted by an image model or truncated by shape limits.
+  if (wantsPeriodicTable(req)) {
+    visual = periodicVisual();
+    picture = null;
+    result.topic = 'Tabla periódica';
+    result.reply = 'Aquí tienes la tabla periódica completa: 118 elementos, cada uno con su número atómico, símbolo y nombre en español. Las columnas son los grupos 1 a 18. Los lantánidos (57–71) y actínidos (89–103) se muestran abajo para ahorrar espacio. Amplíala para leer los nombres. Por ejemplo, 26 es Fe, hierro; 79 es Au, oro. ¿Qué elemento quieres estudiar?';
+    board.splice(0, board.length, '118 elementos: del hidrógeno (1) al oganesón (118).', 'Cada casilla: número atómico, símbolo y nombre en español.', 'Grupos: columnas 1–18. Períodos: filas 1–7.', 'Lantánidos (57–71) y actínidos (89–103): filas separadas.', 'Referencia: IUPAC. Toca el dibujo para ampliarlo.');
+    summary.splice(0, summary.length, 'Los elementos se ordenan por número atómico.', 'El número atómico indica cuántos protones tiene el núcleo.');
+  }
   // A drawing request is traced, never answered with a picture.
   if (picture && (asksDrawing(req) || (visual?.type === 'sketch' && !asksPicture.test(req.message)))) picture = null;
   if (req.pictures && req.action !== 'read') console.log(`[tutor] picture ${result.picture ? 'model' : picture ? 'fallback' : 'none'}`);

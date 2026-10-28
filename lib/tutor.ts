@@ -8,7 +8,7 @@ export type TutorAction = 'help' | 'read' | 'continue' | 'simpler' | 'example' |
 export type TutorAccount = { openMode: boolean; limit: number; used: number; month: string };
 export const TUTOR_LIMITS = [100_000, 300_000, 1_000_000, 3_000_000] as const;
 export type SketchColor = 'black' | 'blue' | 'red' | 'green' | 'orange' | 'yellow' | 'brown' | 'purple';
-type ShapeStyle = { color: SketchColor; fill: boolean };
+type ShapeStyle = { color: SketchColor; fill: boolean; strokeWidth?: number };
 /** Shapes on a 0–100 grid, already sanitized by the server. */
 export type SketchShape = ShapeStyle & (
   | { s: 'circle'; x: number; y: number; r: number }
@@ -19,7 +19,7 @@ export type SketchShape = ShapeStyle & (
   | { s: 'text'; x: number; y: number; text: string; size: number });
 export type BoardVisual =
   | { type: 'map'; title: string; branches: { label: string; details: string[] }[] }
-  | { type: 'sketch'; title: string; shapes: SketchShape[]; background?: { url: string; width?: number; height?: number; title?: string; page?: string }; trace?: SketchTrace; illustration?: string; /** Height / width of the drawing; 1 (a square) when missing. */ aspect?: number };
+  | { type: 'sketch'; title: string; reference?: 'periodic-table'; shapes: SketchShape[]; background?: { url: string; width?: number; height?: number; title?: string; page?: string }; trace?: SketchTrace; illustration?: string; /** Height / width of the drawing; 1 (a square) when missing. */ aspect?: number };
 /**
  * Lines traced with the pencil before the shapes, on the same 0–100 grid: a real map outline, or, with `image`,
  * the strokes that reveal an AI line drawing like a whiteboard animation (`fills` colour it in afterwards).
