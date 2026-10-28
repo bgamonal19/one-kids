@@ -140,7 +140,7 @@ export async function askTutor(req: TutorRequest): Promise<TutorResponse> {
     return { ...practice, reply: `${data.error || 'El tutor IA es para cuentas familiares.'} Mientras tanto, practiquemos sin IA.\n\n${practice.reply}` };
   }
   if (!response.ok) throw new Error(data.error || 'El tutor no pudo responder. Inténtalo de nuevo.');
-  if (typeof data.reply !== 'string' || !['openai', 'anthropic'].includes(data.source)) throw new Error('El servicio del tutor necesita actualizarse.');
+  if (typeof data.reply !== 'string' || !['openai', 'anthropic', 'reference'].includes(data.source)) throw new Error('El servicio del tutor necesita actualizarse.');
   return data;
 }
 

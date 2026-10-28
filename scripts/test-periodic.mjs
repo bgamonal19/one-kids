@@ -38,3 +38,17 @@ test('follow-up completion replaces image artwork even when the edit instruction
   assert.equal(result.source,'reference');
   assert.equal(result.tokens,0);
 });
+test('mobile/web client accepts scientific reference replies, not only AI provider names', async () => {
+  const fs = await import('node:fs');
+  const ts = await import('typescript');
+  const source = fs.readFileSync(new URL('../lib/tutor.ts', import.meta.url),'utf8').replace(/^import .*$/gm,'');
+  const js = ts.default.transpileModule(`const Platform={OS:'web'}; const getAccessToken=async()=>null; const getSupabaseEndpoint=()=>null;\n${source}`,{compilerOptions:{module:ts.default.ModuleKind.ESNext,target:ts.default.ScriptTarget.ES2022}}).outputText;
+  const {askTutor} = await import(`data:text/javascript,${encodeURIComponent(js)}`);
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => Response.json({reply:'118 elementos',source:'reference',visual:periodicVisual()});
+    const response = await askTutor({message:'tabla periódica',ageBand:'7-9'});
+    assert.equal(response.source,'reference');
+    assert.equal(response.visual.shapes.filter(s=>s.s==='rect').length,118);
+  } finally { globalThis.fetch=original; }
+});
