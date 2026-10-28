@@ -1,3 +1,4 @@
+import { referenceDataUrl } from './reference-file.mjs';
 import { periodicVisual, wantsPeriodicTable } from './periodic-core.mjs';
 import { cleanPicture } from './picture-core.mjs';
 
@@ -289,6 +290,10 @@ export async function runTutor(raw, env, fetcher = fetch) {
   if (!order.length) throw new TutorError('La IA todavía no está conectada. Un adulto debe activar el proveedor para leer fotos y usar el tutor real.', 503);
   // Reference charts are deterministic: no provider latency, image generation or token charge.
   if (wantsPeriodicTable(req)) return { ...parseResult(JSON.stringify({ reply: 'Tabla periódica' }), req), source: 'reference', tokens: 0 };
+  if (req.annotationImage?.startsWith('https:')) {
+    try { req.annotationImage = await referenceDataUrl(req.annotationImage, fetcher); }
+    catch { throw new TutorError('No pude abrir la imagen original para señalar sus partes. Prueba nuevamente.', 502); }
+  }
   const prompt = systemPrompt(req) + (req.annotationImage ? '\nANOTACIÓN SOBRE IMAGEN: Mira la imagen adjunta y coloca solo líneas, flechas, círculos y etiquetas sobre las partes REALES solicitadas. Coordenadas 0–100, toda la imagen ocupa ese cuadro. Mantén visual.type="sketch", illustration y picture nulos, sin photo ni geo. No cubras la foto con rectángulos ni generes otra imagen. Usa trazos finos de colores visibles. Si no puedes identificar una parte, dilo y no inventes su posición.' : '');
   const text = `${req.exercise ? `Ejercicio confirmado por el alumno:\n${req.exercise}\n\n` : ''}${req.message || (req.handwriting ? 'Esta es mi respuesta escrita en la pizarra.' : 'Lee la tarea de la foto.')}`;
   let lastError;
