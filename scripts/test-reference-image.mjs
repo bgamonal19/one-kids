@@ -37,3 +37,7 @@ test('reference downloads reject untrusted hosts, non-images and oversized image
  await assert.rejects(referenceDataUrl(image,async()=>new Response('not an image')));
  await assert.rejects(referenceDataUrl(image,async()=>new Response(new Uint8Array(2500001),{headers:{'content-type':'image/png'}})));
 });
+test('a visual annotation returned without a separate reply is still rendered instead of failing as incomplete',async()=>{
+ const result=await runTutor({ageBand:'10-12',message:'Señala el ventrículo',annotationImage:image,history:[]},{OPENAI_API_KEY:'test'},fetcherFor({visual:{type:'sketch',title:'Corazón',shapes:[{s:'line',x1:10,y1:10,x2:65,y2:70,color:'red',arrow:true}]},board:['El ventrículo izquierdo bombea sangre al cuerpo.']}));
+ assert.match(result.reply,/bombea sangre/);assert.equal(result.visual.shapes.length,1);
+});

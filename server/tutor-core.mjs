@@ -237,7 +237,7 @@ function parseResult(text, req) {
   if (worldMap && result && typeof result === 'object' && !Array.isArray(result)) {
     result = { ...result, reply: typeof result.reply === 'string' && result.reply.trim() ? result.reply : 'Este es el mapamundi con los contornos de los países. Puedes ampliarlo para observarlos mejor.', topic: 'Mapamundi', visual: { type: 'sketch', title: 'Mapamundi', shapes: [], geo: { region: 'world', countries: [] } }, picture: null };
   }
-  if (req.action !== 'read' && asksDrawing(req) && result && typeof result === 'object' && !result.reply) {
+  if (req.action !== 'read' && (asksDrawing(req) || req.annotationImage) && result && typeof result === 'object' && !result.reply) {
     if (result.type === 'sketch') result = { visual: result, topic: result.title };
     if (result.visual || Array.isArray(result.board)) result.reply = (Array.isArray(result.board) ? result.board.filter(line => typeof line === 'string').join('. ') : '').slice(0, 6000) || 'Voy a dibujarlo en la pizarra.';
   }
@@ -246,6 +246,7 @@ function parseResult(text, req) {
   const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 400)).filter(Boolean).slice(0, 10);
   const summary = (Array.isArray(result.summary) ? result.summary : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 140)).filter(Boolean).slice(0, 6);
   let visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req), { pictures: req.pictures && !req.annotationImage, age: req.age });
+  if (req.annotationImage && (!visual || visual.type !== 'sketch' || !visual.shapes.length)) throw new TutorError('No pude identificar esa parte con suficiente claridad para señalarla. Precisa qué quieres ubicar o prueba con una imagen más clara.', 502);
   // A promised drawing must have a renderable payload, even if the text model omits visual.
   // Include the conversation so the generic Draw button still knows what to illustrate.
   if (!visual && !req.annotationImage && req.pictures && req.action !== 'read' && asksDrawing(req)) {
