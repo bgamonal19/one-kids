@@ -250,7 +250,7 @@ function TutorSession() {
   const erased = () => {
     if (boardRef.current.blocks.some(b => b.reply) && !retired.current.some(b => b.id === boardRef.current.id)) retired.current.push(boardRef.current);
     const clean = nextRef.current;
-    if (clean) setBoard(clean);
+    if (clean) { setBoard(clean); if (!clean.blocks.length) setActiveId(''); }
     pad.current?.clear();
     nextRef.current = null; setNextBoard(null); setErasing(false); setWipingBoard(null);
   };
@@ -292,7 +292,7 @@ function TutorSession() {
     turn.current.generation++;
     void stop().catch(() => {});
     listening.stop();
-    changeBoard(newBoard('', [], course?.id), true); setActiveId(''); setViewing(null); setPage({ key: 'welcome', lines: [] });
+    changeBoard(newBoard('', [], course?.id), true); setViewing(null); setPage({ key: 'welcome', lines: [] });
     setMessages(current => current.filter(m => m.id === 'welcome')); setExercise(''); topic.current = '';
     setEditTargetId(undefined); setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false);
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
@@ -484,7 +484,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   </View> : null;
   const renderBoard = (full: boolean) => viewing && !erasing
     ? <TutorWhiteboard readOnly phase="turn" board={viewing} pace={pace} expression={expression} width={full ? width : stageWidth} onWritten={() => {}} banner={reviewBanner} />
-    : <TutorWhiteboard phase={erasing ? 'turn' : phase} board={erasing ? wipingBoard ?? board : board} activeId={erasing ? undefined : activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={erasing ? undefined : place} onWritten={onWritten} onEdit={erasing ? undefined : id => { setEditTargetId(id); setMode('keys'); setError(''); }}
+    : <TutorWhiteboard phase={erasing ? 'turn' : phase} board={erasing ? wipingBoard ?? board : board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={erasing ? undefined : place} onWritten={onWritten} onEdit={erasing ? undefined : id => { setEditTargetId(id); setMode('keys'); setError(''); }}
       onBoardFull={() => setErasing(true)} erasing={erasing} onErased={erased}>
       {mode === 'pen' || full ? answerPad(full) : null}
     </TutorWhiteboard>;

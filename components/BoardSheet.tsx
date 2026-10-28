@@ -93,6 +93,7 @@ function blockRange(block: BoardBlock) {
 }
 
 type Props = {
+  frozen?: boolean;
   board: Board;
   /** Inner width of the writing surface. */
   width: number;
@@ -111,7 +112,7 @@ type Props = {
 };
 
 /** Free placement reuses gaps beside earlier answers; numbering preserves the lesson sequence. */
-export function BoardSheet({ board, width, lineSize, active, thinking, headerInset = 0, onZoom, onEdit, onMeasured }: Props) {
+export function BoardSheet({ frozen, board, width, lineSize, active, thinking, headerInset = 0, onZoom, onEdit, onMeasured }: Props) {
   const [magnified, setMagnified] = useState<string>();
   const magnifiedBlock = board.blocks.find(b => b.id === magnified);
   const [measurements, setMeasurements] = useState<Record<string, number>>({});
@@ -132,10 +133,10 @@ export function BoardSheet({ board, width, lineSize, active, thinking, headerIns
   const preparing = focused?.visual?.type === 'sketch' && Boolean(focused.visual.illustration);
   const image = focused?.visual?.type === 'sketch' ? focused.visual.trace?.image : undefined;
   useEffect(() => {
-    if (!focusId || preparing || (active?.id === focusId && active.writing)) return;
+    if (frozen || !focusId || preparing || (active?.id === focusId && active.writing)) return;
     const timer = setTimeout(() => { setSettled(current => [...current, focusId]); setChosen(undefined); }, BOARD_READING_MS + (image ? BOARD_DRAWING_MS : 0));
     return () => clearTimeout(timer);
-  }, [focusId, preparing, image, active?.id, active?.writing]);
+  }, [frozen, focusId, preparing, image, active?.id, active?.writing]);
   const sizes = board.blocks.map(block => block.id === focusId
     ? { width: Math.min(width, 760), font: Math.round(lineSize * 1.2) }
     : compactBoardSize(width, lineSize));

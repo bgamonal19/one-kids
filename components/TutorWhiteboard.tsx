@@ -1,7 +1,7 @@
-import { ERASE_DURATION_MS, ERASE_ROWS, eraserPoint, wipedBand } from '@/lib/board-wipe';
+import { eraseDuration, wipeRows, eraserPoint, wipedBand } from '@/lib/board-wipe';
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { cancelAnimation, Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { BoardSheet, blockTotals, unitsBefore } from './BoardSheet';
 import { ZoomView, type Zoomed } from './BoardPhotos';
 import { KikoMascot } from './KikoMascot';
@@ -48,12 +48,11 @@ export function boardLayout(width: number, windowHeight: number, wide: boolean) 
   return { inner, inset, cols: 1, maxHeight: Math.round(windowHeight * 0.65), lineSize: wide ? 28 : 25 };
 }
 
-const ERASE_MS = ERASE_DURATION_MS;
 const ERASER = { w: 96, h: 44 };
 
 function WipeBand({ progress, row, width, height }: { progress: SharedValue<number>; row: number; width: number; height: number }) {
   const cover = useAnimatedStyle(() => wipedBand(progress.value, row, width, height));
-  return <Animated.View pointerEvents="none" style={[{ position: 'absolute', backgroundColor: '#FFFFFF' }, cover]} />;
+  return <Animated.View testID={`wipe-contact-${row}`} pointerEvents="none" style={[{ position: 'absolute', backgroundColor: '#FFFFFF' }, cover]} />;
 }
 
 export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, onEdit, onBoardFull, erasing, onErased, banner, children }: Props) {
@@ -97,18 +96,19 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
   // A full board is wiped with the eraser in a zigzag, like in class; the board is kept in «Mis pizarras».
   const [surface, setSurface] = useState({ w: 0, h: 0 });
   const wipe = useSharedValue(0);
+  const duration = eraseDuration(surface.w, surface.h);
   const erased = useEffectEvent(() => onErased?.());
   useEffect(() => {
     if (!erasing) { wipe.value = 0; return; }
     if (reduced) { erased(); return; }
     wipe.value = 0;
-    wipe.value = withTiming(1, { duration: ERASE_MS, easing: Easing.linear });
-    const timer = setTimeout(() => erased(), ERASE_MS + 120);
+    wipe.value = withTiming(1, { duration, easing: Easing.linear });
+    const timer = setTimeout(() => erased(), duration + 120);
     return () => clearTimeout(timer);
-  }, [erasing, reduced, wipe]);
+  }, [erasing, reduced, wipe, duration]);
   const eraser = useAnimatedStyle(() => {
     const point = eraserPoint(wipe.value, surface.w, surface.h, ERASER.w, ERASER.h);
-    return { opacity: wipe.value > 0 && wipe.value < 1 ? 1 : 0, transform: [{ translateX: point.x }, { translateY: point.y }, { rotate: `${-8 + Math.sin(wipe.value * 40) * 4}deg` }] };
+    return { opacity: wipe.value > 0 && wipe.value < 1 ? 1 : 0, transform: [{ translateX: point.x }, { translateY: point.y }] };
   });
 
   const progress = useSharedValue(0);
@@ -136,15 +136,15 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
           {banner}
           <View testID="board-surface" style={{ minHeight: maxHeight }} onLayout={e => setSurface({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
             {/* A clean board fades in after the eraser. */}
-            <Animated.View pointerEvents={erasing ? "none" : "auto"} key={board.id} entering={reduced || readOnly || !board.blocks.length ? undefined : FadeIn.duration(400)}>
-              <BoardSheet board={board} width={layout.inner} cols={layout.cols} lineSize={layout.lineSize} headerInset={size * 1.05}
+            <Animated.View pointerEvents={erasing ? "none" : "auto"} key={board.id} testID="board-content">
+              <BoardSheet board={board} width={layout.inner} cols={layout.cols} frozen={erasing} lineSize={layout.lineSize} headerInset={size * 1.05}
                 active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
                 thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
                 onZoom={setZoomed} onEdit={readOnly ? undefined : onEdit}
                 onMeasured={readOnly ? undefined : (id, heights) => onPlace?.(id, heights, layout.cols, maxHeight)} />
             </Animated.View>
             {erasing && !reduced ? <View testID="board-wiping" pointerEvents="none" style={StyleSheet.absoluteFill}>
-              {Array.from({ length: ERASE_ROWS }, (_, row) => <WipeBand key={row} progress={wipe} row={row} width={surface.w} height={surface.h} />)}
+              {Array.from({ length: wipeRows(surface.h) }, (_, row) => <WipeBand key={row} progress={wipe} row={row} width={surface.w} height={surface.h} />)}
             </View> : null}
             <Animated.View testID="mota"  pointerEvents="none" style={[s.mota, eraser]} accessibilityElementsHidden>
               <View style={s.motaWood} /><View style={s.motaFelt} />
