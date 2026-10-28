@@ -43,3 +43,19 @@ test('additions modify an existing scene while new themes remain separate', () =
   assert.equal(exports.BOARD_READING_MS, 5000);
   assert.equal(exports.BOARD_DRAWING_MS, 11000);
 });
+
+test('restoring General never inherits the last course and each subject resumes its own board', () => {
+  const boards = [{ id: 'general' }, { id: 'math', courseId: 'math' }, { id: 'science', courseId: 'science' }];
+  assert.equal(exports.latestCourseBoard(boards)?.id, 'general');
+  assert.equal(exports.latestCourseBoard(boards, 'math')?.id, 'math');
+  assert.equal(exports.latestCourseBoard(boards, 'new'), undefined);
+});
+test('compact explanations pack four across desktop and remain within phone bounds', () => {
+  for (const width of [260, 330, 700, 1100]) {
+    const size = exports.compactBoardSize(width, 32);
+    const cards = packBoard(Array.from({ length: 20 }, (_, i) => ({ id: String(i), width: size.width, height: 70 })), width, 12);
+    assert.ok(cards.every(c => c.x >= 0 && c.x + c.width <= width));
+    assert.ok(size.font >= 12);
+    if (width === 1100) assert.equal(cards.filter(c => c.y === 0).length, 4);
+  }
+});

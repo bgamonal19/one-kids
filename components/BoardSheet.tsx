@@ -1,6 +1,6 @@
-import { BOARD_READING_MS, BOARD_DRAWING_MS, packBoard } from '@/lib/board-flow';
+import { BOARD_READING_MS, BOARD_DRAWING_MS, compactBoardSize, packBoard } from '@/lib/board-flow';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { BoardVisualView, visualSteps } from './BoardVisual';
 import { TapedPhotos, type Zoomed } from './BoardPhotos';
@@ -112,6 +112,8 @@ type Props = {
 
 /** Free placement reuses gaps beside earlier answers; numbering preserves the lesson sequence. */
 export function BoardSheet({ board, width, lineSize, active, thinking, headerInset = 0, onZoom, onEdit, onMeasured }: Props) {
+  const [magnified, setMagnified] = useState<string>();
+  const magnifiedBlock = board.blocks.find(b => b.id === magnified);
   const [measurements, setMeasurements] = useState<Record<string, number>>({});
   const [settled, setSettled] = useState<string[]>([]);
   const [chosen, setChosen] = useState<{ id: string; turn?: string }>();
@@ -136,16 +138,25 @@ export function BoardSheet({ board, width, lineSize, active, thinking, headerIns
   }, [focusId, preparing, image, active?.id, active?.writing]);
   const sizes = board.blocks.map(block => block.id === focusId
     ? { width: Math.min(width, 760), font: Math.round(lineSize * 1.2) }
-    : { width: width < 340 ? width : Math.floor((width - 18) / (width >= 900 ? 3 : 2)), font: Math.max(16, Math.round(lineSize * .72)) });
+    : compactBoardSize(width, lineSize));
   const measurementKey = (block: BoardBlock, i: number) => `${block.id}:${sizes[i].width}:${sizes[i].font}:${blockRange(block).from}:${blockRange(block).to ?? 'end'}:${block.lines.join('|')}:${Boolean(block.visual)}:${block.photos?.length ?? 0}:${block.summary?.join('|') ?? ''}:${block.drawingLabel ?? ''}`;
   const items = board.blocks.flatMap((block, i) => {
     const height = measurements[measurementKey(block, i)];
     return height ? [{ id: block.id, width: sizes[i].width, height }] : [];
   });
-  const rectangles = packBoard([...items.filter(item => item.id === focusId), ...items.filter(item => item.id !== focusId)], width);
+  const rectangles = packBoard([...items.filter(item => item.id === focusId), ...items.filter(item => item.id !== focusId)], width, 12);
   const bottom = Math.max(0, ...rectangles.map(rect => rect.y + rect.height));
   const pending = board.blocks.filter(block => !blockSegments(block));
   return <View>
+    <Modal transparent visible={Boolean(magnifiedBlock)} animationType="fade" onRequestClose={() => setMagnified(undefined)}>
+      <View style={s.loupeBackdrop}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar lupa" style={StyleSheet.absoluteFill} onPress={() => setMagnified(undefined)} />
+        <View accessibilityViewIsModal style={[s.loupe, { width: Math.min(width + 24, 720) }]}>
+          <View style={s.actions}><Text style={s.step}>🔍 Paso {board.blocks.findIndex(b => b.id === magnified) + 1}</Text><Pressable accessibilityRole="button" accessibilityLabel="Reducir explicación" onPress={() => setMagnified(undefined)} style={s.closeLoupe}><Text style={s.actionText}>✕ Cerrar</Text></Pressable></View>
+          <ScrollView>{magnifiedBlock ? <BlockPart block={magnifiedBlock} from={blockRange(magnifiedBlock).from} to={blockRange(magnifiedBlock).to} lineSize={Math.max(22, lineSize)} width={Math.min(width, 680)} onZoom={onZoom} /> : null}</ScrollView>
+        </View>
+      </View>
+    </Modal>
     <View style={[s.header, { paddingRight: headerInset, minHeight: headerInset ? headerInset * 0.8 : undefined }]}>
       {board.topic ? <Text style={[s.topic, { fontSize: lineSize * 1.05 }]} numberOfLines={2}>Tema: {board.topic}{board.part > 1 ? <Text style={s.part}>  (continuación {board.part})</Text> : null}</Text> : null}
     </View>
@@ -155,8 +166,10 @@ export function BoardSheet({ board, width, lineSize, active, thinking, headerIns
         if (!rect) return null;
         const range = blockRange(block);
         return <Animated.View key={block.id} layout={LinearTransition.duration(550)} style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.width }}>
-          <View style={s.actions}><Text style={s.step}>Paso {index + 1}{block.id === focusId ? ' · En grande' : ''}</Text>{onZoom && block.id !== focusId ? <Pressable accessibilityRole="button" accessibilityLabel={`Ver paso ${index + 1} en grande`} onPress={() => { setChosen({ id: block.id, turn: active?.id }); setSettled(current => current.filter(id => id !== block.id)); }}><Text style={s.actionText}>↗ Ampliar</Text></Pressable> : null}</View>
+          <View style={s.actions}><Text style={s.step}>Paso {index + 1}{block.id === focusId ? ' · En grande' : ''}</Text>{onZoom && block.id !== focusId ? <Pressable accessibilityRole="button" accessibilityLabel={`Ver paso ${index + 1} en grande`} onPress={() => setMagnified(block.id)}><Text style={s.actionText}>🔍</Text></Pressable> : null}</View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Ampliar explicación del paso ${index + 1}`} disabled={!onZoom || (active?.id === block.id && active.writing)} onPress={() => setMagnified(block.id)}>
           <BlockPart block={block} from={range.from} to={range.to} width={rect.width} lineSize={sizes[index].font} onZoom={onZoom} shown={active?.id === block.id ? active.shown : undefined} writing={active?.id === block.id && active.writing} />
+          </Pressable>
           {onEdit && block.visual ? <Pressable accessibilityRole="button" accessibilityLabel={`Añadir detalles al dibujo del paso ${index + 1}`} onPress={() => onEdit(block.id)} style={s.edit}><Text style={s.actionText}>✏️ Añadir a este dibujo</Text></Pressable> : null}
         </Animated.View>;
       })}
@@ -174,6 +187,9 @@ export function BoardSheet({ board, width, lineSize, active, thinking, headerIns
 }
 
 const s = StyleSheet.create({
+  loupeBackdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12, backgroundColor: 'rgba(25,45,65,0.12)' },
+  loupe: { maxHeight: '78%', backgroundColor: '#FFFFFF', borderRadius: 22, borderWidth: 2, borderColor: '#A9CCE4', padding: 18, shadowColor: '#15364F', shadowOpacity: .22, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  closeLoupe: { minHeight: 44, minWidth: 70, justifyContent: 'center', alignItems: 'center' },
   actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 30 },
   actionText: { fontFamily: fonts.bodyBold, fontSize: 12, color: '#2C60AE', paddingVertical: 6 },
   edit: { alignSelf: 'flex-start', marginTop: 4 },

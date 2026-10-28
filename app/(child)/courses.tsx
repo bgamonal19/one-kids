@@ -105,7 +105,8 @@ export default function CoursesScreen() {
                 accessibilityLabel={href ? `Abrir ${c.title}` : c.title}
                 disabled={!href}
                 onPress={() => {
-                  if (href) router.push(href);
+                  if (c.link === 'tutor') router.push({ pathname: '/(child)/tutor', params: { course: c.id } });
+                  else if (href) router.push(href);
                 }}
                 style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}
               >
@@ -124,6 +125,7 @@ export default function CoursesScreen() {
                 </View>
               </Pressable>
               <View style={{ gap: 8 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Pizarra de ${c.title}`} onPress={() => router.push({ pathname: '/(child)/tutor', params: { course: c.id } })} style={styles.profileBtn}><Text style={styles.profileText}>✏️ Pizarra</Text></Pressable>
               <Pressable onPress={() => router.push({ pathname: '/(child)/study/[id]', params: { id: c.id } })} accessibilityRole="button" accessibilityLabel={`Modo estudio de ${c.title}`} hitSlop={6} style={styles.profileBtn}>
                 <Text style={styles.profileText}>📖 Estudiar</Text>
               </Pressable>

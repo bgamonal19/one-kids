@@ -1,3 +1,4 @@
+import { TutorConnectionSettings } from '@/components/TutorConnectionSettings';
 import { GradePicker } from '@/components/GradePicker';
 import { useState } from 'react';
 import { router } from 'expo-router';
@@ -132,6 +133,7 @@ export default function ParentHome() {
       ) : null}
 
       <TutorParentSettings />
+      <TutorConnectionSettings />
 
       <View style={styles.stat}>
         <Text style={styles.statLabel}>Modo enfoque</Text>

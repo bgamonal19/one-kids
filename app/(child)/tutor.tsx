@@ -1,4 +1,4 @@
-import { editsExistingDrawing, explicitNewTopic } from '@/lib/board-flow';
+import { editsExistingDrawing, explicitNewTopic, latestCourseBoard } from '@/lib/board-flow';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -8,7 +8,7 @@ import { HandwritingPad, type HandwritingPadHandle, type Stroke } from '@/compon
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { TaskCamera, type TaskPhoto } from '@/components/TaskCamera';
-import { TutorUsageBar } from '@/components/TutorUsageBar';
+import { loadTutorProvider } from '@/lib/tutor-preferences';
 import { TutorWhiteboard, type BoardPhase } from '@/components/TutorWhiteboard';
 import { STEP_COST } from '@/components/BoardSheet';
 import { visualSteps } from '@/components/BoardVisual';
@@ -20,12 +20,12 @@ import { DEFAULT_VOICE, loadVoiceChoice, saveVoiceChoice, VOICE_SAMPLE, type Voi
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type PictureRequest, type TutorAction, type TutorProvider, type TutorStatus } from '@/lib/tutor';
+import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type PictureRequest, type TutorAction, type TutorProvider } from '@/lib/tutor';
 import { dayKey, keepBoard, latestOfChain, loadBoards, newBoard, saveBoards, type Board, type BoardBlock } from '@/lib/tutor-boards';
 import { BoardStrip } from '@/components/BoardStrip';
 import type { CourseItem, TutorMessage } from '@/lib/types';
 import { openBrowserAsync } from 'expo-web-browser';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { addMemory, courseEntries, readCourseMemory, saveCourseMemory, type CourseMemory } from '@/lib/course-memory';
 
 type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
@@ -63,6 +63,10 @@ function syllabusOf(course?: CourseItem) {
 }
 
 export default function TutorScreen() {
+  const params = useLocalSearchParams<{ course?: string; topic?: string }>();
+  return <TutorSession key={`${params.course || 'general'}:${params.topic || ''}`} />;
+}
+function TutorSession() {
   const { state } = useFamily();
   const age = state.child?.age ?? 8;
   const band = getAgeBand(age);
@@ -72,12 +76,11 @@ export default function TutorScreen() {
   const course = state.courses.find(c => c.id === courseId);
   const [courseMemory, setCourseMemory] = useState<CourseMemory>([]);
   const topic = useRef('');
-  const [status, setStatus] = useState<TutorStatus | null>(null);
   // Parent settings and monthly usage; the open mode only shows when a parent enabled it.
   const [account, setAccount] = useState<TutorAccount | null>(null);
   // Only a parent turns the free mode on (Padres, with the PIN); the child cannot switch it.
   const openMode = Boolean(account?.openMode);
-  const [connectionError, setConnectionError] = useState('');
+
   const [provider, setProvider] = useState<TutorProvider>('auto');
   const greeting = `¡Hola${state.child?.name ? `, ${state.child.name}` : ''}!`;
   const [messages, setMessages] = useState<Message[]>([{ id: 'welcome', role: 'tutor', text: `${greeting} Escribe, dibuja o dime tu duda, o añade una foto de tu tarea. Vamos a aprender un paso a la vez.` }]);
@@ -104,7 +107,7 @@ export default function TutorScreen() {
   useEffect(() => { boardRef.current = board; }, [board]);
   const resumeLater = useRef<(saved: Board, all: Board[]) => void>(() => {});
   const [pace, setPace] = useState(70);
-  const [mode, setMode] = useState<InputMode>('pen');
+  const [mode, setMode] = useState<InputMode>('keys');
   const [penColor, setPenColor] = useState<string>(penColors[0]);
   const [ink, setInk] = useState<Stroke[]>([]);
   const inked = ink.length > 0;
@@ -142,21 +145,18 @@ export default function TutorScreen() {
     return () => { active = false; };
   }, []);
   const chooseVoice = (choice: VoiceChoice) => { setVoice(choice); void saveVoiceChoice(choice); };
+  const familyId = state.parent?.id || 'demo';
   const refreshConnection = useCallback(async () => {
     try {
-      const next = await getTutorStatus();
-      if (alive.current) { setStatus(next); setAccount(next.account ?? null); setConnectionError(''); }
+      const [next, preferred] = await Promise.all([getTutorStatus(), loadTutorProvider(familyId)]);
+      if (alive.current) { setAccount(next.account ?? null); setProvider(preferred === 'auto' || next.providers.includes(preferred) ? preferred : 'auto'); }
     } catch {
-      if (alive.current) { setStatus(null); setConnectionError('No pudimos comprobar la conexión.'); }
+      if (alive.current) setAccount(null);
     }
-  }, []);
+  }, [familyId]);
+  useFocusEffect(useCallback(() => { void refreshConnection(); }, [refreshConnection]));
   useEffect(() => {
     alive.current = true;
-    void getTutorStatus().then(next => {
-      if (alive.current) { setStatus(next); setAccount(next.account ?? null); setConnectionError(''); }
-    }).catch(() => {
-      if (alive.current) setConnectionError('No pudimos comprobar la conexión.');
-    });
     return () => { alive.current = false; if (speechTimer.current) clearTimeout(speechTimer.current); };
   }, []);
 
@@ -221,7 +221,7 @@ export default function TutorScreen() {
       if (!active) return;
       setBoards(current => current.length ? current : saved);
       // Coming back to the tutor the same day picks up the last board where it was left.
-      const last = saved.at(-1);
+      const last = latestCourseBoard(saved, typeof params.course === 'string' ? params.course : '');
       if (last && dayKey(new Date(last.at)) === dayKey() && !params.topic && !boardRef.current.blocks.some(b => b.reply)) resumeLater.current(last, saved);
     });
     void readCourseMemory(childId).then(saved => { if (active) setCourseMemory(saved); });
@@ -360,7 +360,6 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       if (result.picture && account) void paint(next.key, result.picture);
       if (result.visual?.type === 'sketch' && result.visual.illustration) void illustrate(next.key, result.visual.title, result.visual.illustration);
       if (action === 'hint') react('hint', 6000, 'explain');
-      if (result.source === 'local') setStatus({ configured: false, providers: [], vision: false });
     } catch (e) {
       if (alive.current) { setError(e instanceof Error ? e.message : 'No se pudo recibir la respuesta.'); setRetry({ message, action, exercise: confirmedExercise, fresh, answer }); setPhase('turn'); react('retry'); }
     } finally { busy.current = false; if (alive.current) setLoading(null); }
@@ -439,9 +438,8 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   const startListening = () => { void stop().catch(() => {}); listening.start(); react('listen'); };
   const hasExplanation = messages.some(m => m.source);
   const yourTurn = phase === 'turn' && !loading;
-  const modeText = connectionError || (!status ? 'Comprobando conexión…' : status.configured ? `IA configurada · ${status.providers.map(id => labels[id]).join(' y ')}` : 'Modo práctica · IA y lectura de fotos pendientes de activar');
   const bubble = loading === 'reply' ? 'Mmm…' : loading === 'read' ? 'Leyendo…' : phase === 'turn' ? '¡Tu turno!' : undefined;
-  const modes: { id: InputMode; label: string }[] = [{ id: 'pen', label: '✏️ Escribir' }, { id: 'keys', label: '⌨️ Teclado' }, ...(listening.supported ? [{ id: 'voice' as const, label: '🎤 Hablar' }] : [])];
+  const modes: { id: InputMode; label: string }[] = [{ id: 'keys', label: '⌨️ Teclado' }, { id: 'pen', label: '✏️ Escribir' }, ...(listening.supported ? [{ id: 'voice' as const, label: '🎤 Hablar' }] : [])];
 
   // Full screen gives phones a big, calm writing surface; on web it also hides the browser bars where allowed.
   const openFullscreen = () => {
@@ -517,8 +515,6 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
 
       {editingId ? <Text accessibilityRole="status" style={styles.hint}>✏️ Añadiendo detalles al dibujo original…</Text> : null}
       {editTargetId ? <View style={styles.toolRow}><Text style={styles.hint}>✏️ Vas a ampliar: {board.blocks.find(b => b.id === editTargetId)?.visual?.title || 'el dibujo seleccionado'}. Escribe qué quieres añadir.</Text><Pressable accessibilityRole="button" onPress={() => setEditTargetId(undefined)}><Text style={styles.link}>Cancelar</Text></Pressable></View> : null}
-      {openMode ? <Text style={styles.hint}>💬 Modo libre activado por tus padres: puedes preguntar lo que quieras.</Text> : null}
-      {account ? <TutorUsageBar account={account} compact /> : null}
       {state.courses.length ? <View style={styles.courses}>
         <Text style={styles.courseLabel}>📚 ¿De qué curso es?</Text>
         <View style={styles.toolRow} accessibilityRole="tablist">
@@ -527,7 +523,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
             <Text style={[styles.modeText, courseId === c.id && styles.modeTextOn]}>{c.title}</Text>
           </Pressable>)}
         </View>
-        {course ? <Text style={styles.hint}>{courseEntries(courseMemory, course.id).length ? `El tutor recuerda ${courseEntries(courseMemory, course.id, 30).length} ${courseEntries(courseMemory, course.id, 30).length === 1 ? 'tema' : 'temas'} de ${course.title} y explica a partir de ahí.` : `Lo que trabajes aquí se recordará para las próximas clases de ${course.title}.`}</Text> : null}
+        {course ? <Text style={styles.hint}>Tutor especialista en {course.title}. {courseEntries(courseMemory, course.id).length ? `El tutor recuerda ${courseEntries(courseMemory, course.id, 30).length} ${courseEntries(courseMemory, course.id, 30).length === 1 ? 'tema' : 'temas'} de ${course.title} y explica a partir de ahí.` : `Lo que trabajes aquí se recordará para las próximas clases de ${course.title}.`}</Text> : null}
       </View> : null}
       <View style={styles.modes} accessibilityRole="tablist">
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
@@ -535,7 +531,8 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
         <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz del tutor" onPress={() => setVoicesOpen(true)} style={styles.mode}><Text style={styles.modeText}>🗣️ Cambiar voz</Text></Pressable>
       </View>
 
-      {mode === 'keys' ? <View style={styles.composer}>
+      <View style={styles.questionRow}>
+      {mode === 'keys' ? <View style={[styles.composer, styles.questionComposer]}>
         <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder={listening.supported ? 'Escribe tu respuesta o tu duda…' : 'Escribe tu respuesta o tu duda… (o usa el micrófono del teclado 🎤)'} placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!loading} style={styles.input}
           submitBehavior="submit" onSubmitEditing={() => { if (!loading && input.trim()) void send(); }}
           onKeyPress={event => {
@@ -547,12 +544,17 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
           }} />
         <PrimaryButton label="Enviar →" onPress={() => void send()} disabled={Boolean(loading) || !input.trim()} />
       </View> : null}
-      {mode === 'voice' ? <View style={[styles.composer, styles.voiceBox]}>
+      {mode === 'voice' ? <View style={[styles.composer, styles.voiceBox, styles.questionComposer]}>
         <Pressable accessibilityRole="button" accessibilityLabel={listening.listening ? 'Dejar de escuchar' : 'Hablar con el tutor'} disabled={Boolean(loading)} onPress={() => listening.listening ? listening.stop() : startListening()} style={[styles.mic, listening.listening && styles.micOn, Boolean(loading) && styles.dim]}><Text style={styles.micIcon}>{listening.listening ? '■' : '🎤'}</Text></Pressable>
         <Text style={styles.voiceText} accessibilityLiveRegion="polite">{listening.listening ? listening.interim || 'Te escucho…' : 'Toca el micrófono y dime tu respuesta o tu duda'}</Text>
         {listening.error ? <Text accessibilityRole="alert" style={styles.error}>{listening.error}</Text> : null}
       </View> : null}
 
+      <View style={styles.photoTools}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Tomar foto de la tarea" disabled={Boolean(loading)} onPress={() => { if (Platform.OS === 'web') setCameraOpen(true); else void pickPhoto(true); }} style={styles.photoIcon}><Text style={styles.photoIconText}>📷</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Subir foto de la tarea" disabled={Boolean(loading)} onPress={() => void pickPhoto(false)} style={styles.photoIcon}><Text style={styles.photoIconText}>🖼️</Text></Pressable>
+      </View>
+      </View>
       {page.reply ? <View style={styles.said}>
         <Text style={styles.saidText} selectable>{page.reply}</Text>
         <View style={styles.messageFooter}>
@@ -595,30 +597,17 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
         </View> : null}
       </View> : null}
 
-      <View style={styles.composer}>
-        <Text style={styles.sectionTitle}>📷 ¿Tienes la tarea en papel?</Text>
-        <View style={styles.wrap}>
-          <PrimaryButton label="Tomar foto" variant="secondary" onPress={() => { if (Platform.OS === 'web') setCameraOpen(true); else void pickPhoto(true); }} disabled={Boolean(loading)} style={styles.action} />
-          <PrimaryButton label="Subir foto" variant="secondary" onPress={() => void pickPhoto(false)} disabled={Boolean(loading)} style={styles.action} />
-        </View>
-      </View>
-
-
-      <View style={styles.connection}>
-        <Text style={styles.eyebrow}>PARA ADULTOS</Text>
-        <Text style={styles.status} accessibilityLiveRegion="polite">{modeText}</Text>
-        <Pressable accessibilityRole="button" onPress={() => void refreshConnection()} disabled={Boolean(loading)}><Text style={styles.link}>Comprobar conexión</Text></Pressable>
-        {status?.configured ? <View style={styles.wrap}>
-          {(['auto', 'openai', 'anthropic'] as const).map(id => <Pressable key={id} accessibilityRole="button" accessibilityLabel={`Usar ${id === 'auto' ? 'conexión automática' : labels[id]}`} accessibilityState={{ selected: provider === id, disabled: id !== 'auto' && !status.providers.includes(id) }} disabled={Boolean(loading) || (id !== 'auto' && !status.providers.includes(id))} onPress={() => setProvider(id)} style={[styles.provider, provider === id && styles.providerSelected]}><Text style={styles.providerText}>{id === 'auto' ? 'Automático' : labels[id]}</Text></Pressable>)}
-        </View> : null}
-        <Text style={styles.footnote}>En la web, las voces naturales se generan con la IA (OpenAI) y cuentan en el límite mensual; las voces del dispositivo son gratis. El dictado usa el reconocimiento de voz del navegador. Lo que el niño escribe en la pizarra se envía como imagen a la IA solo al pulsar «Enviar». El historial de pizarras de los últimos 14 días se guarda solo en este dispositivo. Las fotos no se guardan en el perfil.</Text>
-      </View>
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  questionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  questionComposer: { flex: 1, minWidth: 0 },
+  photoTools: { gap: 8, paddingTop: 12 },
+  photoIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#CDDCE9' },
+  photoIconText: { fontSize: 23 },
   eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.5, color: colors.inkMuted },
   title: { fontFamily: fonts.displayBold, fontSize: 28, color: colors.ink, marginTop: 6 },
   hint: { fontFamily: fonts.body, fontSize: 15, lineHeight: 23, color: colors.inkMuted, marginTop: 5 },

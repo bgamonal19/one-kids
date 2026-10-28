@@ -22,6 +22,7 @@ const modes: Record<Stage, { label: string; agent: string; bg: string; primary: 
 
 export default function ChildHome() {
   const { expression, react } = useCompanionReaction();
+  const [agentHint, setAgentHint] = useState(false);
   const [interaction, setInteraction] = useState(0);
   const { state, worldsUnlocked, allTasksDone } = useFamily();
   const { width } = useWindowDimensions();
@@ -39,7 +40,7 @@ export default function ChildHome() {
   const gutter = width >= 900 ? 32 : compact ? 16 : 24;
   const columns = width >= 900 ? 5 : compact ? 2 : 3;
   const tileWidth = (width - gutter * 2 - TILE_GAP * (columns - 1)) / columns;
-  const openTutor = () => router.push('/(child)/tutor');
+  const openTutor = () => router.push({ pathname: '/(child)/tutor', params: { course: '' } });
   const [cheering, setCheering] = useState(false);
   useEffect(() => {
     if (!cheering) return;
@@ -47,19 +48,20 @@ export default function ChildHome() {
     return () => clearTimeout(timer);
   }, [cheering]);
   // With nothing pending, the first tap congratulates; tapping again while the bubble shows opens the tutor.
-  const tapCompanion = () => { if (allTasksDone && !cheering) setCheering(true); else openTutor(); };
+  const tapCompanion = () => { if (!agentHint) { setAgentHint(true); setInteraction(n => n + 1); react('hello', 4000); return; } if (allTasksDone && !cheering) setCheering(true); else openTutor(); };
   const unfinished = state.tasks.filter(task => !task.done);
   const finished = state.tasks.length - unfinished.length;
   const progress = state.tasks.length ? finished / state.tasks.length : 0;
   // Classes in the next 7 days that clash with an agenda plan, shown as a badge on the weekly-schedule tile.
   const scheduleAlerts = upcomingConflictCount(state.courses, state.agenda, state.child?.country, toDateKey(new Date()));
-  const routes: { label: string; icon: string; route: '/(child)/tasks' | '/(child)/worlds' | '/(child)/schedule' | '/(child)/calendar' | '/(child)/calculator'; color: string; alerts?: number }[] = [
+  const routes: { label: string; icon: string; route: '/(child)/tutor' | '/(child)/tasks' | '/(child)/worlds' | '/(child)/schedule' | '/(child)/calendar' | '/(child)/calculator'; color: string; alerts?: number }[] = [
     { label: young ? 'Tareas' : 'Mis tareas', icon: '📝', route: '/(child)/tasks' as const, color: '#FFD9CC' },
     { label: young ? 'Jugar' : 'Practicar', icon: '🌍', route: '/(child)/worlds' as const, color: '#E6DAFE' },
     { label: 'Rol semanal', icon: '🗓️', route: '/(child)/schedule' as const, color: '#C9F1E6', alerts: scheduleAlerts },
     { label: young ? 'Agenda' : 'Mi agenda', icon: '📅', route: '/(child)/calendar' as const, color: '#FFEDBF' },
     { label: 'Calculadora', icon: '🧮', route: '/(child)/calculator' as const, color: '#D3EDFC' },
   ];
+  routes.unshift({ label: 'Tutor IA', icon: '🤖', route: '/(child)/tutor', color: '#D9E9FF' });
 
   return (
     <View style={[styles.root, { backgroundColor: mode.bg }]}>
@@ -77,9 +79,9 @@ export default function ChildHome() {
           <View style={[styles.greeting, compact ? { marginTop: 6 } : { flex: 1 }]}>
             <Text style={[styles.heroTitle, { fontSize: compact ? 32 : 38 }]}>¡Hola, {state.child?.name ?? 'estudiante'}!</Text>
             <Text style={styles.heroDescription}>{mode.welcome}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Aprender con ${companionName} en la pizarra`} onPress={openTutor} style={styles.heroHint}>
-              <Text style={styles.heroHintText}>👉 Toca a {companionName} para aprender</Text>
-            </Pressable>
+            {agentHint ? <Pressable accessibilityRole="button" accessibilityLabel={`Aprender con ${companionName} en la pizarra`} onPress={openTutor} style={styles.heroHint}>
+              <Text style={styles.heroHintText}>💬 Aprende con {companionName}</Text>
+            </Pressable> : null}
           </View>
           {compact ? null : <View style={styles.brandColumn} />}
           {cheering ? (
@@ -87,15 +89,15 @@ export default function ChildHome() {
               <Text style={[styles.cheerText, { color: mode.ink }]}>🎉 ¡Excelente! Has terminado tus pendientes.</Text>
             </View>
           ) : null}
-          <Pressable accessibilityRole="button" accessibilityLabel={allTasksDone ? `${companionName}: ¡Excelente! Has terminado tus pendientes` : `Hablar con ${companionName}, tu tutor`} onPress={tapCompanion} style={[styles.agentTap, { right: gutter, bottom: -agentSize * 0.4 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={allTasksDone ? `${companionName}: ¡Excelente! Has terminado tus pendientes` : `Hablar con ${companionName}, tu tutor`} onHoverIn={() => setAgentHint(true)} onHoverOut={() => setAgentHint(false)} onPress={tapCompanion} style={[styles.agentTap, { right: gutter, bottom: -agentSize * 0.4 }]}>
             <KikoMascot character={companion} age={age} expression={allTasksDone ? 'celebrate' : expression} mood={allTasksDone ? 'celebrate' : 'wave'} size={agentSize} />
           </Pressable>
         </View>
 
         <View style={{ paddingHorizontal: gutter }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, paddingRight: agentSize * 0.8, marginTop: 16 }}>
+        {interaction > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Pedir un consejo a mi compañero" onPress={() => { setInteraction(n => n + 1); react(interaction % 2 ? 'encourage' : 'curious', 4000); }} style={{ backgroundColor: mode.soft, borderRadius: 20, padding: 18, paddingRight: agentSize * 0.8, marginTop: 16 }}>
           <Text style={{ fontFamily: fonts.bodyBold, color: mode.ink, fontSize: 16 }}>{interaction ? personality + prompts[(interaction - 1) % prompts.length] : `💡 Toca aquí y ${companionName} te dará un reto para hoy.`}</Text>
-        </Pressable>
+        </Pressable> : null}
         {state.child?.interests?.length ? <Text style={[styles.interests, { color: mode.ink }]}>Me interesa: {state.child.interests.join(' · ')}</Text> : null}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: mode.ink }]}>{young ? '¿Qué hacemos hoy?' : 'Mis herramientas'}</Text>
@@ -110,7 +112,7 @@ export default function ChildHome() {
                 key={item.label}
                 accessibilityRole="button"
                 accessibilityLabel={locked ? `${item.label}, termina tus tareas para entrar` : item.label}
-                onPress={() => router.push(locked ? '/(child)/tasks' : item.route)}
+                onPress={() => item.route === '/(child)/tutor' ? openTutor() : router.push(locked ? '/(child)/tasks' : item.route)}
                 style={[styles.tool, { width: alone ? '100%' : tileWidth, opacity: locked ? 0.65 : 1 }]}
               >
                 <View style={[styles.iconCircle, { backgroundColor: item.color, width: young ? 68 : 56, height: young ? 68 : 56 }]}><Text style={[styles.toolIcon, { fontSize: young ? 38 : 30 }]}>{locked ? '🔒' : item.icon}</Text></View>
