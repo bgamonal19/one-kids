@@ -49,3 +49,13 @@ export async function attachBackground(visual, fetcher = fetch) {
   const [found] = await findPhotos([{ query: photo, label: visual.title }], fetcher).catch(() => []);
   return found ? { ...sketch, background: { url: found.url, width: found.width, height: found.height, title: found.title, page: found.page } } : sketch;
 }
+
+/** Broader candidates are ONLY for the vision-verified alternative, never for unverified board photos. */
+export async function referenceCandidates(query, fetcher = fetch) {
+  const groups = await Promise.all([
+    ask({titles:query},'es',fetcher).catch(()=>[]),
+    ask({generator:'search',gsrsearch:query,gsrlimit:'5',gsrnamespace:'0'},'es',fetcher).catch(()=>[]),
+  ]);
+  const seen = new Set();
+  return groups.flat().map(picture).filter(p => p && !seen.has(p.url) && seen.add(p.url)).slice(0,2);
+}
