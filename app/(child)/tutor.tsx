@@ -103,6 +103,7 @@ function TutorSession() {
   const nextRef = useRef<Board | null>(null);
   useEffect(() => { nextRef.current = nextBoard; }, [nextBoard]);
   const [erasing, setErasing] = useState(false);
+  const [wipingBoard, setWipingBoard] = useState<Board | null>(null);
   const boardRef = useRef(board);
   useEffect(() => { boardRef.current = board; }, [board]);
   const resumeLater = useRef<(saved: Board, all: Board[]) => void>(() => {});
@@ -132,6 +133,7 @@ function TutorSession() {
   const [needsRetake, setNeedsRetake] = useState(false);
   const [exercise, setExercise] = useState('');
   const [loading, setLoading] = useState<'photo' | 'read' | 'reply' | null>(null);
+  const working = Boolean(loading) || erasing;
   const [error, setError] = useState('');
   const [retry, setRetry] = useState<Retry | null>(null);
   const busy = useRef(false);
@@ -247,12 +249,15 @@ function TutorSession() {
   // After the eraser the full board is kept in «Mis pizarras» and the clean one takes its place.
   const erased = () => {
     if (boardRef.current.blocks.some(b => b.reply) && !retired.current.some(b => b.id === boardRef.current.id)) retired.current.push(boardRef.current);
-    if (nextBoard) setBoard(nextBoard);
-    nextRef.current = null; setNextBoard(null); setErasing(false);
+    const clean = nextRef.current;
+    if (clean) setBoard(clean);
+    pad.current?.clear();
+    nextRef.current = null; setNextBoard(null); setErasing(false); setWipingBoard(null);
   };
   // Wipe the board with the eraser before writing on a clean one.
-  const changeBoard = (next: Board) => {
-    if (!boardRef.current.blocks.some(b => b.reply)) { setBoard(next); return; }
+  const changeBoard = (next: Board, forceErase = false) => {
+    if (!forceErase && !boardRef.current.blocks.some(b => b.reply)) { setBoard(next); return; }
+    setWipingBoard(viewing ?? boardRef.current);
     nextRef.current = next; setNextBoard(next); setErasing(true);
   };
   // Continue an earlier board: the tutor gets back that conversation and writes after its last part.
@@ -263,7 +268,7 @@ function TutorSession() {
     const blocks = chain.flatMap(b => b.blocks).filter(b => b.reply && !seen.has(b.id) && seen.add(b.id));
     turn.current.generation++;
     void stop().catch(() => {});
-    setBoard(target); setActiveId(''); setViewing(null); nextRef.current = null; setNextBoard(null); setErasing(false);
+    setBoard(target); setActiveId(''); setViewing(null); nextRef.current = null; setNextBoard(null); setErasing(false); setWipingBoard(null);
     setMessages(current => [...current.filter(m => m.id === 'welcome'), ...blocks.flatMap(b => [
       ...(b.childLine ? [{ id: `${b.id}-child`, role: 'child' as const, text: b.childLine }] : []),
       { id: b.id, role: 'tutor' as const, text: b.reply },
@@ -283,12 +288,13 @@ function TutorSession() {
     });
   };
   const freshBoard = () => {
-    if (busy.current) return;
+    if (busy.current || erasing) return;
     turn.current.generation++;
     void stop().catch(() => {});
-    changeBoard(welcomeBoard()); setActiveId('welcome'); setViewing(null); setPage({ key: 'welcome', lines: [] });
+    listening.stop();
+    changeBoard(newBoard('', [], course?.id), true); setActiveId(''); setViewing(null); setPage({ key: 'welcome', lines: [] });
     setMessages(current => current.filter(m => m.id === 'welcome')); setExercise(''); topic.current = '';
-    setEditTargetId(undefined); setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false); pad.current?.clear();
+    setEditTargetId(undefined); setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false);
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     setPhase('turn'); react('listen');
   };
@@ -313,7 +319,7 @@ function TutorSession() {
 
   const send = async (message = input, action: TutorAction = 'help', confirmedExercise = exercise, fresh = false, answer: Answer = {}) => {
     if (editingBusy.current) { setError('Estoy terminando los detalles del dibujo. Espera un momento.'); return; }
-    if (busy.current || (!message.trim() && !answer.handwriting)) return;
+    if (busy.current || erasing || (!message.trim() && !answer.handwriting)) return;
     busy.current = true; setLoading('reply'); setError(''); setRetry(null); react('think');
     turn.current.generation++;
     await stop().catch(() => {});
@@ -375,11 +381,6 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       return updated;
     });
   };
-  const chooseCourse = (id: string) => {
-    if (id === courseId || busy.current) return;
-    // Another course is another topic: a clean board.
-    setCourseId(id); freshBoard();
-  };
   const paint = async (key: string, picture: PictureRequest) => {
     const drawingLabel = picture.label || 'tu imagen';
     updateBlock(key, block => ({ ...block, drawingLabel }));
@@ -438,7 +439,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   const startListening = () => { void stop().catch(() => {}); listening.start(); react('listen'); };
   const hasExplanation = messages.some(m => m.source);
   const yourTurn = phase === 'turn' && !loading;
-  const bubble = loading === 'reply' ? 'Mmm…' : loading === 'read' ? 'Leyendo…' : phase === 'turn' ? '¡Tu turno!' : undefined;
+  const bubble = erasing ? '🧽 Borrando…' : loading === 'reply' ? 'Mmm…' : loading === 'read' ? 'Leyendo…' : phase === 'turn' ? '¡Tu turno!' : undefined;
   const modes: { id: InputMode; label: string }[] = [{ id: 'keys', label: '⌨️ Teclado' }, { id: 'pen', label: '✏️ Escribir' }, ...(listening.supported ? [{ id: 'voice' as const, label: '🎤 Hablar' }] : [])];
 
   // Full screen gives phones a big, calm writing surface; on web it also hides the browser bars where allowed.
@@ -456,7 +457,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       {penColors.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel="Cambiar color del rotulador" accessibilityState={{ selected: penColor === c }} onPress={() => setPenColor(c)} style={[styles.swatch, { backgroundColor: c }, penColor === c && styles.swatchOn]} />)}
       <Pressable accessibilityRole="button" onPress={() => pad.current?.undo()} disabled={!inked} style={[styles.tool, !inked && styles.dim]}><Text style={styles.toolText}>↩︎ Deshacer</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={() => pad.current?.clear()} disabled={!inked} style={[styles.tool, !inked && styles.dim]}><Text style={styles.toolText}>🧽 Borrar</Text></Pressable>
-      {full && listening.supported ? <Pressable accessibilityRole="button" accessibilityLabel={listening.listening ? 'Dejar de escuchar' : 'Dictar tu respuesta con la voz'} disabled={Boolean(loading)} onPress={() => listening.listening ? listening.stop() : startListening()} style={[styles.tool, listening.listening && styles.micTool, Boolean(loading) && styles.dim]}><Text style={[styles.toolText, listening.listening && styles.sendText]}>{listening.listening ? '■ Parar' : '🎤 Dictar'}</Text></Pressable> : null}
+      {full && listening.supported ? <Pressable accessibilityRole="button" accessibilityLabel={listening.listening ? 'Dejar de escuchar' : 'Dictar tu respuesta con la voz'} disabled={working} onPress={() => listening.listening ? listening.stop() : startListening()} style={[styles.tool, listening.listening && styles.micTool, working && styles.dim]}><Text style={[styles.toolText, listening.listening && styles.sendText]}>{listening.listening ? '■ Parar' : '🎤 Dictar'}</Text></Pressable> : null}
       {!full ? <Pressable accessibilityRole="button" accessibilityLabel="Abrir la pizarra en pantalla completa" onPress={openFullscreen} style={styles.tool}><Text style={styles.toolText}>⛶ Pantalla completa</Text></Pressable> : null}
       <Pressable accessibilityRole="button" onPress={() => void sendDrawing()} disabled={!inked || !yourTurn} style={[styles.tool, styles.sendTool, (!inked || !yourTurn) && styles.dim]}><Text style={[styles.toolText, styles.sendText]}>Enviar ✓</Text></Pressable>
     </View>
@@ -464,7 +465,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   </View>;
   // Re-show a saved board without voice or animation, so the child can review the day.
   const review = (saved: Board) => {
-    if (busy.current) return;
+    if (busy.current || erasing) return;
     if (saved.id === board.id) { setViewing(null); return; }
     turn.current.generation++;
     void stop().catch(() => {});
@@ -477,18 +478,18 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   const reviewBanner = viewing ? <View style={styles.reviewBanner}>
     <Text style={styles.reviewText}>👀 Repasando una pizarra de las {new Date(viewing.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</Text>
     <View style={[styles.wrap, styles.reviewActions]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Seguir aprendiendo en esta pizarra" disabled={Boolean(loading)} onPress={() => resume(viewing)} style={[styles.tool, styles.sendTool]}><Text style={[styles.toolText, styles.sendText]}>✏️ Seguir en esta pizarra</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Seguir aprendiendo en esta pizarra" disabled={working} onPress={() => resume(viewing)} style={[styles.tool, styles.sendTool]}><Text style={[styles.toolText, styles.sendText]}>✏️ Seguir en esta pizarra</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={() => setViewing(null)} style={styles.tool}><Text style={styles.toolText}>← Volver a mi pizarra</Text></Pressable>
     </View>
   </View> : null;
-  const renderBoard = (full: boolean) => viewing
+  const renderBoard = (full: boolean) => viewing && !erasing
     ? <TutorWhiteboard readOnly phase="turn" board={viewing} pace={pace} expression={expression} width={full ? width : stageWidth} onWritten={() => {}} banner={reviewBanner} />
-    : <TutorWhiteboard phase={phase} board={board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={place} onWritten={onWritten} onEdit={id => { setEditTargetId(id); setMode('keys'); setError(''); }}
+    : <TutorWhiteboard phase={erasing ? 'turn' : phase} board={erasing ? wipingBoard ?? board : board} activeId={erasing ? undefined : activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={erasing ? undefined : place} onWritten={onWritten} onEdit={erasing ? undefined : id => { setEditTargetId(id); setMode('keys'); setError(''); }}
       onBoardFull={() => setErasing(true)} erasing={erasing} onErased={erased}>
       {mode === 'pen' || full ? answerPad(full) : null}
     </TutorWhiteboard>;
 
-  const newBoardButton = <Pressable accessibilityRole="button" accessibilityLabel="Crear una nueva pizarra" disabled={Boolean(loading) || erasing} onPress={freshBoard} style={[styles.newBoardButton, (Boolean(loading) || erasing) && styles.dim]}><Text style={styles.newBoardText}>＋ Nueva pizarra</Text></Pressable>;
+  const newBoardButton = <Pressable accessibilityRole="button" accessibilityLabel="Crear una nueva pizarra" disabled={working} onPress={freshBoard} style={[styles.newBoardButton, working && styles.dim]}><Text style={styles.newBoardText}>＋ Nueva pizarra</Text></Pressable>;
   return (
     <Screen scroll fill scrollEnabled={!drawing} scrollRef={scroller} toolbar={newBoardButton}>
       <Modal visible={fullscreen} animationType="slide" onRequestClose={closeFullscreen} supportedOrientations={['portrait', 'landscape']}>
@@ -515,25 +516,15 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
 
       {editingId ? <Text accessibilityRole="status" style={styles.hint}>✏️ Añadiendo detalles al dibujo original…</Text> : null}
       {editTargetId ? <View style={styles.toolRow}><Text style={styles.hint}>✏️ Vas a ampliar: {board.blocks.find(b => b.id === editTargetId)?.visual?.title || 'el dibujo seleccionado'}. Escribe qué quieres añadir.</Text><Pressable accessibilityRole="button" onPress={() => setEditTargetId(undefined)}><Text style={styles.link}>Cancelar</Text></Pressable></View> : null}
-      {state.courses.length ? <View style={styles.courses}>
-        <Text style={styles.courseLabel}>📚 ¿De qué curso es?</Text>
-        <View style={styles.toolRow} accessibilityRole="tablist">
-          {[{ id: '', title: 'General', color: colors.inkMuted }, ...state.courses].map(c => <Pressable key={c.id || 'general'} accessibilityRole="tab" accessibilityState={{ selected: courseId === c.id }} disabled={Boolean(loading)} onPress={() => chooseCourse(c.id)} style={[styles.mode, styles.courseChip, courseId === c.id && styles.modeOn]}>
-            <View style={[styles.courseDot, { backgroundColor: c.color }]} />
-            <Text style={[styles.modeText, courseId === c.id && styles.modeTextOn]}>{c.title}</Text>
-          </Pressable>)}
-        </View>
-        {course ? <Text style={styles.hint}>Tutor especialista en {course.title}. {courseEntries(courseMemory, course.id).length ? `El tutor recuerda ${courseEntries(courseMemory, course.id, 30).length} ${courseEntries(courseMemory, course.id, 30).length === 1 ? 'tema' : 'temas'} de ${course.title} y explica a partir de ahí.` : `Lo que trabajes aquí se recordará para las próximas clases de ${course.title}.`}</Text> : null}
-      </View> : null}
       <View style={styles.modes} accessibilityRole="tablist">
-        {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
+        {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} disabled={erasing} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz del tutor" onPress={() => setVoicesOpen(true)} style={styles.mode}><Text style={styles.modeText}>🗣️ Cambiar voz</Text></Pressable>
       </View>
 
       <View style={styles.questionRow}>
       {mode === 'keys' ? <View style={[styles.composer, styles.questionComposer]}>
-        <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder={listening.supported ? 'Escribe tu respuesta o tu duda…' : 'Escribe tu respuesta o tu duda… (o usa el micrófono del teclado 🎤)'} placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!loading} style={styles.input}
+        <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder={listening.supported ? 'Escribe tu respuesta o tu duda…' : 'Escribe tu respuesta o tu duda… (o usa el micrófono del teclado 🎤)'} placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!working} style={styles.input}
           submitBehavior="submit" onSubmitEditing={() => { if (!loading && input.trim()) void send(); }}
           onKeyPress={event => {
             // Web: Enter sends, Shift+Enter keeps a new line (native uses submitBehavior instead).
@@ -542,17 +533,17 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
             key.preventDefault?.();
             if (!loading && input.trim()) void send();
           }} />
-        <PrimaryButton label="Enviar →" onPress={() => void send()} disabled={Boolean(loading) || !input.trim()} />
+        <PrimaryButton label="Enviar →" onPress={() => void send()} disabled={working || !input.trim()} />
       </View> : null}
       {mode === 'voice' ? <View style={[styles.composer, styles.voiceBox, styles.questionComposer]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={listening.listening ? 'Dejar de escuchar' : 'Hablar con el tutor'} disabled={Boolean(loading)} onPress={() => listening.listening ? listening.stop() : startListening()} style={[styles.mic, listening.listening && styles.micOn, Boolean(loading) && styles.dim]}><Text style={styles.micIcon}>{listening.listening ? '■' : '🎤'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={listening.listening ? 'Dejar de escuchar' : 'Hablar con el tutor'} disabled={working} onPress={() => listening.listening ? listening.stop() : startListening()} style={[styles.mic, listening.listening && styles.micOn, working && styles.dim]}><Text style={styles.micIcon}>{listening.listening ? '■' : '🎤'}</Text></Pressable>
         <Text style={styles.voiceText} accessibilityLiveRegion="polite">{listening.listening ? listening.interim || 'Te escucho…' : 'Toca el micrófono y dime tu respuesta o tu duda'}</Text>
         {listening.error ? <Text accessibilityRole="alert" style={styles.error}>{listening.error}</Text> : null}
       </View> : null}
 
       <View style={styles.photoTools}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Tomar foto de la tarea" disabled={Boolean(loading)} onPress={() => { if (Platform.OS === 'web') setCameraOpen(true); else void pickPhoto(true); }} style={styles.photoIcon}><Text style={styles.photoIconText}>📷</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Subir foto de la tarea" disabled={Boolean(loading)} onPress={() => void pickPhoto(false)} style={styles.photoIcon}><Text style={styles.photoIconText}>🖼️</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Tomar foto de la tarea" disabled={working} onPress={() => { if (Platform.OS === 'web') setCameraOpen(true); else void pickPhoto(true); }} style={styles.photoIcon}><Text style={styles.photoIconText}>📷</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Subir foto de la tarea" disabled={working} onPress={() => void pickPhoto(false)} style={styles.photoIcon}><Text style={styles.photoIconText}>🖼️</Text></Pressable>
       </View>
       </View>
       {page.reply ? <View style={styles.said}>
@@ -575,10 +566,10 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       {speechError ? <Text accessibilityRole="alert" style={styles.error}>{speechError}</Text> : null}
       {loading === 'photo' || loading === 'read' ? <View style={styles.loading}><ActivityIndicator color={colors.coral} /><Text style={styles.hint}>{loading === 'photo' ? 'Preparando foto…' : 'Leyendo la escritura…'}</Text></View> : null}
       {loading === 'photo' ? <PrimaryButton label="Cancelar preparación de foto" variant="secondary" onPress={() => { photoGeneration.current++; busy.current = false; setLoading(null); }} /> : null}
-      {error ? <View style={styles.errorBox}><Text accessibilityRole="alert" style={styles.error}>{error}</Text>{retry ? <PrimaryButton label="Reintentar" variant="secondary" disabled={Boolean(loading)} onPress={() => void send(retry.message, retry.action, retry.exercise, retry.fresh, retry.answer)} /> : null}</View> : null}
+      {error ? <View style={styles.errorBox}><Text accessibilityRole="alert" style={styles.error}>{error}</Text>{retry ? <PrimaryButton label="Reintentar" variant="secondary" disabled={working} onPress={() => void send(retry.message, retry.action, retry.exercise, retry.fresh, retry.answer)} /> : null}</View> : null}
 
       {hasExplanation && !photo ? <View style={styles.wrap}>
-        {(['continue', 'simpler', 'example', 'hint', 'more', 'map', 'draw', 'images', 'summary'] as const).map(id => <Pressable key={id} accessibilityRole="button" disabled={Boolean(loading)} onPress={() => void send(actionMessages[id], id, exercise, false, { childLine: actionLines[id] })} style={[styles.chip, id === 'continue' && styles.chipMain, Boolean(loading) && styles.dim]}><Text style={[styles.chipText, id === 'continue' && styles.sendText]}>{actionButtons[id]}</Text></Pressable>)}
+        {(['continue', 'simpler', 'example', 'hint', 'more', 'map', 'draw', 'images', 'summary'] as const).map(id => <Pressable key={id} accessibilityRole="button" disabled={working} onPress={() => void send(actionMessages[id], id, exercise, false, { childLine: actionLines[id] })} style={[styles.chip, id === 'continue' && styles.chipMain, working && styles.dim]}><Text style={[styles.chipText, id === 'continue' && styles.sendText]}>{actionButtons[id]}</Text></Pressable>)}
       </View> : null}
 
       {photo ? <View style={styles.photoCard}>
@@ -586,14 +577,14 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
         <Image source={{ uri: photo.uri }} style={styles.previewImg} resizeMode="contain" accessibilityLabel="Foto de la tarea pendiente de revisar" />
         <Text style={styles.hint}>Un ejercicio por foto, buena luz y letras enfocadas. La foto se envía a OpenAI o Anthropic al pulsar «Leer mi tarea».</Text>
         <View style={styles.wrap}>
-          <PrimaryButton label={transcript === null ? 'Leer mi tarea' : 'Volver a leer la foto'} disabled={Boolean(loading)} onPress={() => void readPhoto()} style={styles.action} />
-          <PrimaryButton label="Quitar foto" variant="secondary" disabled={Boolean(loading)} onPress={() => { setPhoto(null); setTranscript(null); setNeedsRetake(false); setError(''); setRetry(null); }} style={styles.action} />
+          <PrimaryButton label={transcript === null ? 'Leer mi tarea' : 'Volver a leer la foto'} disabled={working} onPress={() => void readPhoto()} style={styles.action} />
+          <PrimaryButton label="Quitar foto" variant="secondary" disabled={working} onPress={() => { setPhoto(null); setTranscript(null); setNeedsRetake(false); setError(''); setRetry(null); }} style={styles.action} />
         </View>
         {transcript !== null ? <View style={styles.transcript}>
           <Text style={styles.sectionTitle}>Esto es lo que pude leer</Text>
           <Text style={styles.hint}>{needsRetake ? 'No pude leerlo todo. Toma otra foto o completa el texto.' : 'Compáralo con tu hoja y corrige cualquier letra o número antes de empezar.'} Los símbolos [?] necesitan revisión.</Text>
-          <TextInput accessibilityLabel="Texto reconocido de la tarea" value={transcript} onChangeText={value => { setTranscript(value); setNeedsRetake(false); }} multiline maxLength={4000} editable={!loading} style={[styles.input, styles.transcriptInput]} />
-          <PrimaryButton label="El texto está bien · Empezar" disabled={Boolean(loading) || needsRetake || !transcript.trim() || transcript.includes('[?]')} onPress={() => void send('Ayúdame paso a paso con este ejercicio.', 'help', transcript.trim(), true)} />
+          <TextInput accessibilityLabel="Texto reconocido de la tarea" value={transcript} onChangeText={value => { setTranscript(value); setNeedsRetake(false); }} multiline maxLength={4000} editable={!working} style={[styles.input, styles.transcriptInput]} />
+          <PrimaryButton label="El texto está bien · Empezar" disabled={working || needsRetake || !transcript.trim() || transcript.includes('[?]')} onPress={() => void send('Ayúdame paso a paso con este ejercicio.', 'help', transcript.trim(), true)} />
         </View> : null}
       </View> : null}
 
