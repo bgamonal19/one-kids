@@ -280,6 +280,8 @@ export async function runTutor(raw, env, fetcher = fetch) {
   const preferred = env.TUTOR_DEFAULT_PROVIDER;
   const order = req.provider === 'auto' ? [...available.filter(id => id === preferred), ...available.filter(id => id !== preferred)] : available.filter(id => id === req.provider);
   if (!order.length) throw new TutorError('La IA todavía no está conectada. Un adulto debe activar el proveedor para leer fotos y usar el tutor real.', 503);
+  // Reference charts are deterministic: no provider latency, image generation or token charge.
+  if (wantsPeriodicTable(req)) return { ...parseResult(JSON.stringify({ reply: 'Tabla periódica' }), req), source: 'reference', tokens: 0 };
   const prompt = systemPrompt(req);
   const text = `${req.exercise ? `Ejercicio confirmado por el alumno:\n${req.exercise}\n\n` : ''}${req.message || (req.handwriting ? 'Esta es mi respuesta escrita en la pizarra.' : 'Lee la tarea de la foto.')}`;
   let lastError;

@@ -22,10 +22,12 @@ test('complete-with-names follow-up uses recent context but unrelated topics and
   assert.ok(!wantsPeriodicTable({action:'read',message:'tabla periódica',history}));
 });
 test('full tutor response replaces an inaccurate model sketch without the age shape cap or image generation', async () => {
-  const result = await runTutor({ageBand:'7-9',message:'dibújame la tabla periódica completa',history:[],pictures:true}, {OPENAI_API_KEY:'test'}, async () => Response.json({output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({reply:'Solo dos elementos',visual:{type:'sketch',title:'Incorrecto',illustration:'periodic table',shapes:[]}})}]}]}));
+  const result = await runTutor({ageBand:'7-9',message:'dibújame la tabla periódica completa',history:[],pictures:true}, {OPENAI_API_KEY:'test'}, async () => { throw new Error('Reference tables must not call a provider'); });
   assert.equal(result.visual.shapes.filter(s=>s.s==='rect').length,118);
   assert.match(result.reply,/118 elementos/);
   assert.equal(result.picture,null);
+  assert.equal(result.source,'reference');
+  assert.equal(result.tokens,0);
   assert.equal(result.visual.illustration,undefined);
 });
 test('follow-up completion replaces image artwork even when the edit instruction requested null visual', async () => {
@@ -33,4 +35,6 @@ test('follow-up completion replaces image artwork even when the edit instruction
   assert.equal(result.visual.reference,'periodic-table');
   assert.equal(result.visual.shapes.filter(s=>s.s==='rect').length,118);
   assert.equal(result.picture,null);
+  assert.equal(result.source,'reference');
+  assert.equal(result.tokens,0);
 });

@@ -28,7 +28,7 @@ import { openBrowserAsync } from 'expo-web-browser';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { addMemory, courseEntries, readCourseMemory, saveCourseMemory, type CourseMemory } from '@/lib/course-memory';
 
-type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' };
+type Message = TutorMessage & { source?: 'openai' | 'anthropic' | 'local' | 'reference' };
 type Photo = { uri: string; data: string };
 type Answer = { handwriting?: string; childLine?: string };
 type Retry = { message: string; action: TutorAction; exercise: string; fresh: boolean; answer: Answer };
@@ -36,7 +36,7 @@ type Retry = { message: string; action: TutorAction; exercise: string; fresh: bo
 type Page = { key: string; lines: string[]; childLine?: string; reply?: string; replyId?: string; source?: Message['source']; visual?: BoardVisual | null; images?: ImageSearch[] };
 type InputMode = 'pen' | 'keys' | 'voice';
 const uid = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-const labels = { openai: 'OpenAI', anthropic: 'Claude · Anthropic', local: 'Práctica sin IA' };
+const labels = { openai: 'OpenAI', anthropic: 'Claude · Anthropic', local: 'Práctica sin IA', reference: 'Referencia científica · IUPAC' };
 const actionMessages = {
   continue: 'Ya entendí. Continuemos con el siguiente paso.',
   simpler: 'Explícame este mismo paso con palabras más fáciles.',

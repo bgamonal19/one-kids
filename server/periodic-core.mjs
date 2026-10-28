@@ -134,7 +134,7 @@ export const ELEMENTS = rows.split('\n').map((row, i) => {
 export function wantsPeriodicTable(req) {
   if (req.action === 'read') return false;
   const message = req.message.split('\nDibujo existente seleccionado:')[0];
-  if (/tabla peri[oó]dica|periodic table/i.test(message)) return true;
+  if (/tabla peri[oó]dica|periodic table/i.test(message)) return /dib[uú]j|muestra|mu[eé]str|quiero (ver|la)|dame|completa|con.*nombres|^\s*(la )?tabla peri[oó]dica\s*[.!?]?$/i.test(message);
   const recent = req.history.slice(-2).map(t => t.content).join(' ');
   return /tabla peri[oó]dica|periodic table/i.test(recent) && /^(pero |y |ahora |por favor )*(completa|con (sus |los )?nombres|agr[eé]ga.*nombres|dib[uú]jala|mu[eé]strala)/i.test(message.trim());
 }

@@ -68,7 +68,7 @@ export type TutorResponse = {
   topic?: string;
   newTopic?: boolean;
   account?: TutorAccount | null;
-  source: 'openai' | 'anthropic' | 'local';
+  source: 'openai' | 'anthropic' | 'local' | 'reference';
   transcription?: string;
   needsRetake?: boolean;
 };
