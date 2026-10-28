@@ -1,3 +1,4 @@
+import { verifiedReferenceImage } from '../server/reference-image.mjs';
 import { runTutor, tutorStatus, TutorError } from '../server/tutor-core.mjs';
 import { AccountError, bearerToken, verifyUser } from '../server/account-core.mjs';
 import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
@@ -61,6 +62,15 @@ export async function POST(request) {
       return json({ account: await getUsage(user.id, process.env) }, 200, origin);
     }
     const usage = user ? await getUsage(user.id, process.env) : null;
+    if (body && typeof body === 'object' && body.referenceImage) {
+      if (!usage) throw new TutorError('Inicia sesión con una cuenta familiar para buscar una imagen verificada.', 403);
+      if (usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes.', 429);
+      let reference;
+      try { reference = await verifiedReferenceImage(body.referenceImage, process.env); }
+      catch { throw new TutorError('No pude comprobar la imagen. Inténtalo de nuevo.', 502); }
+      const used = reference.tokens ? (await addUsage(user.id, reference.tokens, process.env)) ?? usage.used + reference.tokens : usage.used;
+      return json({ ...reference, account: { ...usage, used } }, 200, origin);
+    }
     // A realistic picture the tutor asked for, made after the reply so the board isn't kept waiting.
     // Any signed-in family with metering gets it, in both modes, within the monthly limit.
     if (body && typeof body === 'object' && 'picture' in body) {

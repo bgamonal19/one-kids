@@ -42,6 +42,13 @@ export function validateTutorRequest(raw) {
     handwriting = { mime: match[1], data: match[2], url: raw.handwriting };
   }
   if (!image && !handwriting && !message && !exercise) throw new TutorError('Escribe una duda o añade una foto.');
+  let annotationImage;
+  if (raw.annotationImage) {
+    if (typeof raw.annotationImage !== 'string' || raw.annotationImage.length > 2500000 || action === 'read') throw new TutorError('La imagen para señalar no es válida.');
+    const value = raw.annotationImage;
+    if (!/^https:\/\/upload\.wikimedia\.org\//.test(value) && !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new TutorError('Solo se pueden señalar imágenes de la pizarra.');
+    annotationImage = value;
+  }
   const history = Array.isArray(raw.history) ? raw.history.slice(-12).filter(h => h && ['child', 'tutor'].includes(h.role) && typeof h.text === 'string').map(h => ({ role: h.role === 'tutor' ? 'assistant' : 'user', content: h.text.slice(0, 2500) })) : [];
   // 'open' is the parent-enabled free assistant; the HTTP layer checks the account allows it.
   const mode = raw.mode === 'open' ? 'open' : 'tutor';
@@ -61,7 +68,7 @@ export function validateTutorRequest(raw) {
   const topic = t => typeof t === 'string' ? t.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   const list = v => Array.isArray(v) ? v.map(topic).filter(Boolean) : [];
   const syllabus = course && raw.syllabus && typeof raw.syllabus === 'object' ? { current: topic(raw.syllabus.current), done: list(raw.syllabus.done).slice(-15), next: list(raw.syllabus.next).slice(0, 8) } : null;
-  return { action, provider, mode, pictures, message, exercise, image, handwriting, history, ageBand, age, course, memory, syllabus: syllabus && (syllabus.current || syllabus.done.length || syllabus.next.length) ? syllabus : null };
+  return { action, provider, mode, pictures, message, exercise, image, handwriting, annotationImage, history, ageBand, age, course, memory, syllabus: syllabus && (syllabus.current || syllabus.done.length || syllabus.next.length) ? syllabus : null };
 }
 
 // The level of detail grows every two years; from 13 on it is a secondary-school teacher's.
@@ -237,18 +244,18 @@ function parseResult(text, req) {
   if (req.action === 'read' && (typeof result.transcription !== 'string' || result.transcription.length > 4000 || typeof result.needsRetake !== 'boolean')) throw new TutorError('No pudimos leer la foto. Prueba otra imagen.', 502);
   const board = (Array.isArray(result.board) ? result.board : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 400)).filter(Boolean).slice(0, 10);
   const summary = (Array.isArray(result.summary) ? result.summary : []).filter(line => typeof line === 'string').map(line => line.trim().slice(0, 140)).filter(Boolean).slice(0, 6);
-  let visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req), { pictures: req.pictures, age: req.age });
+  let visual = req.action === 'read' ? null : cleanVisual(result.visual, maxShapes(req), { pictures: req.pictures && !req.annotationImage, age: req.age });
   // A promised drawing must have a renderable payload, even if the text model omits visual.
   // Include the conversation so the generic Draw button still knows what to illustrate.
-  if (!visual && req.pictures && req.action !== 'read' && asksDrawing(req)) {
+  if (!visual && !req.annotationImage && req.pictures && req.action !== 'read' && asksDrawing(req)) {
     const world = /mapa\s*mundi|mapa (?:del )?mundo/i.test(`${req.message} ${board.join(' ')}`);
     const context = req.history.slice(-4).map(turn => turn.content).join(' ').slice(-700);
     visual = cleanVisual({ type: 'sketch', title: result.topic || board[0] || 'Dibujo del tema', shapes: [], ...(world ? { geo: { region: 'world', countries: [] } } : {}),
       illustration: `Subject: ${result.topic || board[0] || ""}. Request: ${req.message.slice(0, 160)}. Conversation: ${context.slice(-180)}. Depict accurately: ${board.slice(0, 3).join("; ")}`
     }, maxShapes(req), { pictures: true, age: req.age });
   }
-  let picture = req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null;
-  if (req.pictures && req.action !== 'read' && !picture && !visual) picture = fallbackPicture(req, result.reply.trim(), board);
+  let picture = !req.annotationImage && req.pictures && req.action !== 'read' ? cleanPicture(result.picture) : null;
+  if (!req.annotationImage && req.pictures && req.action !== 'read' && !picture && !visual) picture = fallbackPicture(req, result.reply.trim(), board);
   // Exact scientific reference data must never be painted by an image model or truncated by shape limits.
   if (wantsPeriodicTable(req)) {
     visual = periodicVisual();
@@ -282,7 +289,7 @@ export async function runTutor(raw, env, fetcher = fetch) {
   if (!order.length) throw new TutorError('La IA todavía no está conectada. Un adulto debe activar el proveedor para leer fotos y usar el tutor real.', 503);
   // Reference charts are deterministic: no provider latency, image generation or token charge.
   if (wantsPeriodicTable(req)) return { ...parseResult(JSON.stringify({ reply: 'Tabla periódica' }), req), source: 'reference', tokens: 0 };
-  const prompt = systemPrompt(req);
+  const prompt = systemPrompt(req) + (req.annotationImage ? '\nANOTACIÓN SOBRE IMAGEN: Mira la imagen adjunta y coloca solo líneas, flechas, círculos y etiquetas sobre las partes REALES solicitadas. Coordenadas 0–100, toda la imagen ocupa ese cuadro. Mantén visual.type="sketch", illustration y picture nulos, sin photo ni geo. No cubras la foto con rectángulos ni generes otra imagen. Usa trazos finos de colores visibles. Si no puedes identificar una parte, dilo y no inventes su posición.' : '');
   const text = `${req.exercise ? `Ejercicio confirmado por el alumno:\n${req.exercise}\n\n` : ''}${req.message || (req.handwriting ? 'Esta es mi respuesta escrita en la pizarra.' : 'Lee la tarea de la foto.')}`;
   let lastError;
   for (const provider of order) {
@@ -292,12 +299,12 @@ export async function runTutor(raw, env, fetcher = fetch) {
         url = 'https://api.openai.com/v1/responses';
         headers = { Authorization: `Bearer ${apiKey(env, 'openai')}`, 'Content-Type': 'application/json' };
         body = { model: env.OPENAI_MODEL || 'gpt-4.1-mini', store: false, max_output_tokens: maxTokens(req), instructions: prompt,
-          input: [...req.history, { role: 'user', content: [...(req.image ? [{ type: 'input_image', image_url: req.image.url, detail: 'high' }] : []), ...(req.handwriting ? [{ type: 'input_image', image_url: req.handwriting.url, detail: 'low' }] : []), { type: 'input_text', text: `${text}\n\nResponde solo con el JSON pedido.` }] }], text: { format: { type: 'json_object' } } };
+          input: [...req.history, { role: 'user', content: [...(req.annotationImage ? [{type: 'input_image', image_url: req.annotationImage, detail: 'high'}] : []), ...(req.image ? [{ type: 'input_image', image_url: req.image.url, detail: 'high' }] : []), ...(req.handwriting ? [{ type: 'input_image', image_url: req.handwriting.url, detail: 'low' }] : []), { type: 'input_text', text: `${text}\n\nResponde solo con el JSON pedido.` }] }], text: { format: { type: 'json_object' } } };
       } else {
         url = 'https://api.anthropic.com/v1/messages';
         headers = { 'x-api-key': apiKey(env, 'anthropic'), 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' };
         body = { model: env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: maxTokens(req), system: prompt,
-          messages: [...req.history, { role: 'user', content: [...[req.image, req.handwriting].filter(Boolean).map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.data } })), { type: 'text', text }] }] };
+          messages: [...req.history, { role: 'user', content: [...(req.annotationImage ? [{ type: 'image', source: req.annotationImage.startsWith('data:') ? {type:'base64',media_type:req.annotationImage.split(';')[0].slice(5),data:req.annotationImage.split(',')[1]} : {type:'url',url:req.annotationImage} }] : []), ...[req.image, req.handwriting].filter(Boolean).map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.data } })), { type: 'text', text }] }] };
       }
       const response = await fetcher(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(28_000) });
       if (!response.ok) {

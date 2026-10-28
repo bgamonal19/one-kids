@@ -1,13 +1,13 @@
-import { eraseDuration, wipeRows, eraserPoint, wipedBand } from '@/lib/board-wipe';
-import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
+import { eraseDuration, createWipePlan, eraserOnPlan, contactPolygon, type WipeLeg } from '@/lib/board-wipe';
+import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { Easing, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { BoardSheet, blockTotals, unitsBefore } from './BoardSheet';
 import { ZoomView, type Zoomed } from './BoardPhotos';
-import { KikoMascot } from './KikoMascot';
+import Svg, { Polygon } from 'react-native-svg';
+import { useFloatingCompanion } from './FloatingCompanion';
 import type { ExpressionId } from '@/lib/expressions';
 import { blockSegments, type Board } from '@/lib/tutor-boards';
-import { useFamily } from '@/lib/store';
 import { colors, fonts } from '@/constants/theme';
 
 /** away: beside the board · thinking/writing: at the board · turn: stepped back for the child. */
@@ -50,18 +50,17 @@ export function boardLayout(width: number, windowHeight: number, wide: boolean) 
 
 const ERASER = { w: 96, h: 44 };
 
-function WipeBand({ progress, row, width, height }: { progress: SharedValue<number>; row: number; width: number; height: number }) {
-  const cover = useAnimatedStyle(() => wipedBand(progress.value, row, width, height));
-  return <Animated.View testID={`wipe-contact-${row}`} pointerEvents="none" style={[{ position: 'absolute', backgroundColor: '#FFFFFF' }, cover]} />;
+const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
+function WipeContact({ progress, leg }: { progress: SharedValue<number>; leg: WipeLeg }) {
+  const animatedProps = useAnimatedProps(() => ({ points: contactPolygon(progress.value, leg) }));
+  return <AnimatedPolygon animatedProps={animatedProps} fill="#FFFFFF" />;
 }
 
 export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expression, bubble, width, columnHeight, readOnly, onPlace, onWritten, onEdit, onBoardFull, erasing, onErased, banner, children }: Props) {
-  const { state } = useFamily();
+  useFloatingCompanion(expression, bubble, !readOnly);
   const reduced = useReducedMotion();
   const { height: windowHeight } = useWindowDimensions();
   const wide = width >= 700;
-  const size = wide ? 168 : 84;
-  const reach = wide ? size * 0.5 : size * 0.42;
   const layout = boardLayout(width, windowHeight, wide);
   const maxHeight = columnHeight ?? layout.maxHeight;
   const active = readOnly ? undefined : board.blocks.find(b => b.id === activeId && blockSegments(b));
@@ -93,8 +92,10 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
     return () => clearInterval(timer);
   }, [writing, waiting, erasing, revealKey, startAt, limit, pace, reduced]);
 
-  // A full board is wiped with the eraser in a zigzag, like in class; the board is kept in «Mis pizarras».
+  // Crossed passes erase the actual contact footprint; the board is kept in «Mis pizarras».
   const [surface, setSurface] = useState({ w: 0, h: 0 });
+  const seed = useMemo(() => (board.id.split('').reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) >>> 0, 7) / 4294967296), [board.id]);
+  const plan = useMemo(() => createWipePlan(surface.w, surface.h, seed), [surface.w, surface.h, seed]);
   const wipe = useSharedValue(0);
   const duration = eraseDuration(surface.w, surface.h);
   const erased = useEffectEvent(() => onErased?.());
@@ -107,27 +108,10 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
     return () => clearTimeout(timer);
   }, [erasing, reduced, wipe, duration]);
   const eraser = useAnimatedStyle(() => {
-    const point = eraserPoint(wipe.value, surface.w, surface.h, ERASER.w, ERASER.h);
+    const point = eraserOnPlan(wipe.value, plan.legs);
     return { opacity: wipe.value > 0 && wipe.value < 1 ? 1 : 0, transform: [{ translateX: point.x }, { translateY: point.y }] };
   });
 
-  const progress = useSharedValue(0);
-  const scribble = useSharedValue(0);
-  const atBoard = (phase === 'thinking' || phase === 'writing') && !readOnly;
-  useEffect(() => {
-    progress.value = reduced ? (atBoard ? 1 : 0) : withTiming(atBoard ? 1 : 0, { duration: 1100, easing: Easing.inOut(Easing.cubic) });
-  }, [atBoard, reduced, progress]);
-  useEffect(() => {
-    cancelAnimation(scribble);
-    scribble.value = writing && !waiting && !reduced ? withRepeat(withTiming(1, { duration: 240 }), -1, true) : withTiming(0, { duration: 150 });
-    return () => cancelAnimation(scribble);
-  }, [writing, waiting, reduced, scribble]);
-  // Small hops make the slide read as walking; the lean faces the board while writing.
-  const walker = useAnimatedStyle(() => ({ transform: [
-    { translateX: -reach * progress.value },
-    { translateY: -Math.abs(Math.sin(progress.value * Math.PI * 4)) * size * 0.06 },
-    { rotate: `${-5 * progress.value - scribble.value * 4}deg` },
-  ] }));
 
   return (
     <View style={s.stage}>
@@ -135,16 +119,16 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
         <View style={[s.surface, { paddingRight: 18 + layout.inset }]}>
           {banner}
           <View testID="board-surface" style={{ minHeight: maxHeight }} onLayout={e => setSurface({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-            {/* A clean board fades in after the eraser. */}
+            {/* Keep untouched content fully opaque during contact erasure. */}
             <Animated.View pointerEvents={erasing ? "none" : "auto"} key={board.id} testID="board-content">
-              <BoardSheet board={board} width={layout.inner} cols={layout.cols} frozen={erasing} lineSize={layout.lineSize} headerInset={size * 1.05}
+              <BoardSheet board={board} width={layout.inner} cols={layout.cols} frozen={erasing} lineSize={layout.lineSize} headerInset={0}
                 active={active ? { id: active.id, shown, writing: writing && !reduced } : undefined}
                 thinking={phase === 'thinking' && !readOnly ? { childLine } : null}
                 onZoom={setZoomed} onEdit={readOnly ? undefined : onEdit}
                 onMeasured={readOnly ? undefined : (id, heights) => onPlace?.(id, heights, layout.cols, maxHeight)} />
             </Animated.View>
             {erasing && !reduced ? <View testID="board-wiping" pointerEvents="none" style={StyleSheet.absoluteFill}>
-              {Array.from({ length: wipeRows(surface.h) }, (_, row) => <WipeBand key={row} progress={wipe} row={row} width={surface.w} height={surface.h} />)}
+              <Svg width={surface.w} height={surface.h}>{plan.legs.map((leg, i) => <WipeContact key={`${seed}:${i}`} progress={wipe} leg={leg} />)}</Svg>
             </View> : null}
             <Animated.View testID="mota"  pointerEvents="none" style={[s.mota, eraser]} accessibilityElementsHidden>
               <View style={s.motaWood} /><View style={s.motaFelt} />
@@ -155,10 +139,7 @@ export function TutorWhiteboard({ phase, board, activeId, childLine, pace, expre
         <ZoomView zoomed={zoomed} onClose={() => setZoomed(null)} />
         <View style={s.tray}><View style={[s.marker, { backgroundColor: '#2C60AE' }]} /><View style={[s.marker, { backgroundColor: colors.coral }]} /><View style={[s.marker, { backgroundColor: colors.leafDeep }]} /><View style={s.eraser} /></View>
       </View>
-      <Animated.View pointerEvents="none" style={[s.walker, { width: size, top: wide ? 18 : 6 }, walker]}>
-        {bubble ? <View style={s.bubble}><Text style={s.bubbleText}>{bubble}</Text></View> : null}
-        <KikoMascot character={state.child?.companion ?? 'bear'} age={state.child?.age ?? 8} expression={expression} size={size} />
-      </Animated.View>
+
     </View>
   );
 }

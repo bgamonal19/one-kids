@@ -52,3 +52,7 @@ test('mobile/web client accepts scientific reference replies, not only AI provid
     assert.equal(response.visual.shapes.filter(s=>s.s==='rect').length,118);
   } finally { globalThis.fetch=original; }
 });
+test('the exact reported misspelling still returns the complete reference table',async()=>{
+ const result=await runTutor({ageBand:'7-9',message:'deme la pabla periodica con detalles',history:[]},{OPENAI_API_KEY:'test'},async()=>{throw Error('Do not ask the image/text model for a reference table');});
+ assert.equal(result.source,'reference'); assert.equal(result.visual.shapes.filter(s=>s.s==='rect').length,118);
+});

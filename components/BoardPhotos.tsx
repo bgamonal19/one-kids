@@ -32,6 +32,7 @@ export function TapedPhotos({ photos, drawingLabel, width, onOpen }: { photos: T
           <Pressable accessibilityRole="imagebutton" accessibilityLabel={`${photo.label || photo.title || photo.query}. Toca para verla en grande`} onPress={() => onOpen(photo)}>
             <Image source={{ uri: photo.url }} resizeMode="cover" style={{ width: cardWidth - 16, height: (cardWidth - 16) * ratio, backgroundColor: '#EEF2F6' }} />
             <Text style={s.caption} numberOfLines={2}>{photo.generated ? '🎨 ' : ''}{photo.label || photo.title}</Text>
+            {photo.verified ? <Text style={s.zoomHint}>✓ Imagen revisada para este tema · Wikipedia / Wikimedia</Text> : null}
             <Text style={s.zoomHint}>🔍 Toca para ampliar o imprimir</Text>
           </Pressable>
           <View pointerEvents="none" style={[s.tape, s.tapeLeft]} />

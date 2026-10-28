@@ -173,7 +173,8 @@ function SketchView({ visual, progress: total, width, drawing, max, pencil }: { 
   const mask = useId().replace(/[^a-zA-Z0-9]/g, '');
   const clock = useDrawingClock(visual.trace);
   const w = Math.min(width, max ?? 520), scale = w / 100;
-  const aspect = Math.min(1.4, Math.max(0.4, visual.aspect ?? 1)), h = w * aspect;
+  const photoRatio = visual.background?.width && visual.background?.height ? visual.background.height / visual.background.width : 1;
+  const aspect = visual.background ? Math.min(3, Math.max(.2, photoRatio)) : Math.min(1.4, Math.max(0.4, visual.aspect ?? 1)), h = w * aspect;
   // A map outline is traced first, then the shapes on top of it.
   const outline = lineTrace(visual);
   const traced = outline ? traceUpTo(outline.rings, total / TRACE_STEPS) : null;
@@ -194,11 +195,11 @@ function SketchView({ visual, progress: total, width, drawing, max, pencil }: { 
       {visual.title ? <Text style={s.title}>{visual.title}</Text> : null}
       <View style={[s.box, { width: w, height: h }]}>
         {/* An annotated photo: the real picture fills the square and the tutor writes on top of it. */}
-        {visual.background ? <Image source={{ uri: visual.background.url }} resizeMode="cover" accessibilityLabel={visual.background.title} style={[StyleSheet.absoluteFill, s.photo]} /> : null}
+        {visual.background ? <Image source={{ uri: visual.background.url }} resizeMode="stretch" accessibilityLabel={visual.background.title} style={[StyleSheet.absoluteFill, s.photo]} /> : null}
         {image && clock !== null && visual.trace?.beforeImage ? <Image source={{ uri: visual.trace.beforeImage }} resizeMode="contain" accessibilityLabel="Dibujo anterior" style={StyleSheet.absoluteFill} /> : null}
         {image && clock === null ? <Image source={{ uri: image }} resizeMode="contain" accessibilityLabel={visual.title} style={StyleSheet.absoluteFill} /> : null}
         {waiting ? <View style={[StyleSheet.absoluteFill, s.waiting]}><Text style={s.waitingText}>✏️ Preparando el dibujo…</Text></View> : null}
-        <Svg width={w} height={h} viewBox={`0 0 100 ${100 * aspect}`} style={s.over}>
+        <Svg width={w} height={h} viewBox={`0 0 100 ${visual.background ? 100 : 100 * aspect}`} preserveAspectRatio={visual.background ? "none" : "xMidYMid meet"} style={s.over}>
           {image && clock !== null ? <G>
             <Defs>
               <Mask id={mask} maskUnits="userSpaceOnUse" x={0} y={0} width={100} height={100}>

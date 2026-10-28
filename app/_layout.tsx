@@ -1,3 +1,4 @@
+import { FloatingCompanionProvider } from '@/components/FloatingCompanion';
 import { AccountStatus, SignOutButton } from '@/components/AccountStatus';
 import {
   Fredoka_600SemiBold,
@@ -48,6 +49,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="dark" />
       <FamilyProvider>
+        <FloatingCompanionProvider>
         <AccountStatus />
         <WebShell>
           <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
@@ -60,6 +62,7 @@ export default function RootLayout() {
           </Stack>
         </WebShell>
         <SignOutButton />
+        </FloatingCompanionProvider>
       </FamilyProvider>
     </GestureHandlerRootView>
   );

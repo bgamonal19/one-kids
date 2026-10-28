@@ -20,7 +20,7 @@ import { DEFAULT_VOICE, loadVoiceChoice, saveVoiceChoice, VOICE_SAMPLE, type Voi
 import { getAgeBand } from '@/lib/ages';
 import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
-import { askTutor, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type PictureRequest, type TutorAction, type TutorProvider } from '@/lib/tutor';
+import { askTutor, findReferenceImage, generatePicture, getTutorStatus, type TutorAccount, type BoardVisual, type ImageSearch, type PictureRequest, type TutorAction, type TutorProvider } from '@/lib/tutor';
 import { dayKey, keepBoard, latestOfChain, loadBoards, newBoard, saveBoards, type Board, type BoardBlock } from '@/lib/tutor-boards';
 import { BoardStrip } from '@/components/BoardStrip';
 import type { CourseItem, TutorMessage } from '@/lib/types';
@@ -125,6 +125,9 @@ function TutorSession() {
   const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [input, setInput] = useState('');
   const [editTargetId, setEditTargetId] = useState<string>();
+  const [referenceOption, setReferenceOption] = useState<{key: string; title: string; context: string} | null>(null);
+  const [referenceBusy, setReferenceBusy] = useState(false);
+  const [referenceNote, setReferenceNote] = useState('');
   const [editingId, setEditingId] = useState<string>();
   const editingBusy = useRef(false);
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -292,6 +295,7 @@ function TutorSession() {
     turn.current.generation++;
     void stop().catch(() => {});
     listening.stop();
+    setReferenceOption(null); setReferenceNote('');
     changeBoard(newBoard('', [], course?.id), true); setViewing(null); setPage({ key: 'welcome', lines: [] });
     setMessages(current => current.filter(m => m.id === 'welcome')); setExercise(''); topic.current = '';
     setEditTargetId(undefined); setInput(''); setError(''); setRetry(null); setPhoto(null); setTranscript(null); setNeedsRetake(false);
@@ -328,13 +332,14 @@ function TutorSession() {
     // Bring the board back into view so the child sees the tutor walk up and write.
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     const previous = fresh ? messages.filter(m => m.id === 'welcome') : messages;
-    const candidates = boardRef.current.blocks.filter(block => block.visual?.type === 'sketch');
+    const candidates = boardRef.current.blocks.filter(block => block.visual?.type === 'sketch' || block.photos?.length);
     let target = !fresh && !explicitNewTopic(action, message) && (editTargetId || editsExistingDrawing(message)) ? candidates.find(block => block.id === editTargetId) ?? candidates.at(-1) : undefined;
-    const base = target?.visual?.type === 'sketch' ? target.visual : undefined;
+    const referencePhoto = target?.photos?.[0];
+    const base: Extract<BoardVisual, {type: 'sketch'}> | undefined = referencePhoto ? {type: 'sketch', title: referencePhoto.label || referencePhoto.title || referencePhoto.query, shapes: [], background: referencePhoto} : target?.visual?.type === 'sketch' ? target.visual : undefined;
     const instruction = base ? `${message}
 Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicación editará la imagen original: responde solo con la explicación y las líneas para la pizarra. visual y picture deben ser null; no generes otra escena.' : `Devuelve en visual solo los trazos NUEVOS para superponer al dibujo existente, en sus coordenadas 0–100. Contenido existente (datos): ${JSON.stringify({ title: base.title, shapes: base.shapes, aspect: base.aspect }).slice(0, 1200)}. No repitas los trazos anteriores.`}` : message.trim();
     try {
-      const result = await askTutor({ ageBand: band, age, childName: '', message: instruction, handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })),
+      const result = await askTutor({ ageBand: band, age, childName: '', message: instruction, handwriting: answer.handwriting, ...(base?.background ? {annotationImage: base.background.url} : {}), action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })),
         ...(course ? { courseTitle: course.title, memory: courseEntries(courseMemory, course.id).map(({ at, topic: t, summary }) => ({ at, topic: t, summary })), syllabus: syllabusOf(course) } : {}) });
       if (!alive.current) return;
       // A reference table is a complete replacement, never an image edit or capped overlay.
@@ -360,7 +365,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       else setBoard({ ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
       present(next);
       if (target && base?.trace?.image) void extendDrawing(target.id, base.title, message, base.trace.image);
-      else if (target && additions?.length) updateBlock(target.id, block => block.visual?.type === 'sketch' ? { ...block, visual: { ...block.visual, shapes: [...block.visual.shapes, ...additions].slice(0, 160) } } : block);
+      else if (target && additions?.length && base) updateBlock(target.id, block => ({ ...block, photos: referencePhoto ? (block.photos ?? []).filter(p => p.url !== referencePhoto.url) : block.photos, visual: { ...base, shapes: [...base.shapes, ...additions].slice(0, 160) } }));
       setEditTargetId(undefined);
       if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
@@ -399,6 +404,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   };
   // Whiteboard animation: the AI line drawing arrives a few seconds after the reply and the pencil traces it.
   const illustrate = async (key: string, title: string, prompt: string) => {
+    setReferenceOption({key,title,context:prompt}); setReferenceNote('');
     const done = (change: (visual: Extract<NonNullable<BoardBlock['visual']>, { type: 'sketch' }>) => NonNullable<BoardBlock['visual']>) =>
       updateBlock(key, block => block.visual?.type === 'sketch' ? { ...block, visual: change(block.visual) } : block);
     try {
@@ -411,6 +417,21 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       done(({ illustration: _i, ...visual }) => visual);
       setError(e instanceof Error ? e.message : 'No pude terminar el dibujo.');
     }
+  };
+  const referenceBlock = [...board.blocks].reverse().find(b => b.visual?.type === 'sketch' && !b.visual.reference);
+  const offeredReference = referenceOption ?? (referenceBlock?.visual ? { key: referenceBlock.id, title: referenceBlock.visual.title, context: `${referenceBlock.childLine ?? ''}. ${referenceBlock.reply}` } : null);
+  const searchReference = async () => {
+    if (!offeredReference || referenceBusy) return;
+    setReferenceBusy(true); setReferenceNote('Buscando una imagen del tema y comprobando su contenido…');
+    try {
+      const {photo, account: nextAccount} = await findReferenceImage(offeredReference.title, offeredReference.context);
+      if (!alive.current) return;
+      if (nextAccount) setAccount(nextAccount);
+      if (!photo) { setReferenceNote('No encontré una imagen que pueda confirmar para este tema. Puedes precisar el nombre o continuar con la explicación.'); return; }
+      updateBlock(offeredReference.key, block => ({...block, photos: [...(block.photos ?? []).filter(p => p.url !== photo.url), photo]}));
+      setReferenceNote('Imagen comprobada con el tema. Tócala para ampliarla y consultar la fuente.');
+    } catch (e) { if (alive.current) setReferenceNote(e instanceof Error ? e.message : 'No se pudo comprobar la imagen.'); }
+    finally { if (alive.current) setReferenceBusy(false); }
   };
   const extendDrawing = async (id: string, title: string, prompt: string, baseImage: string) => {
     editingBusy.current = true; setEditingId(id); setError('');
@@ -516,8 +537,13 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       </View>
       <View style={styles.column}>
 
+      {offeredReference ? <View style={styles.reviewBanner}>
+        <Text style={styles.hint}>¿Prefieres una imagen de internet para «{offeredReference.title}»? Puede ayudar si el dibujo es complejo.</Text>
+        <Pressable accessibilityRole="button" disabled={referenceBusy || erasing} onPress={() => void searchReference()} style={styles.tool}><Text style={styles.toolText}>{referenceBusy ? 'Comprobando imagen…' : '🌐 Buscar imagen del tema en internet'}</Text></Pressable>
+        {referenceNote ? <Text accessibilityLiveRegion="polite" style={styles.hint}>{referenceNote}</Text> : null}
+      </View> : null}
       {editingId ? <Text accessibilityRole="status" style={styles.hint}>✏️ Añadiendo detalles al dibujo original…</Text> : null}
-      {editTargetId ? <View style={styles.toolRow}><Text style={styles.hint}>✏️ Vas a ampliar: {board.blocks.find(b => b.id === editTargetId)?.visual?.title || 'el dibujo seleccionado'}. Escribe qué quieres añadir.</Text><Pressable accessibilityRole="button" onPress={() => setEditTargetId(undefined)}><Text style={styles.link}>Cancelar</Text></Pressable></View> : null}
+      {editTargetId ? <View style={styles.toolRow}><Text style={styles.hint}>✏️ Vas a ampliar: {board.blocks.find(b => b.id === editTargetId)?.photos?.[0]?.label || board.blocks.find(b => b.id === editTargetId)?.visual?.title || 'la imagen seleccionada'}. Escribe qué quieres añadir.</Text><Pressable accessibilityRole="button" onPress={() => setEditTargetId(undefined)}><Text style={styles.link}>Cancelar</Text></Pressable></View> : null}
       <View style={styles.modes} accessibilityRole="tablist">
         {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} disabled={erasing} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>

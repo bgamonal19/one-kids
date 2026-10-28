@@ -27,7 +27,7 @@ export type BoardVisual =
 export type SketchTrace = { beforeImage?: string; rings: [number, number][][]; fills?: [number, number][][]; image?: string };
 export type ImageSearch = { query: string; label: string };
 /** A real photo found for an image search (Wikipedia article lead image). */
-export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string; generated?: boolean };
+export type TutorPhoto = ImageSearch & { url: string; width?: number; height?: number; title?: string; page?: string; generated?: boolean; verified?: boolean };
 /** Free mode: what the tutor wants to draw as a realistic AI picture. */
 export type PictureRequest = { prompt: string; label: string; style: 'photo' | 'sketch' | 'line'; baseImage?: string };
 export type TutorRequest = {
@@ -36,6 +36,7 @@ export type TutorRequest = {
   message?: string;
   exercise?: string;
   imageBase64?: string;
+  annotationImage?: string;
   /** The child's answer drawn on the whiteboard, as a small PNG/JPEG data URL. */
   handwriting?: string;
   action?: TutorAction;
@@ -176,5 +177,15 @@ export async function generatePicture(picture: PictureRequest): Promise<{ photo:
   catch { throw new Error('No pude terminar la imagen. Inténtalo otra vez.'); }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || typeof data.photo?.url !== 'string' || !data.photo.url.startsWith('data:image/')) throw new Error(data.error || 'No pude terminar la imagen.');
+  return data;
+}
+
+/** Search and inspect an internet reference without replacing the child's drawing. */
+export async function findReferenceImage(query: string, context: string): Promise<{photo: TutorPhoto | null; account?: TutorAccount}> {
+  const endpoint = tutorEndpoint();
+  if (!endpoint) throw new Error('La búsqueda necesita conexión a internet.');
+  const response = await fetch(endpoint, {method: 'POST', headers: await headers(), body: JSON.stringify({referenceImage:{query,context}}), signal: AbortSignal.timeout(45000)});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'No se pudo comprobar la imagen.');
   return data;
 }

@@ -171,7 +171,7 @@ export function BoardSheet({ frozen, board, width, lineSize, active, thinking, h
           <Pressable accessibilityRole="button" accessibilityLabel={`Ampliar explicación del paso ${index + 1}`} disabled={!onZoom || (active?.id === block.id && active.writing)} onPress={() => setMagnified(block.id)}>
           <BlockPart block={block} from={range.from} to={range.to} width={rect.width} lineSize={sizes[index].font} onZoom={onZoom} shown={active?.id === block.id ? active.shown : undefined} writing={active?.id === block.id && active.writing} />
           </Pressable>
-          {onEdit && block.visual ? <Pressable accessibilityRole="button" accessibilityLabel={`Añadir detalles al dibujo del paso ${index + 1}`} onPress={() => onEdit(block.id)} style={s.edit}><Text style={s.actionText}>✏️ Añadir a este dibujo</Text></Pressable> : null}
+          {onEdit && (block.visual || block.photos?.length) ? <Pressable accessibilityRole="button" accessibilityLabel={block.photos?.length ? `Explicar sobre la imagen del paso ${index + 1}` : `Añadir detalles al dibujo del paso ${index + 1}`}  onPress={() => onEdit(block.id)} style={s.edit}><Text style={s.actionText}>{block.photos?.length ? '✏️ Explicar sobre esta imagen' : '✏️ Añadir a este dibujo'}</Text></Pressable> : null}
         </Animated.View>;
       })}
     </View>
