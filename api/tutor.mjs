@@ -1,3 +1,6 @@
+import { reviewAnnotation } from '../server/annotation-review.mjs';
+import { validateTutorRequest } from '../server/tutor-core.mjs';
+import { referenceDataUrl } from '../server/reference-file.mjs';
 import { verifiedReferenceImage } from '../server/reference-image.mjs';
 import { runTutor, tutorStatus, TutorError } from '../server/tutor-core.mjs';
 import { AccountError, bearerToken, verifyUser } from '../server/account-core.mjs';
@@ -82,7 +85,14 @@ export async function POST(request) {
     }
     if (body?.mode === 'open' && !usage?.openMode) throw new TutorError('El modo libre lo activa un adulto desde el panel de padres.', 403);
     if (usage && usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
-    const { tokens, ...result } = await runTutor({ ...body, pictures: Boolean(usage) }, process.env);
+    const tutorBody = { ...body, pictures: Boolean(usage) };
+    if (body.annotationImage) {
+      const validated = validateTutorRequest(tutorBody);
+      tutorBody.annotationImage = validated.annotationImage.startsWith('https:') ? await referenceDataUrl(validated.annotationImage) : validated.annotationImage;
+    }
+    let answer = await runTutor(tutorBody, process.env);
+    if (tutorBody.annotationImage) answer = await reviewAnnotation(answer, validateTutorRequest(tutorBody), process.env);
+    const { tokens, ...result } = answer;
     // Real photos for the board; a lookup failure only leaves the search labels.
     const [photos, visual] = await Promise.all([result.images?.length ? findPhotos(result.images).catch(() => []) : [], attachBackground(attachMap(result.visual))]);
     let account = usage;

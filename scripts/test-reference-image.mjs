@@ -41,3 +41,10 @@ test('a visual annotation returned without a separate reply is still rendered in
  const result=await runTutor({ageBand:'10-12',message:'Señala el ventrículo',annotationImage:image,history:[]},{OPENAI_API_KEY:'test'},fetcherFor({visual:{type:'sketch',title:'Corazón',shapes:[{s:'line',x1:10,y1:10,x2:65,y2:70,color:'red',arrow:true}]},board:['El ventrículo izquierdo bombea sangre al cuerpo.']}));
  assert.match(result.reply,/bombea sangre/);assert.equal(result.visual.shapes.length,1);
 });
+test('independent annotation review corrects coordinates and requires a real explanation',async()=>{
+ const {reviewAnnotation}=await import('../server/annotation-review.mjs');
+ const original={reply:'Voy a dibujarlo',visual:{type:'sketch',title:'Corazón',shapes:[{s:'line',x1:40,y1:70,x2:30,y2:75,arrow:true,color:'red',fill:false}]},tokens:20};
+ const checked=await reviewAnnotation(original,{message:'Señala el ventrículo izquierdo',annotationImage:'data:image/png;base64,iVBORw=='},{OPENAI_API_KEY:'test'},async()=>response({confirmed:true,reply:'El ventrículo izquierdo bombea sangre al cuerpo.',board:['Bombea sangre al cuerpo.'],shapes:[{s:'line',x1:90,y1:70,x2:73,y2:78,arrow:true,color:'red'}]}));
+ assert.equal(checked.visual.shapes[0].x2,73);assert.match(checked.reply,/bombea/);assert.equal(checked.tokens,108);
+ await assert.rejects(reviewAnnotation(original,{message:'Señala',annotationImage:'data:image/png;base64,iVBORw=='},{OPENAI_API_KEY:'test'},async()=>response({confirmed:false})));
+});
