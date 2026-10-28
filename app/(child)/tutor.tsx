@@ -406,7 +406,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   const illustrate = async (key: string, title: string, prompt: string) => {
     setReferenceOption({key,title,context:prompt}); setReferenceNote('');
     const done = (change: (visual: Extract<NonNullable<BoardBlock['visual']>, { type: 'sketch' }>) => NonNullable<BoardBlock['visual']>) =>
-      updateBlock(key, block => block.visual?.type === 'sketch' ? { ...block, visual: change(block.visual) } : block);
+      updateBlock(key, block => block.visual?.type === 'sketch' && block.visual.illustration === prompt ? { ...block, visual: change(block.visual) } : block);
     try {
       const { trace, account: nextAccount } = await generatePicture({ prompt, label: title, style: 'line' });
       if (!alive.current) return;

@@ -86,6 +86,7 @@ export function ZoomView({ zoomed, onClose }: { zoomed: Zoomed; onClose: () => v
           </> : null}
           {visual ? <View style={s.paper} nativeID={drawingId}>
             <BoardVisualView visual={visual} drawn={visualSteps(visual)} width={Math.min(max - 32, (height - 200) * (visual.type === 'map' ? 1.43 : 1))} drawing={false} max={1000} />
+            {visual.type === 'sketch' && visual.background?.page ? <Pressable accessibilityRole="link" onPress={() => void openBrowserAsync(visual.background!.page!)}><Text style={s.credit}>Fuente de la imagen: Wikipedia · {visual.background.title} ↗</Text></Pressable> : null}
           </View> : null}
         </ScrollView>
       </View>
