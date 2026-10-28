@@ -21,7 +21,7 @@ async function ask(params, lang, fetcher) {
   if (!response.ok) return [];
   return (await response.json())?.query?.pages ?? [];
 }
-const picture = page => page && !page.missing && !('disambiguation' in (page.pageprops ?? {})) && page.thumbnail?.source?.startsWith('https://upload.wikimedia.org/')
+const picture = page => page && !page.missing && !('disambiguation' in (page.pageprops ?? {})) && typeof page.thumbnail?.source === 'string' && /^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(page.thumbnail.source)
   ? { url: page.thumbnail.source, width: page.thumbnail.width, height: page.thumbnail.height, title: String(page.title).slice(0, 80), page: page.fullurl } : null;
 
 async function lookup(query, lang, fetcher) {

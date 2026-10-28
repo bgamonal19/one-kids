@@ -26,3 +26,9 @@ test('annotation sends the original image to vision and does not request a repla
  assert.match(sent.instructions,/ANOTACIÓN SOBRE IMAGEN/);assert.equal(result.visual.shapes[0].s,'line');assert.equal(result.picture,null);
  assert.throws(()=>validateTutorRequest({message:'Señala',annotationImage:'https://internal.example/image'}));
 });
+test('current Wikimedia thumbnail host is accepted and can be used for image annotations',async()=>{
+ const current=structuredClone(wiki);current.query.pages[0].thumbnail.source='https://thumb.wikimedia.org/wikipedia/commons/thumb/heart.png/1000px-heart.png';
+ const result=await verifiedReferenceImage({query:'Corazón',context:'corazón humano'},{OPENAI_API_KEY:'test'},async url=>String(url).includes('wikipedia.org/w/api')?Response.json(current):response({relevant:true,safe:true,caption:'Corazón humano'}));
+ assert.equal(result.photo.verified,true);assert.match(result.photo.url,/thumb.wikimedia/);
+ assert.equal(validateTutorRequest({message:'Señala la aorta',annotationImage:result.photo.url}).annotationImage,result.photo.url);
+});

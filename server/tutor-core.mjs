@@ -46,7 +46,7 @@ export function validateTutorRequest(raw) {
   if (raw.annotationImage) {
     if (typeof raw.annotationImage !== 'string' || raw.annotationImage.length > 2500000 || action === 'read') throw new TutorError('La imagen para señalar no es válida.');
     const value = raw.annotationImage;
-    if (!/^https:\/\/upload\.wikimedia\.org\//.test(value) && !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new TutorError('Solo se pueden señalar imágenes de la pizarra.');
+    if (!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(value) && !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new TutorError('Solo se pueden señalar imágenes de la pizarra.');
     annotationImage = value;
   }
   const history = Array.isArray(raw.history) ? raw.history.slice(-12).filter(h => h && ['child', 'tutor'].includes(h.role) && typeof h.text === 'string').map(h => ({ role: h.role === 'tutor' ? 'assistant' : 'user', content: h.text.slice(0, 2500) })) : [];
