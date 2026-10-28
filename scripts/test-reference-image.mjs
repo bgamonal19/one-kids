@@ -17,6 +17,7 @@ test('internet alternative inspects actual image bytes and records the source on
  assert.equal(result.photo.verified,true);assert.equal(result.tokens,88);assert.match(result.photo.page,/wikipedia/);
  assert.match(inspected.input[0].content[1].image_url,/^data:image\/png;base64,/);
  assert.match(inspected.input[0].content[0].text,/circulación/);
+ assert.match(inspected.input[0].content[0].text,/JSON/);
 });
 test('uncertain, unrelated or unsafe reference images never reach the child',async()=>{
  for(const verdict of [{relevant:false,safe:true},{relevant:true,safe:false},{relevant:'true',safe:true}]){
