@@ -59,3 +59,8 @@ test('compact explanations pack four across desktop and remain within phone boun
     if (width === 1100) assert.equal(cards.filter(c => c.y === 0).length, 4);
   }
 });
+test('corrections replace photo marks but ordinary additions retain previous explanations',()=>{
+ assert.ok(exports.editsExistingDrawing('Corrige la flecha del ventrículo izquierdo'));
+ assert.ok(exports.replacesPhotoMarks('Corrige la flecha del ventrículo izquierdo'));
+ assert.ok(!exports.replacesPhotoMarks('Añade otra flecha a la aorta'));
+});

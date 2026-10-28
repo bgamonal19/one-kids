@@ -31,7 +31,7 @@ export const BOARD_DRAWING_MS = 11000;
 /** Additions refer to an existing scene; another topic or drawing starts a separate answer. */
 export function editsExistingDrawing(message: string): boolean {
   if (/(?:otro|nuevo|nueva)\s+(?:tema|dibujo|pizarra)|\btemas?\b|explicaci[oó]n|resumen/i.test(message)) return false;
-  return /^(?:por favor[, ]*)?(?:agr[eé]ga(?:le)?|a[ñn][aá]de(?:le)?|pon(?:le)?|coloca|incluye|quita(?:le)?|cambia|marca|se[ñn]ala)\b/i.test(message.trim()) || /(?:dibuja|agrega|añade|pon).*(?:encima|sobre el|en el dibujo|en ese dibujo|al dibujo)/i.test(message);
+  return /^(?:por favor[, ]*)?(?:agr[eé]ga(?:le)?|a[ñn][aá]de(?:le)?|pon(?:le)?|coloca|incluye|quita(?:le)?|cambia|corrige|rectifica|marca|se[ñn]ala)\b/i.test(message.trim()) || /(?:dibuja|agrega|añade|pon).*(?:encima|sobre el|en el dibujo|en ese dibujo|al dibujo)/i.test(message);
 }
 
 /** A menu visit must never inherit another course from the last saved board. */
@@ -41,4 +41,9 @@ export function latestCourseBoard<T extends { courseId?: string }>(boards: T[], 
 export function compactBoardSize(width: number, lineSize: number) {
   const columns = width < 300 ? 1 : width >= 900 ? 4 : width >= 600 ? 3 : 2;
   return { width: Math.floor((width - 12 * (columns - 1)) / columns), font: Math.max(12, Math.round(lineSize * .46)) };
+}
+
+/** A correction replaces annotation marks, while ordinary additions keep earlier marks. */
+export function replacesPhotoMarks(message: string): boolean {
+  return /(?:corrige|rectifica|rehaz|reemplaza).*(?:flecha|marca|trazo|anotaci[oó]n)|(?:borra|quita).*(?:marca|trazo|flecha)/i.test(message);
 }

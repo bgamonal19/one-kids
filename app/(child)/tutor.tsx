@@ -1,4 +1,4 @@
-import { editsExistingDrawing, explicitNewTopic, latestCourseBoard } from '@/lib/board-flow';
+import { editsExistingDrawing, explicitNewTopic, replacesPhotoMarks, latestCourseBoard } from '@/lib/board-flow';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -365,7 +365,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       else setBoard({ ...current, topic: current.topic || title, blocks: [...current.blocks, block] });
       present(next);
       if (target && base?.trace?.image) void extendDrawing(target.id, base.title, message, base.trace.image);
-      else if (target && additions?.length && base) updateBlock(target.id, block => ({ ...block, photos: referencePhoto ? (block.photos ?? []).filter(p => p.url !== referencePhoto.url) : block.photos, visual: { ...base, shapes: [...base.shapes, ...additions].slice(0, 160) } }));
+      else if (target && additions?.length && base) updateBlock(target.id, block => ({ ...block, photos: referencePhoto ? (block.photos ?? []).filter(p => p.url !== referencePhoto.url) : block.photos, visual: { ...base, shapes: [...(base.background && replacesPhotoMarks(message) ? [] : base.shapes), ...additions].slice(0, 160) } }));
       setEditTargetId(undefined);
       if (course) rememberCourse(course.id, fresh ? confirmedExercise : previous.some(m => m.id !== 'welcome') ? '' : message.trim(), result.summary ?? [], result.reply);
       // The realistic picture comes after the reply; the board shows "drawing…" meanwhile.
@@ -419,7 +419,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
     }
   };
   const referenceBlock = [...board.blocks].reverse().find(b => b.visual?.type === 'sketch' && !b.visual.reference);
-  const offeredReference = referenceOption ?? (referenceBlock?.visual ? { key: referenceBlock.id, title: referenceBlock.visual.title, context: `${referenceBlock.childLine ?? ''}. ${referenceBlock.reply}` } : null);
+  const offeredReference = referenceOption ?? (referenceBlock?.visual ? { key: referenceBlock.id, title: referenceBlock.visual.type === 'sketch' ? referenceBlock.visual.background?.title || referenceBlock.visual.title : referenceBlock.visual.title, context: `${referenceBlock.childLine ?? ''}. ${referenceBlock.reply}` } : null);
   const searchReference = async () => {
     if (!offeredReference || referenceBusy) return;
     setReferenceBusy(true); setReferenceNote('Buscando una imagen del tema y comprobando su contenido…');
