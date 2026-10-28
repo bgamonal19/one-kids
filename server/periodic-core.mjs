@@ -133,9 +133,10 @@ export const ELEMENTS = rows.split('\n').map((row, i) => {
 // Explicit requests, or a short follow-up to the immediately preceding table topic.
 export function wantsPeriodicTable(req) {
   if (req.action === 'read') return false;
-  if (/tabla peri[oó]dica|periodic table/i.test(req.message)) return true;
+  const message = req.message.split('\nDibujo existente seleccionado:')[0];
+  if (/tabla peri[oó]dica|periodic table/i.test(message)) return true;
   const recent = req.history.slice(-2).map(t => t.content).join(' ');
-  return /tabla peri[oó]dica|periodic table/i.test(recent) && /^(pero |y |ahora |por favor )*(completa|con (sus |los )?nombres|agr[eé]ga.*nombres|dib[uú]jala|mu[eé]strala)/i.test(req.message.trim());
+  return /tabla peri[oó]dica|periodic table/i.test(recent) && /^(pero |y |ahora |por favor )*(completa|con (sus |los )?nombres|agr[eé]ga.*nombres|dib[uú]jala|mu[eé]strala)/i.test(message.trim());
 }
 
 export function periodicVisual() {

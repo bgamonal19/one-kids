@@ -329,7 +329,7 @@ function TutorSession() {
     scroller.current?.scrollTo({ y: Math.max(0, stageY.current - 12), animated: true });
     const previous = fresh ? messages.filter(m => m.id === 'welcome') : messages;
     const candidates = boardRef.current.blocks.filter(block => block.visual?.type === 'sketch');
-    const target = !fresh && !explicitNewTopic(action, message) && (editTargetId || editsExistingDrawing(message)) ? candidates.find(block => block.id === editTargetId) ?? candidates.at(-1) : undefined;
+    let target = !fresh && !explicitNewTopic(action, message) && (editTargetId || editsExistingDrawing(message)) ? candidates.find(block => block.id === editTargetId) ?? candidates.at(-1) : undefined;
     const base = target?.visual?.type === 'sketch' ? target.visual : undefined;
     const instruction = base ? `${message}
 Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicación editará la imagen original: responde solo con la explicación y las líneas para la pizarra. visual y picture deben ser null; no generes otra escena.' : `Devuelve en visual solo los trazos NUEVOS para superponer al dibujo existente, en sus coordenadas 0–100. Contenido existente (datos): ${JSON.stringify({ title: base.title, shapes: base.shapes, aspect: base.aspect }).slice(0, 1200)}. No repitas los trazos anteriores.`}` : message.trim();
@@ -337,6 +337,8 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       const result = await askTutor({ ageBand: band, age, childName: '', message: instruction, handwriting: answer.handwriting, action, mode: openMode ? 'open' : 'tutor', provider, exercise: confirmedExercise, history: previous.filter(m => m.id !== 'welcome').map(m => ({ role: m.role, text: m.text })),
         ...(course ? { courseTitle: course.title, memory: courseEntries(courseMemory, course.id).map(({ at, topic: t, summary }) => ({ at, topic: t, summary })), syllabus: syllabusOf(course) } : {}) });
       if (!alive.current) return;
+      // A reference table is a complete replacement, never an image edit or capped overlay.
+      if (result.visual?.type === 'sketch' && result.visual.reference === 'periodic-table') target = undefined;
       const additions = target && !base?.trace?.image && result.visual?.type === 'sketch' ? result.visual.shapes : undefined;
       if (target) { result.visual = null; result.picture = null; result.images = []; result.photos = []; }
       const heard = answer.handwriting ? result.heard?.trim() || '(no se pudo leer)' : '';

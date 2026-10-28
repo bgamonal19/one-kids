@@ -28,3 +28,9 @@ test('full tutor response replaces an inaccurate model sketch without the age sh
   assert.equal(result.picture,null);
   assert.equal(result.visual.illustration,undefined);
 });
+test('follow-up completion replaces image artwork even when the edit instruction requested null visual', async () => {
+  const result = await runTutor({ageBand:'13-16', message:'pero completa y con sus nombres\nDibujo existente seleccionado: Tabla periódica detallada. La aplicación editará la imagen original: visual y picture deben ser null.', history:[{role:'child',text:'dibujame la tabla periodica'},{role:'tutor',text:'Tabla periódica de los elementos'}],pictures:true}, {OPENAI_API_KEY:'test'}, async () => Response.json({output:[{content:[{type:'output_text',text:JSON.stringify({reply:'Aquí está',visual:null,picture:null})}]}]}));
+  assert.equal(result.visual.reference,'periodic-table');
+  assert.equal(result.visual.shapes.filter(s=>s.s==='rect').length,118);
+  assert.equal(result.picture,null);
+});
