@@ -48,3 +48,8 @@ test('independent annotation review corrects coordinates and requires a real exp
  assert.equal(checked.visual.shapes[0].x2,73);assert.match(checked.reply,/bombea/);assert.equal(checked.tokens,108);
  await assert.rejects(reviewAnnotation(original,{message:'Señala',annotationImage:'data:image/png;base64,iVBORw=='},{OPENAI_API_KEY:'test'},async()=>response({confirmed:false})));
 });
+test('dedicated photo annotation bypasses free-form chat and returns one complete, validated answer',async()=>{
+ const {annotateImage}=await import('../server/annotation-review.mjs');let calls=0;
+ const result=await annotateImage({message:'Corrige la flecha y escribe Ventrículo izquierdo',annotationImage:image,ageBand:'10-12'},{OPENAI_API_KEY:'test'},fetcherFor({confirmed:true,reply:'El ventrículo izquierdo bombea sangre al cuerpo.',board:['Bombea sangre oxigenada al cuerpo.'],shapes:[{s:'line',x1:90,y1:70,x2:73,y2:78,arrow:true,color:'red'},{s:'text',x:75,y:95,text:'Ventrículo izquierdo',size:4,color:'red'}]},()=>{calls++;}));
+ assert.equal(calls,1);assert.equal(result.source,'openai');assert.match(result.reply,/bombea/);assert.equal(result.visual.shapes.length,2);assert.equal(result.picture,null);
+});
