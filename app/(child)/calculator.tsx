@@ -68,11 +68,8 @@ export default function CalculatorScreen() {
   return <Screen scroll>
     <Text style={styles.title}>🧮 Calculadora</Text>
     <View style={styles.row}>{[false, true].map(mode => <Pressable key={String(mode)} accessibilityRole="button" accessibilityState={{ selected: mode === scientific }} onPress={() => setScientific(mode)} style={[styles.mode, scientific === mode && styles.selected]}><Text style={styles.modeText}>{mode ? 'Científica' : 'Básica'}</Text></Pressable>)}</View>
-    <Text style={styles.hint}>Escribe o toca los botones. La operación completa queda visible.</Text>
     <View style={styles.display}>
-      <Text style={styles.hint}>Operación</Text>
       <TextInput accessibilityLabel="Operación matemática" value={expression} onChangeText={value => { setExpression(value); setFresh(false); setError(''); }} maxLength={500} placeholder="0" autoCapitalize="none" autoCorrect={false} onSubmitEditing={() => press('=')} style={styles.operation} />
-      <Text style={styles.hint}>{fresh ? 'Resultado' : 'Último resultado'}</Text>
       <Text accessibilityLabel="Resultado" accessibilityLiveRegion="polite" selectable style={styles.result}>{result}</Text>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     </View>
