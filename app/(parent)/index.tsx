@@ -1,3 +1,4 @@
+import { ChildAccessForm } from '@/components/ChildAccessForm';
 import { TutorConnectionSettings } from '@/components/TutorConnectionSettings';
 import { GradePicker } from '@/components/GradePicker';
 import { useState } from 'react';
@@ -23,6 +24,7 @@ export default function ParentHome() {
   const [newAge, setNewAge] = useState(8);
   const [newCountry, setNewCountry] = useState('Otro');
   const [newGrade, setNewGrade] = useState('');
+  const [accessChild, setAccessChild] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const changeProfile = async (id: string) => {
     if (busy) return;
@@ -35,7 +37,7 @@ export default function ParentHome() {
     if (busy) return;
     if (!newName.trim()) { setAccountError('Escribe el nombre de tu hijo o hija.'); return; }
     setBusy(true); setAccountError('');
-    try { await addChild(newName, newAge, { country: newCountry, grade: newGrade }); setNewName(''); setAdding(false); }
+    try { const id = await addChild(newName, newAge, { country: newCountry, grade: newGrade }); setNewName(''); setAdding(false); if (accountMode === 'cloud') setAccessChild(id); }
     catch (e) { setAccountError(e instanceof Error ? e.message : 'No se pudo crear el perfil.'); }
     finally { setBusy(false); }
   };
@@ -85,10 +87,16 @@ export default function ParentHome() {
         <Text style={styles.statValue}>Mis hijos</Text>
         <Text style={styles.statSub}>Cada perfil tiene sus tareas, agenda, cursos, compañero y estrellas.</Text>
         {(state.profiles ?? []).map(profile => (
-          <Pressable key={profile.child.id} accessibilityRole="button" accessibilityState={{ selected: profile.child.id === child?.id, disabled: busy }} disabled={busy} onPress={() => void changeProfile(profile.child.id)} style={[styles.profileCard, profile.child.id === child?.id && styles.selectedProfile]}>
+          <View key={profile.child.id}><Pressable accessibilityRole="button" accessibilityState={{ selected: profile.child.id === child?.id, disabled: busy }} disabled={busy} onPress={() => void changeProfile(profile.child.id)} style={[styles.profileCard, profile.child.id === child?.id && styles.selectedProfile]}>
             <Text style={styles.statValue}>{profile.child.id === child?.id ? '✓ ' : ''}{profile.child.name}</Text>
             <Text style={styles.statSub}>{profile.child.age} años · {profile.child.stars} ★ · {profile.child.id === child?.id ? 'Perfil activo' : 'Elegir perfil'}</Text>
           </Pressable>
+          {accountMode === 'cloud' ? <>
+            <Text style={styles.statSub}>{profile.child.loginUsername ? `Usuario: ${profile.child.loginUsername} · Acceso independiente activo` : 'Acceso independiente pendiente de crear'}</Text>
+            <PrimaryButton label={profile.child.loginUsername ? `Cambiar clave de ${profile.child.name}` : `Crear acceso de ${profile.child.name}`} variant="secondary" disabled={busy} onPress={() => setAccessChild(profile.child.id)} />
+            {accessChild === profile.child.id ? <ChildAccessForm childId={profile.child.id} username={profile.child.loginUsername} onDone={() => setAccessChild(null)} /> : null}
+          </> : null}
+          </View>
         ))}
         <PrimaryButton label={adding ? "Cancelar" : "+ Agregar hijo o hija"} variant="secondary" onPress={() => setAdding(!adding)} disabled={busy} />
         {adding ? <View style={{ gap: 12, marginTop: 14 }}>

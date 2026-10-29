@@ -1,6 +1,6 @@
 import { addChildProfile, selectChildProfile, preserveProfiles } from './child-profiles';
 import { isCompanionId, type CompanionId } from './companions';
-import { accountEndpoint, deleteCloudAccount, familyForUser, familyPayload, loadCloudFamily, saveCloudFamily, signInAccount, signUpAccount, type RegistrationResult } from './cloud-accounts';
+import { accountEndpoint, childLoginEmail, cloudVersions, restorePendingVersions, configureChildAccess, deleteCloudAccount, familyForUser, familyPayload, loadCloudFamily, saveCloudFamily, signInAccount, signUpAccount, type RegistrationResult } from './cloud-accounts';
 import { getAccessToken, supabase } from './supabase';
 import { Platform } from 'react-native';
 import type { User } from '@supabase/supabase-js';
@@ -50,16 +50,19 @@ type StoreApi = {
   accountMode: AccountMode;
   syncStatus: 'idle' | 'saving' | 'saved' | 'error';
   syncError: string;
+  discardPendingAndRefresh: () => Promise<void>;
   retrySync: () => Promise<void>;
   refreshFamily: () => Promise<void>;
   registerParent: (input: { email: string; name: string; password: string }) => Promise<RegistrationResult>;
   loginParent: (email: string, password: string) => Promise<boolean>;
+  loginChild: (username: string, password: string) => Promise<boolean>;
+  saveChildAccess: (childId: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   setPin: (pin: string) => Promise<void>;
   checkPin: (pin: string) => Promise<boolean>;
   switchChild: (id: string) => Promise<void>;
-  addChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<void>;
+  addChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<string>;
   setChild: (name: string, age: number, school?: { country: string; grade: string }) => Promise<void>;
   updateChildAge: (age: number) => Promise<void>;
   updateLearningProfile: (input: { grade: string; country: string; interests: string[]; companion: CompanionId }) => Promise<void>;
@@ -130,7 +133,10 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       if (cachedRaw) {
         const cached = JSON.parse(cachedRaw);
         if (cached.pending && cached.state?.parent?.id === user.id) {
-          next = familyForUser(user, familyPayload(cached.state));
+          restorePendingVersions(user.id, cached.versions);
+          next = remote.childAccess
+            ? { ...remote, ...cached.state, childAccess: remote.childAccess, profiles: cached.state.profiles?.filter((p: { child: { id: string } }) => p.child.id === remote.childAccess?.childId) }
+            : familyForUser(user, familyPayload(cached.state));
         }
       }
       if (request !== generation.current) return;
@@ -205,7 +211,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     }
     setState(clean); setSyncStatus('saving'); setSyncError(''); pending.current = clean;
     const write = queue.current.catch(() => {}).then(async () => {
-      await AsyncStorage.setItem(cloudKey(user.id), JSON.stringify({ state: clean, pending: true }));
+      await AsyncStorage.setItem(cloudKey(user.id), JSON.stringify({ state: clean, pending: true, versions: cloudVersions(user.id) }));
       try {
         await saveCloudFamily(client, user.id, clean);
         // A newer local write may already be queued. Do not erase its recovery snapshot.
@@ -236,6 +242,15 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     await restoreCloud(currentUser.current).catch(() => {});
   }, [restoreCloud, retrySync]);
 
+  const discardPendingAndRefresh = useCallback(async () => {
+    await queue.current.catch(() => {});
+    const user = currentUser.current;
+    if (!user) return;
+    await AsyncStorage.removeItem(cloudKey(user.id));
+    pending.current = null;
+    await restoreCloud(user).catch(() => {});
+  }, [restoreCloud]);
+
   const registerParent = useCallback(async (input: { email: string; name: string; password: string }) => {
     authOperation.current = true;
     try {
@@ -252,6 +267,14 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       await restoreCloud(user); return true;
     } finally { authOperation.current = false; }
   }, [restoreCloud]);
+  const loginChild = useCallback(async (username: string, password: string) => loginParent(childLoginEmail(username), password), [loginParent]);
+  const saveChildAccess = useCallback(async (childId: string, username: string, password: string) => {
+    if (state.childAccess || mode.current !== 'cloud') throw new Error('Entra con la cuenta de padres para crear accesos reales.');
+    await queue.current;
+    if (pending.current) throw new Error('Guarda los cambios pendientes antes de crear el acceso.');
+    await configureChildAccess(await getAccessToken(), accountEndpoint(Platform.OS === 'web'), { childId, username, password });
+    if (currentUser.current) await restoreCloud(currentUser.current);
+  }, [restoreCloud, state.childAccess]);
   const logout = useCallback(async () => {
     authOperation.current = true;
     try {
@@ -312,7 +335,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     await persist(selectChildProfile(state, id));
   }, [persist, state]);
   const addChild = useCallback(async (name: string, age: number, school?: { country: string; grade: string }) => {
-    await persist(addChildProfile(state, { id: uid('child'), name: name.trim().slice(0, 60), age: clampAge(age), stars: 0, companion: 'bear', ...school }));
+    const id = uid('child');
+    await persist(addChildProfile(state, { id, name: name.trim().slice(0, 60), age: clampAge(age), stars: 0, companion: 'bear', ...school }));
+    return id;
   }, [persist, state]);
 
   const updateChildAge = useCallback(
@@ -553,9 +578,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       state,
-      accountMode, syncStatus, syncError, retrySync, refreshFamily,
+      accountMode, syncStatus, syncError, retrySync, refreshFamily, discardPendingAndRefresh,
       registerParent,
-      loginParent,
+      loginParent, loginChild, saveChildAccess,
       logout, deleteAccount,
       setPin,
       checkPin,
@@ -579,9 +604,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     [
       ready,
       state,
-      accountMode, syncStatus, syncError, retrySync, refreshFamily,
+      accountMode, syncStatus, syncError, retrySync, refreshFamily, discardPendingAndRefresh,
       registerParent,
-      loginParent,
+      loginParent, loginChild, saveChildAccess,
       logout, deleteAccount,
       setPin,
       checkPin,

@@ -29,11 +29,11 @@ export async function POST(request) {
     if (raw.length > 2_700_000) throw new StudyError('La foto es demasiado grande.', 413);
     let body;
     try { body = JSON.parse(raw); } catch { throw new StudyError('La petición no es válida.'); }
-    const usage = user ? await getUsage(user.id, process.env) : null;
+    const usage = user ? await getUsage(user.parentId || user.id, process.env) : null;
     if (usage && usage.used >= usage.limit) throw new StudyError('Se alcanzó el límite de uso del tutor de este mes. Un adulto puede ampliarlo en el panel de padres.', 429);
     const { tokens, ...result } = await runStudy(body, process.env);
     let account = usage;
-    if (user && usage) account = { ...usage, used: (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens };
+    if (user && usage) account = { ...usage, used: (await addUsage(user.parentId || user.id, tokens, process.env)) ?? usage.used + tokens };
     return json({ ...result, account }, 200, origin);
   } catch (error) {
     if (error instanceof OriginError) return json({ error: error.message }, 403);

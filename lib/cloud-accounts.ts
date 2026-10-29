@@ -1,8 +1,8 @@
-import { preserveProfiles } from './child-profiles';
+import { preserveProfiles, selectChildProfile } from './child-profiles';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { APP_URL } from './app-url';
 import { validateRegistration, isNumericPassword } from './account-validation';
-import type { FamilyState } from './types';
+import type { ChildLearningState, FamilyState } from './types';
 import { DEFAULT_COURSES } from './types';
 
 export type RegistrationResult = 'signed-in' | 'confirm-email';
@@ -81,13 +81,72 @@ export function familyForUser(user: User, raw: Partial<FamilyState> & { pinHash?
 export function familyPayload(state: FamilyState) {
   return { profiles: preserveProfiles(state).profiles, child: state.child, tasks: state.tasks, courses: state.courses, agenda: state.agenda, focusActive: state.focusActive, onboarded: state.onboarded, pinHash: state.parent?.pinHash || '' };
 }
+type ChildAccountRow = { auth_user_id: string; parent_user_id: string; child_id: string; username: string; learning: ChildLearningState; version: number };
+// Per authenticated session: only changed profiles are written, using optimistic versions.
+const snapshots = new Map<string, ChildAccountRow[]>();
+export function cloudVersions(userId: string): Record<string, number> {
+  return Object.fromEntries((snapshots.get(userId) || []).map(row => [row.auth_user_id, row.version]));
+}
+export function restorePendingVersions(userId: string, versions: Record<string, number> = {}): void {
+  // An offline recovery must compare against the version it originally edited, not the freshly loaded one.
+  for (const row of snapshots.get(userId) || []) row.version = versions[row.auth_user_id] ?? 0;
+}
+function withUsername(row: ChildAccountRow): ChildLearningState {
+  return { ...row.learning, child: { ...row.learning.child, loginUsername: row.username } };
+}
+export function childLoginEmail(username: string): string {
+  const clean = username.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(clean)) throw new Error('Escribe el usuario que te dieron tus padres.');
+  return `${clean}@students.one-kids.invalid`;
+}
+export async function configureChildAccess(token: string | null, endpoint: string, input: { childId: string; username: string; password: string }): Promise<void> {
+  if (!token) throw new Error('Vuelve a entrar como padre o madre.');
+  childLoginEmail(input.username);
+  if (!isNumericPassword(input.password)) throw new Error('La clave debe tener de 6 a 12 números.');
+  const response = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal: AbortSignal.timeout(30000) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'No se pudo guardar el acceso infantil.');
+}
 export async function loadCloudFamily(client: SupabaseClient, user: User): Promise<FamilyState> {
+  const childSession = user.app_metadata?.one_kids_role === 'child';
+  const { data: rows, error: accessError } = await client.from('child_accounts').select('*').eq(childSession ? 'auth_user_id' : 'parent_user_id', user.id);
+  if (accessError) throw new Error('No se pudieron cargar los accesos de tu familia. Reintenta.');
+  const accounts = (rows || []) as ChildAccountRow[];
+  snapshots.set(user.id, accounts);
+  if (childSession) {
+    if (accounts.length !== 1) throw new Error('Tu acceso infantil no está disponible. Consulta con tus padres.');
+    const row = accounts[0], learning = withUsername(row);
+    return { ...familyForUser(user), ...learning, profiles: [learning], parent: { id: user.id, email: '', name: learning.child.name, pinHash: '' }, childAccess: { childId: row.child_id, username: row.username }, onboarded: true };
+  }
   const { data, error } = await client.from('family_states').select('state').eq('user_id', user.id).maybeSingle();
-  if (error) throw new Error('No se pudieron cargar los datos de tu familia. Reintenta; si acabas de activar el servicio, falta configurar su base de datos.');
-  return familyForUser(user, data?.state || {});
+  if (error) throw new Error('No se pudieron cargar los datos de tu familia. Reintenta.');
+  let state = familyForUser(user, data?.state || {});
+  const profiles = state.profiles || [];
+  state = { ...state, profiles: [...profiles.filter(p => !accounts.some(a => a.child_id === p.child.id)), ...accounts.map(withUsername)] };
+  const active = state.child?.id || state.profiles?.[0]?.child.id;
+  if (active) {
+    // Do not let preserveProfiles replace the authoritative cloud profile with the old family snapshot.
+    const target = state.profiles?.find(p => p.child.id === active);
+    if (target) state = selectChildProfile({ ...state, ...target }, active);
+  }
+  return state;
 }
 export async function saveCloudFamily(client: SupabaseClient, userId: string, state: FamilyState): Promise<void> {
   if (state.parent?.id !== userId) throw new Error('La cuenta cambió. Vuelve a iniciar sesión antes de guardar.');
+  const accounts = snapshots.get(userId);
+  if (!accounts) throw new Error('Actualiza tu cuenta antes de guardar.');
+  const profiles = preserveProfiles(state).profiles || [];
+  for (const row of accounts) {
+    const next = profiles.find(p => p.child.id === row.child_id);
+    if (!next || JSON.stringify(next) === JSON.stringify(withUsername(row))) continue;
+    const learning = { ...next, child: { ...next.child } };
+    delete learning.child.loginUsername;
+    const { data, error } = await client.from('child_accounts').update({ learning }).eq('auth_user_id', row.auth_user_id).eq('version', row.version).select('version');
+    if (error) throw new Error('No se guardaron los cambios del perfil. Revisa la conexión.');
+    if (!data?.length) throw new Error('Este perfil cambió en otro dispositivo. Actualiza la cuenta antes de continuar.');
+    row.learning = learning; row.version = data[0].version;
+  }
+  if (state.childAccess) return; // RLS also denies a child's access to family_states.
   const { error } = await client.from('family_states').upsert({ user_id: userId, state: familyPayload(state) }, { onConflict: 'user_id' });
   if (error) throw new Error('No se guardaron los cambios en tu cuenta. Revisa la conexión y pulsa «Reintentar guardado».');
 }

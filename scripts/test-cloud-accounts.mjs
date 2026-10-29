@@ -84,3 +84,61 @@ test('siblings keep tasks, agenda, courses, focus and stars isolated across swit
   const back = selectChildProfile(switched, 'b');
   assert.equal(back.child.stars, 2); assert.equal(back.tasks[0].id, 'b-task'); assert.equal(back.profiles.length, 2);
 });
+
+const { loadCloudFamily, childLoginEmail, restorePendingVersions } = load('cloud-accounts');
+function learning(id) { return { child: { id, name: id, age: 8, stars: 0 }, tasks: [], agenda: [], courses: [], focusActive: false }; }
+function childDatabase() {
+  const rows = ['a', 'b'].map(id => ({ auth_user_id: `auth-${id}`, parent_user_id: user.id, child_id: id, username: `user-${id}`, learning: learning(id), version: 1 }));
+  const writes = [];
+  let conflict = false;
+  const client = { from(table) {
+    let filters = {}, patch, write = false;
+    const q = {
+      select() { return q; }, eq(k, v) { filters[k] = v; return q; },
+      update(value) { patch = value; write = true; return q; },
+      maybeSingle: async () => ({ data: { state: { profiles: rows.map(r => r.learning), ...learning('a'), onboarded: true, pinHash: 'parent-secret' } } }),
+      upsert: async value => { writes.push({ table, value }); return { error: null }; },
+      then(resolve) {
+        if (!write) return Promise.resolve({ data: rows.filter(r => Object.entries(filters).every(([k,v]) => r[k] === v)).map(r => ({ ...r })) }).then(resolve);
+        const row = rows.find(r => r.auth_user_id === filters.auth_user_id && r.version === filters.version);
+        if (conflict || !row) return Promise.resolve({ data: [] }).then(resolve);
+        row.learning = patch.learning; row.version++; writes.push({ table, value: patch, id: row.child_id });
+        return Promise.resolve({ data: [{ version: row.version }] }).then(resolve);
+      },
+    }; return q;
+  } };
+  return { client, rows, writes, conflict: () => { conflict = true; } };
+}
+test('child login username maps deterministically, with no child email required', () => {
+  assert.equal(childLoginEmail(' Leo.2026 '), 'leo.2026@students.one-kids.invalid');
+  assert.throws(() => childLoginEmail('another@example.com'));
+});
+test('independent child load contains only own profile and no parent PIN or sibling data', async () => {
+  const db = childDatabase();
+  const childUser = { id: 'auth-a', app_metadata: { one_kids_role: 'child' } };
+  const state = await loadCloudFamily(db.client, childUser);
+  assert.equal(state.profiles.length, 1); assert.equal(state.child.id, 'a'); assert.equal(state.parent.pinHash, ''); assert.equal(state.parent.email, '');
+  await saveCloudFamily(db.client, childUser.id, { ...state, child: { ...state.child, stars: 3 } });
+  assert.equal(db.rows[0].learning.child.stars, 3); assert.equal(db.rows[1].learning.child.stars, 0);
+  assert.equal(db.writes.some(w => w.table === 'family_states'), false);
+  await assert.rejects(loadCloudFamily(db.client, { id: 'orphan', app_metadata: { one_kids_role: 'child' } }), /no está disponible/);
+});
+test('parent sees authoritative progress; saving one child leaves siblings untouched', async () => {
+  const db = childDatabase(); db.rows[0].learning.child.stars = 9;
+  const state = await loadCloudFamily(db.client, user);
+  assert.equal(state.child.stars, 9); assert.equal(state.child.loginUsername, 'user-a');
+  await saveCloudFamily(db.client, user.id, { ...state, tasks: [{ id: 'new-task' }] });
+  assert.deepEqual(db.writes.filter(w => w.table === 'child_accounts').map(w => w.id), ['a']);
+  assert.equal(db.rows[1].learning.tasks.length, 0);
+});
+test('concurrent or offline edits reject stale versions rather than overwrite another device', async () => {
+  const db = childDatabase();
+  const state = await loadCloudFamily(db.client, user);
+  db.conflict();
+  await assert.rejects(saveCloudFamily(db.client, user.id, { ...state, child: { ...state.child, stars: 99 } }), /otro dispositivo/);
+  assert.equal(db.rows[0].learning.child.stars, 0);
+  const offline = childDatabase();
+  const recovered = await loadCloudFamily(offline.client, user);
+  restorePendingVersions(user.id, { 'auth-a': 0 });
+  await assert.rejects(saveCloudFamily(offline.client, user.id, { ...recovered, child: { ...recovered.child, stars: 100 } }), /otro dispositivo/);
+});

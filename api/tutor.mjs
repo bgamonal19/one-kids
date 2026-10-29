@@ -23,7 +23,7 @@ export async function GET(request) {
   let origin;
   try { origin = allowedOrigin(request); } catch { return json({ error: 'Origen no permitido.' }, 403); }
   const user = await optionalUser(request);
-  return json({ ...tutorStatus(process.env), accountRequired: accountRequired(process.env), account: user ? await getUsage(user.id, process.env) : null }, 200, origin);
+  return json({ ...tutorStatus(process.env), accountRequired: accountRequired(process.env), account: user ? await getUsage(user.parentId || user.id, process.env) : null }, 200, origin);
 }
 export function OPTIONS(request) { return preflight(request, 'GET, POST, OPTIONS'); }
 export async function POST(request) {
@@ -57,19 +57,20 @@ export async function POST(request) {
     // Parent panel: switch the open mode or change the monthly limit.
     if (body && typeof body === 'object' && 'settings' in body) {
       if (!user) throw new AccountError('Inicia sesión con tu cuenta familiar para cambiar el tutor.', 401);
+      if (user.role === 'child') throw new AccountError('Solo los padres pueden cambiar estos ajustes.', 403);
       const settings = validateSettings(body.settings);
       if (!settings) throw new TutorError('Ajuste no válido.');
       if (!await saveSettings(user.id, settings, process.env)) throw new TutorError('No se pudo guardar. Revisa que la tabla del tutor esté creada en Supabase.', 503);
-      return json({ account: await getUsage(user.id, process.env) }, 200, origin);
+      return json({ account: await getUsage(user.parentId || user.id, process.env) }, 200, origin);
     }
-    const usage = user ? await getUsage(user.id, process.env) : null;
+    const usage = user ? await getUsage(user.parentId || user.id, process.env) : null;
     if (body && typeof body === 'object' && body.referenceImage) {
       if (!usage) throw new TutorError('Inicia sesión con una cuenta familiar para buscar una imagen verificada.', 403);
       if (usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes.', 429);
       let reference;
       try { reference = await verifiedReferenceImage(body.referenceImage, process.env); }
       catch { throw new TutorError('No pude comprobar la imagen. Inténtalo de nuevo.', 502); }
-      const used = reference.tokens ? (await addUsage(user.id, reference.tokens, process.env)) ?? usage.used + reference.tokens : usage.used;
+      const used = reference.tokens ? (await addUsage(user.parentId || user.id, reference.tokens, process.env)) ?? usage.used + reference.tokens : usage.used;
       return json({ ...reference, account: { ...usage, used } }, 200, origin);
     }
     // A realistic picture the tutor asked for, made after the reply so the board isn't kept waiting.
@@ -78,7 +79,7 @@ export async function POST(request) {
       if (!usage) throw new TutorError('Las imágenes con IA necesitan una cuenta familiar con el contador del tutor activado.', 403);
       if (usage.used >= usage.limit) throw new TutorError('Se alcanzó el límite de uso del tutor de este mes.', 429);
       const { photo, trace, tokens } = await runPicture(body.picture, process.env);
-      const used = (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens;
+      const used = (await addUsage(user.parentId || user.id, tokens, process.env)) ?? usage.used + tokens;
       return json({ photo, ...(trace ? { trace } : {}), account: { ...usage, used } }, 200, origin);
     }
     if (body?.mode === 'open' && !usage?.openMode) throw new TutorError('El modo libre lo activa un adulto desde el panel de padres.', 403);
@@ -89,7 +90,7 @@ export async function POST(request) {
     // Real photos for the board; a lookup failure only leaves the search labels.
     const [photos, visual] = await Promise.all([result.images?.length ? findPhotos(result.images).catch(() => []) : [], attachBackground(attachMap(result.visual))]);
     let account = usage;
-    if (user && usage) account = { ...usage, used: (await addUsage(user.id, tokens, process.env)) ?? usage.used + tokens };
+    if (user && usage) account = { ...usage, used: (await addUsage(user.parentId || user.id, tokens, process.env)) ?? usage.used + tokens };
     return json({ ...result, visual, photos, account }, 200, origin);
   } catch (error) {
     if (error instanceof OriginError) return json({ error: error.message }, 403);

@@ -11,7 +11,8 @@ import { useFamily } from '@/lib/store';
 import { isNumericPassword } from '@/lib/account-validation';
 
 export default function LoginScreen() {
-  const { loginParent } = useFamily();
+  const { loginParent, loginChild } = useFamily();
+  const [childMode, setChildMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,13 +21,13 @@ export default function LoginScreen() {
   const submit = async () => {
     if (loading) return;
     if (!email.trim() || !isNumericPassword(password)) {
-      setError('Escribe tu correo y tu clave numérica, sin letras ni espacios.');
+      setError('Escribe tu usuario o correo y tu clave numérica de 6 a 12 números.');
       return;
     }
     setLoading(true); setError('');
     try {
-      const ok = await loginParent(email, password);
-      if (!ok) { setError('Correo o clave incorrectos.'); return; }
+      const ok = await (childMode ? loginChild(email, password) : loginParent(email, password));
+      if (!ok) { setError('Usuario, correo o clave incorrectos.'); return; }
       router.replace('/');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo iniciar sesión.'); }
     finally { setLoading(false); }
@@ -37,20 +38,25 @@ export default function LoginScreen() {
       <BrandMark size="nav" />
       <Text style={styles.title}>Entrar</Text>
       <View style={styles.form}>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <PrimaryButton label="Padres" variant={childMode ? 'secondary' : 'primary'} onPress={() => { setChildMode(false); setEmail(''); setPassword(''); setError(''); }} />
+          <PrimaryButton label="Hijos" variant={childMode ? 'primary' : 'secondary'} onPress={() => { setChildMode(true); setEmail(''); setPassword(''); setError(''); }} />
+        </View>
+        {childMode ? <Text style={{ color: colors.ink, fontFamily: fonts.body }}>Usa el usuario y la clave que crearon tus padres. Puedes entrar desde tu propio dispositivo.</Text> : null}
         <TextInput
           value={email}
           onChangeText={setEmail}
-          placeholder="Correo"
-          accessibilityLabel="Correo de acceso"
+          placeholder={childMode ? 'Usuario del niño' : 'Correo'}
+          accessibilityLabel={childMode ? 'Usuario del niño' : 'Correo de acceso'}
           placeholderTextColor={colors.inkMuted}
           autoCapitalize="none"
-          keyboardType="email-address"
+          keyboardType={childMode ? 'default' : 'email-address'}
           style={styles.input}
         />
         <PasswordField label="Clave numérica de acceso" value={password} onChangeText={setPassword} placeholder="De 6 a 12 números" textContentType="password" />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label={loading ? "Entrando…" : "Entrar"} onPress={submit} disabled={loading} />
-        <PrimaryButton label="¿Olvidaste tu clave?" variant="ghost" onPress={() => router.push('/(auth)/forgot')} />
+        {childMode ? <Text style={{ color: colors.inkMuted, fontFamily: fonts.body }}>Si olvidaste tu clave, pide a tus padres que la cambien en «Mis hijos».</Text> : <PrimaryButton label="¿Olvidaste tu clave?" variant="ghost" onPress={() => router.push('/(auth)/forgot')} />}
         <PrimaryButton label="Crear una cuenta" variant="secondary" onPress={() => router.push('/(auth)/register')} />
         <PrimaryButton label="Volver" variant="ghost" onPress={() => router.back()} />
       </View>

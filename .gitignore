@@ -51,3 +51,6 @@ yarn-error.*
 # Offline character renderer cache
 __pycache__/
 *.pyc
+
+# Supabase CLI cache
+supabase/.temp/

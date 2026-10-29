@@ -10,7 +10,7 @@ export const SIGN_OUT_SPACE = 84;
 
 /** Thin notice only when there is something to say (demo mode or a failed save); a connected account shows nothing. */
 export function AccountStatus() {
-  const { accountMode, syncStatus, syncError, retrySync } = useFamily();
+  const { accountMode, syncStatus, syncError, retrySync, discardPendingAndRefresh } = useFamily();
   const insets = useSafeAreaInsets();
   const demo = accountMode === 'demo';
   if (!demo && !(accountMode === 'cloud' && syncStatus === 'error')) return null;
@@ -19,7 +19,7 @@ export function AccountStatus() {
       {demo ? 'Modo demo · los cambios se guardan solo en este equipo' : syncError}
     </Text>
     {demo ? <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/register')} style={{ paddingVertical: 4 }}><Text style={{ color: colors.coral, fontSize: 13 }}>Crear mi cuenta real</Text></Pressable>
-      : <Pressable accessibilityRole="button" onPress={() => void retrySync()} style={{ paddingVertical: 4 }}><Text style={{ color: colors.coral, fontSize: 13 }}>Reintentar guardado</Text></Pressable>}
+      : <Pressable accessibilityRole="button" onPress={() => void (syncError.includes('otro dispositivo') ? discardPendingAndRefresh() : retrySync())} style={{ paddingVertical: 4 }}><Text style={{ color: colors.coral, fontSize: 13 }}>{syncError.includes('otro dispositivo') ? 'Descartar cambios locales y cargar lo guardado' : 'Reintentar guardado'}</Text></Pressable>}
   </View>;
 }
 

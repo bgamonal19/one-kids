@@ -22,6 +22,7 @@ export type TaskItem = {
 };
 
 export type ChildProfile = {
+  loginUsername?: string;
   id: string;
   name: string;
   age: number;
@@ -93,6 +94,7 @@ export type ChildLearningState = {
 };
 
 export type FamilyState = {
+  childAccess?: { childId: string; username: string };
   profiles?: ChildLearningState[];
   parent: ParentAccount | null;
   child: ChildProfile | null;

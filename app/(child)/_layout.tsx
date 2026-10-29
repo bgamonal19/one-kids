@@ -60,7 +60,7 @@ export default function ChildLayout() {
             <Text style={styles.parentBtnText}>{narrow ? '🔄 Personaje' : '🔄 Cambiar personaje'}</Text>
           </Pressable>
         ) : null}
-        <Pressable
+        {!state.childAccess ? <Pressable
           onPress={() => {
             setShowPin(true);
             setPin('');
@@ -71,7 +71,7 @@ export default function ChildLayout() {
           style={styles.parentBtn}
         >
           <Text style={styles.parentBtnText}>🔒 Padres</Text>
-        </Pressable>
+        </Pressable> : null}
       </View>
 
       <Modal visible={showPin} animationType="slide" transparent>

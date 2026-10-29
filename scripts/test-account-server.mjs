@@ -54,3 +54,14 @@ test('TUTOR_REQUIRE_ACCOUNT blocks anonymous AI requests before reading the body
     assert.equal(signedIn.status, 503); // authenticated, but no AI keys in this test
   } finally { process.env = saved; globalThis.fetch = savedFetch; }
 });
+
+test('child token requires authoritative membership and cannot delete the family', async () => {
+  const childAuth = async url => url.endsWith('/auth/v1/user')
+    ? Response.json({ id: 'kid', app_metadata: { one_kids_role: 'child' } })
+    : Response.json([{ parent_user_id: 'family-a', child_id: 'a' }]);
+  assert.deepEqual(await verifyUser('kid-token', env, childAuth), { id: 'kid', role: 'child', parentId: 'family-a', childId: 'a' });
+  await assert.rejects(deleteAccount('kid-token', env, childAuth), e => e.status === 403);
+  await assert.rejects(verifyUser('kid-token', env, async url => url.endsWith('/auth/v1/user') ? childAuth(url) : Response.json([])), e => e.status === 403);
+  // User-editable metadata must never grant a different account role.
+  assert.deepEqual(await verifyUser('good', env, async () => Response.json({ id: 'family-a', user_metadata: { one_kids_role: 'child', parentId: 'other' } })), { id: 'family-a' });
+});

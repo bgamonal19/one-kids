@@ -14,7 +14,7 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
 
 export default function ParentLayout() {
   return (
-    <RequireFamily><Tabs
+    <RequireFamily parentOnly><Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.coral,

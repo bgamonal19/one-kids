@@ -27,6 +27,7 @@ export default function Index() {
   }
 
   if (!state.parent) return <Redirect href="/(auth)/welcome" />;
+  if (state.childAccess && state.child) return <Redirect href="/(child)" />;
   if (!state.onboarded || !state.parent.pinHash || !state.child) {
     return <Redirect href="/(onboarding)/pin" />;
   }

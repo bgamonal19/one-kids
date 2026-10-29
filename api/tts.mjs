@@ -29,10 +29,10 @@ export async function POST(request) {
     if (text.length > 20_000) throw new TtsError('El texto es demasiado largo.', 413);
     let body;
     try { body = JSON.parse(text); } catch { throw new TtsError('La petición de voz no es válida.'); }
-    const usage = user ? await getUsage(user.id, process.env) : null;
+    const usage = user ? await getUsage(user.parentId || user.id, process.env) : null;
     if (usage && usage.used >= usage.limit) throw new TtsError('Se alcanzó el límite de uso del tutor de este mes.', 429);
     const { audio, tokens } = await runTts(body, process.env);
-    if (user && usage) await addUsage(user.id, tokens, process.env);
+    if (user && usage) await addUsage(user.parentId || user.id, tokens, process.env);
     return new Response(audio, { status: 200, headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', ...(origin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {}) } });
   } catch (error) {
     if (error instanceof OriginError) return json({ error: error.message }, 403);
