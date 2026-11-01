@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { colors, fonts } from '@/constants/theme';
 import { useFamily } from '@/lib/store';
 
-export function BackButton() {
+export function BackButton({ compact = false }: { compact?: boolean }) {
   const { state } = useFamily();
   const back = () => {
     if (router.canGoBack()) router.back();
@@ -15,10 +15,10 @@ export function BackButton() {
       accessibilityLabel="Volver a la pantalla anterior"
       hitSlop={8}
       onPress={back}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.button, compact && { minHeight: 36, paddingLeft: 0, paddingRight: 0, marginBottom: 0 }, pressed && styles.pressed]}
     >
       <Text style={styles.arrow}>←</Text>
-      <Text style={styles.label}>Volver</Text>
+      {!compact ? <Text style={styles.label}>Volver</Text> : null}
     </Pressable>
   );
 }

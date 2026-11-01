@@ -1,3 +1,5 @@
+import { BackButton } from '@/components/BackButton';
+import { TutorToolIcon, type TutorTool } from '@/components/TutorToolIcon';
 import { editsExistingDrawing, explicitNewTopic, replacesPhotoMarks, latestCourseBoard } from '@/lib/board-flow';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
@@ -86,6 +88,7 @@ function TutorSession() {
   const [messages, setMessages] = useState<Message[]>([{ id: 'welcome', role: 'tutor', text: `${greeting} Escribe, dibuja o dime tu duda, o añade una foto de tu tarea. Vamos a aprender un paso a la vez.` }]);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [viewportHeight, setViewportHeight] = useState(0);
   const [stageWidth, setStageWidth] = useState(Math.min(width, 1100));
   const wide = stageWidth >= 700;
   const [phase, setPhase] = useState<BoardPhase>('writing');
@@ -463,7 +466,7 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
   const hasExplanation = messages.some(m => m.source);
   const yourTurn = phase === 'turn' && !loading;
   const bubble = erasing ? '🧽 Borrando…' : loading === 'reply' ? 'Mmm…' : loading === 'read' ? 'Leyendo…' : phase === 'turn' ? '¡Tu turno!' : undefined;
-  const modes: { id: InputMode; label: string }[] = [{ id: 'keys', label: '⌨️ Teclado' }, { id: 'pen', label: '✏️ Escribir' }, ...(listening.supported ? [{ id: 'voice' as const, label: '🎤 Hablar' }] : [])];
+  const modes: { id: InputMode; label: string; icon: TutorTool }[] = [{ id: 'keys', label: 'Teclado', icon: 'keyboard' }, { id: 'pen', label: 'Escribir', icon: 'edit' }, { id: 'voice', label: 'Hablar', icon: 'mic' }];
 
   // Full screen gives phones a big, calm writing surface; on web it also hides the browser bars where allowed.
   const openFullscreen = () => {
@@ -506,15 +509,39 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
     </View>
   </View> : null;
   const renderBoard = (full: boolean) => viewing && !erasing
-    ? <TutorWhiteboard readOnly phase="turn" board={viewing} pace={pace} expression={expression} width={full ? width : stageWidth} onWritten={() => {}} banner={reviewBanner} />
-    : <TutorWhiteboard phase={erasing ? 'turn' : phase} board={erasing ? wipingBoard ?? board : board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} onPlace={erasing ? undefined : place} onWritten={onWritten} onEdit={erasing ? undefined : id => { setEditTargetId(id); setMode('keys'); setError(''); }}
+    ? <TutorWhiteboard readOnly phase="turn" board={viewing} pace={pace} expression={expression} width={full ? width : stageWidth} columnHeight={full ? undefined : Math.max(120, (viewportHeight || height - 220) - 108)} onWritten={() => {}} banner={reviewBanner} />
+    : <TutorWhiteboard phase={erasing ? 'turn' : phase} board={erasing ? wipingBoard ?? board : board} activeId={activeId} childLine={thinkingLine} pace={pace} expression={expression} bubble={bubble} width={full ? width : stageWidth} columnHeight={full ? undefined : Math.max(120, (viewportHeight || height - 220) - 108)} onPlace={erasing ? undefined : place} onWritten={onWritten} onEdit={erasing ? undefined : id => { setEditTargetId(id); setMode('keys'); setError(''); }}
       onBoardFull={() => setErasing(true)} erasing={erasing} onErased={erased}>
       {mode === 'pen' || full ? answerPad(full) : null}
     </TutorWhiteboard>;
 
-  const newBoardButton = <Pressable accessibilityRole="button" accessibilityLabel="Crear una nueva pizarra" disabled={working} onPress={freshBoard} style={[styles.newBoardButton, working && styles.dim]}><Text style={styles.newBoardText}>＋ Nueva pizarra</Text></Pressable>;
+  const newBoardButton = <Pressable accessibilityRole="button" accessibilityLabel="Crear una nueva pizarra" disabled={working} onPress={freshBoard} style={[styles.newBoardButton, working && styles.dim]}><Text style={styles.newBoardText}>{width < 520 ? '＋ Nueva' : '＋ Nueva pizarra'}</Text></Pressable>;
+  const composerDock = <View style={styles.dock}>
+    <View style={styles.messageBar}>
+        <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder="Escribe tu pregunta…" placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!working} style={[styles.input, styles.messageInput]}
+          submitBehavior="submit" onSubmitEditing={() => { if (!loading && input.trim()) void send(); }}
+          onKeyPress={event => {
+            // Web: Enter sends, Shift+Enter keeps a new line (native uses submitBehavior instead).
+            const key = event as unknown as { key?: string; shiftKey?: boolean; nativeEvent: { isComposing?: boolean }; preventDefault?: () => void };
+            if (Platform.OS !== 'web' || key.key !== 'Enter' || key.shiftKey || key.nativeEvent.isComposing) return;
+            key.preventDefault?.();
+            if (!loading && input.trim()) void send();
+          }} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Enviar pregunta al tutor" disabled={working || !input.trim()} onPress={() => void send()} style={[styles.sendIcon, (working || !input.trim()) && styles.dim]}><TutorToolIcon name="send" color="#FFFFFF" /></Pressable>
+    </View>
+    <View style={styles.compactTools}>
+      {modes.map(m => <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={m.label} accessibilityState={{ selected: mode === m.id }} disabled={erasing} onPress={() => { setMode(m.id); if (m.id === 'voice') { if (!listening.supported) { setMode('keys'); setError('Puedes dictar con el micrófono del teclado de tu dispositivo.'); return; } if (listening.listening) listening.stop(); else startListening(); } else listening.stop(); }} style={[styles.compactTool, mode === m.id && styles.compactToolOn]}>
+        <TutorToolIcon name={m.icon} color={mode === m.id ? '#2C60AE' : undefined} /><Text style={styles.compactLabel}>{m.label}</Text>
+      </Pressable>)}
+      <Pressable accessibilityRole="switch" accessibilityLabel="Voz del tutor" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.compactTool}><TutorToolIcon name={voiceOn ? 'volume' : 'muted'} /><Text style={styles.compactLabel}>Voz</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz del tutor" onPress={() => setVoicesOpen(true)} style={styles.compactTool}><TutorToolIcon name="voice" /><Text style={styles.compactLabel}>Cambiar voz</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Tomar foto de la tarea" disabled={working} onPress={() => { if (Platform.OS === 'web') setCameraOpen(true); else void pickPhoto(true); }} style={[styles.compactTool, working && styles.dim]}><TutorToolIcon name="camera" /><Text style={styles.compactLabel}>Foto</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Subir foto de la tarea desde un archivo" disabled={working} onPress={() => void pickPhoto(false)} style={[styles.compactTool, working && styles.dim]}><TutorToolIcon name="file" /><Text style={styles.compactLabel}>Archivo</Text></Pressable>
+    </View>
+    {listening.listening || listening.error ? <Text accessibilityLiveRegion="polite" style={styles.voiceText}>{listening.error || listening.interim || 'Te escucho…'}</Text> : null}
+  </View>;
   return (
-    <Screen scroll fill scrollEnabled={!drawing} scrollRef={scroller} toolbar={newBoardButton}>
+    <Screen scroll fill hideBack scrollEnabled={!drawing} scrollRef={scroller} onViewportHeight={setViewportHeight} dock={composerDock} toolbar={<View style={styles.compactHeader}><BackButton compact />{newBoardButton}</View>}>
       <Modal visible={fullscreen} animationType="slide" onRequestClose={closeFullscreen} supportedOrientations={['portrait', 'landscape']}>
         <View style={[styles.fullRoot, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
           <View style={[styles.fullHeader, styles.fullHeaderPad]}>
@@ -529,13 +556,12 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       </Modal>
       <VoicePicker visible={voicesOpen} value={voice} onChange={chooseVoice} onPreview={choice => void speak(`sample-${Date.now()}`, VOICE_SAMPLE, undefined, choice)} onClose={() => setVoicesOpen(false)} />
       {cameraOpen ? <TaskCamera onClose={() => setCameraOpen(false)} onCapture={captured => void pickPhoto(false, captured)} /> : null}
-      <Text style={styles.eyebrow}>APRENDEMOS A TU RITMO</Text>
-      <Text style={styles.title}>La pizarra de tu tutor</Text>
-      <BoardStrip boards={boards} wide={stageWidth >= 700} openId={viewing?.id} currentId={board.id} onOpen={review} />
       <View style={styles.edge} onLayout={e => { setStageWidth(e.nativeEvent.layout.width); stageY.current = e.nativeEvent.layout.y; }}>
         {fullscreen ? <Text style={styles.hint}>La pizarra está en pantalla completa.</Text> : renderBoard(false)}
       </View>
       <View style={styles.column}>
+      <BoardStrip boards={boards} wide={stageWidth >= 700} openId={viewing?.id} currentId={board.id} onOpen={review} />
+
 
       {offeredReference ? <View style={styles.reviewBanner}>
         <Text style={styles.hint}>¿Prefieres una imagen de internet para «{offeredReference.title}»? Puede ayudar si el dibujo es complejo.</Text>
@@ -544,36 +570,6 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
       </View> : null}
       {editingId ? <Text accessibilityRole="status" style={styles.hint}>✏️ Añadiendo detalles al dibujo original…</Text> : null}
       {editTargetId ? <View style={styles.toolRow}><Text style={styles.hint}>✏️ Vas a ampliar: {board.blocks.find(b => b.id === editTargetId)?.photos?.[0]?.label || board.blocks.find(b => b.id === editTargetId)?.visual?.title || 'la imagen seleccionada'}. Escribe qué quieres añadir.</Text><Pressable accessibilityRole="button" onPress={() => setEditTargetId(undefined)}><Text style={styles.link}>Cancelar</Text></Pressable></View> : null}
-      <View style={styles.modes} accessibilityRole="tablist">
-        {modes.map(m => <Pressable key={m.id} accessibilityRole="tab" accessibilityState={{ selected: mode === m.id }} disabled={erasing} onPress={() => { setMode(m.id); if (m.id !== 'voice') listening.stop(); }} style={[styles.mode, mode === m.id && styles.modeOn]}><Text style={[styles.modeText, mode === m.id && styles.modeTextOn]}>{m.label}</Text></Pressable>)}
-        <Pressable accessibilityRole="switch" accessibilityState={{ checked: voiceOn }} onPress={() => { if (voiceOn) { void stop(); markSpoken(turn.current.generation); } setVoiceOn(!voiceOn); }} style={styles.mode}><Text style={styles.modeText}>{voiceOn ? '🔊 Voz' : '🔇 Sin voz'}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz del tutor" onPress={() => setVoicesOpen(true)} style={styles.mode}><Text style={styles.modeText}>🗣️ Cambiar voz</Text></Pressable>
-      </View>
-
-      <View style={styles.questionRow}>
-      {mode === 'keys' ? <View style={[styles.composer, styles.questionComposer]}>
-        <TextInput accessibilityLabel="Tu respuesta o tu duda para el tutor" value={input} onFocus={() => { if (!loading) react('listen'); }} onChangeText={setInput} placeholder={listening.supported ? 'Escribe tu respuesta o tu duda…' : 'Escribe tu respuesta o tu duda… (o usa el micrófono del teclado 🎤)'} placeholderTextColor={colors.inkMuted} multiline maxLength={2000} editable={!working} style={styles.input}
-          submitBehavior="submit" onSubmitEditing={() => { if (!loading && input.trim()) void send(); }}
-          onKeyPress={event => {
-            // Web: Enter sends, Shift+Enter keeps a new line (native uses submitBehavior instead).
-            const key = event as unknown as { key?: string; shiftKey?: boolean; nativeEvent: { isComposing?: boolean }; preventDefault?: () => void };
-            if (Platform.OS !== 'web' || key.key !== 'Enter' || key.shiftKey || key.nativeEvent.isComposing) return;
-            key.preventDefault?.();
-            if (!loading && input.trim()) void send();
-          }} />
-        <PrimaryButton label="Enviar →" onPress={() => void send()} disabled={working || !input.trim()} />
-      </View> : null}
-      {mode === 'voice' ? <View style={[styles.composer, styles.voiceBox, styles.questionComposer]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={listening.listening ? 'Dejar de escuchar' : 'Hablar con el tutor'} disabled={working} onPress={() => listening.listening ? listening.stop() : startListening()} style={[styles.mic, listening.listening && styles.micOn, working && styles.dim]}><Text style={styles.micIcon}>{listening.listening ? '■' : '🎤'}</Text></Pressable>
-        <Text style={styles.voiceText} accessibilityLiveRegion="polite">{listening.listening ? listening.interim || 'Te escucho…' : 'Toca el micrófono y dime tu respuesta o tu duda'}</Text>
-        {listening.error ? <Text accessibilityRole="alert" style={styles.error}>{listening.error}</Text> : null}
-      </View> : null}
-
-      <View style={styles.photoTools}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Tomar foto de la tarea" disabled={working} onPress={() => { if (Platform.OS === 'web') setCameraOpen(true); else void pickPhoto(true); }} style={styles.photoIcon}><Text style={styles.photoIconText}>📷</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Subir foto de la tarea" disabled={working} onPress={() => void pickPhoto(false)} style={styles.photoIcon}><Text style={styles.photoIconText}>🖼️</Text></Pressable>
-      </View>
-      </View>
       {page.reply ? <View style={styles.said}>
         <Text style={styles.saidText} selectable>{page.reply}</Text>
         <View style={styles.messageFooter}>
@@ -622,6 +618,15 @@ Dibujo existente seleccionado: ${base.title}. ${base.trace?.image ? 'La aplicaci
 }
 
 const styles = StyleSheet.create({
+  compactHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 170, minHeight: 40 },
+  dock: { backgroundColor: colors.paper, paddingTop: 8, paddingBottom: 8, borderTopWidth: 1, borderTopColor: '#D8E5EF' },
+  messageBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.white, borderRadius: 18, padding: 6, borderWidth: 1, borderColor: '#CEDDE9' },
+  messageInput: { flex: 1, minWidth: 0, minHeight: 44, maxHeight: 100, borderWidth: 0, backgroundColor: 'transparent', padding: 10, fontSize: 16 },
+  sendIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: colors.coral, alignItems: 'center', justifyContent: 'center' },
+  compactTools: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 2, paddingTop: 4 },
+  compactTool: { minWidth: 40, minHeight: 44, paddingHorizontal: 6, paddingVertical: 5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  compactToolOn: { backgroundColor: '#DFEBFA' },
+  compactLabel: { fontFamily: fonts.bodySemi, fontSize: 10, color: colors.inkMuted },
   questionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   questionComposer: { flex: 1, minWidth: 0 },
   photoTools: { gap: 8, paddingTop: 12 },
@@ -651,8 +656,8 @@ const styles = StyleSheet.create({
   edge: { marginHorizontal: -spacing.lg },
   column: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
   fullHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  newBoardButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.coral },
-  newBoardText: { fontFamily: fonts.bodyBold, color: colors.white, fontSize: 16 },
+  newBoardButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.coral },
+  newBoardText: { fontFamily: fonts.bodyBold, color: colors.white, fontSize: 13 },
   exitTool: { marginLeft: 'auto', backgroundColor: colors.white, borderWidth: 1, borderColor: '#CDDCE9' },
   modes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
   courses: { gap: 8 },
