@@ -21,7 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import { WebShell } from '@/components/WebShell';
 import { FamilyProvider } from '@/lib/store';
 
-export { ErrorBoundary } from 'expo-router';
+export { AppErrorBoundary as ErrorBoundary } from '@/components/AppErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
