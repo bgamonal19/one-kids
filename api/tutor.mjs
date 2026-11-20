@@ -7,6 +7,7 @@ import { addUsage, getUsage, saveSettings, validateSettings } from '../server/us
 import { attachBackground, findPhotos } from '../server/photos-core.mjs';
 import { PictureError, runPicture } from '../server/picture-core.mjs';
 import { attachMap } from '../server/geo-core.mjs';
+import { respuestaSuspendida } from '../server/generale-core.mjs';
 
 const requests = new Map();
 // TUTOR_REQUIRE_ACCOUNT=true limits the AI to signed-in families (the demo keeps practice mode).
@@ -20,6 +21,8 @@ async function optionalUser(request) {
   try { return await verifyUser(token, process.env); } catch { return null; }
 }
 export async function GET(request) {
+  const suspendida = await respuestaSuspendida(request);
+  if (suspendida) return suspendida;
   let origin;
   try { origin = allowedOrigin(request); } catch { return json({ error: 'Origen no permitido.' }, 403); }
   const user = await optionalUser(request);
@@ -27,6 +30,8 @@ export async function GET(request) {
 }
 export function OPTIONS(request) { return preflight(request, 'GET, POST, OPTIONS'); }
 export async function POST(request) {
+  const suspendida = await respuestaSuspendida(request);
+  if (suspendida) return suspendida;
   let origin;
   try {
     origin = allowedOrigin(request);
