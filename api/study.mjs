@@ -2,6 +2,7 @@ import { runStudy, StudyError } from '../server/study-core.mjs';
 import { AccountError, bearerToken, verifyUser } from '../server/account-core.mjs';
 import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
 import { addUsage, getUsage } from '../server/usage-core.mjs';
+import { respuestaSuspendida } from '../server/generale-core.mjs';
 
 const requests = new Map();
 const accountRequired = env => ['1', 'true', 'yes'].includes(String(env.TUTOR_REQUIRE_ACCOUNT || '').trim().toLowerCase());
@@ -14,6 +15,8 @@ async function optionalUser(request) {
 export function OPTIONS(request) { return preflight(request, 'POST, OPTIONS'); }
 // Study-mode lessons, the parent report and syllabus photos share the tutor's monthly limit.
 export async function POST(request) {
+  const suspendida = await respuestaSuspendida(request);
+  if (suspendida) return suspendida;
   let origin;
   try {
     origin = allowedOrigin(request);

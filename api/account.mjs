@@ -1,9 +1,12 @@
 import { provisionChild } from '../server/child-access.mjs';
 import { AccountError, bearerToken, deleteAccount } from '../server/account-core.mjs';
 import { allowedOrigin, json, OriginError, preflight } from '../server/http.mjs';
+import { respuestaSuspendida } from '../server/generale-core.mjs';
 
 export function OPTIONS(request) { return preflight(request, 'POST, DELETE, OPTIONS'); }
 export async function DELETE(request) {
+  const suspendida = await respuestaSuspendida(request);
+  if (suspendida) return suspendida;
   let origin;
   try {
     origin = allowedOrigin(request);
@@ -16,6 +19,8 @@ export async function DELETE(request) {
 }
 
 export async function POST(request) {
+  const suspendida = await respuestaSuspendida(request);
+  if (suspendida) return suspendida;
   let origin;
   try {
     origin = allowedOrigin(request);

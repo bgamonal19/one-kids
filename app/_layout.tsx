@@ -19,6 +19,7 @@ import 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 
 import { WebShell } from '@/components/WebShell';
+import { AppSuspendida } from '@/components/AppSuspendida';
 import { FamilyProvider } from '@/lib/store';
 
 export { AppErrorBoundary as ErrorBoundary } from '@/components/AppErrorBoundary';
@@ -62,6 +63,7 @@ export default function RootLayout() {
           </Stack>
         </WebShell>
         <SignOutButton />
+        <AppSuspendida />
         </FloatingCompanionProvider>
       </FamilyProvider>
     </GestureHandlerRootView>
